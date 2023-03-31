@@ -26,7 +26,7 @@ const myCarousel = document.getElementById('myCarousel')
 myCarousel.addEventListener('slide.bs.carousel', function(event){
   let to = event.to;
   let image = document.getElementById(`img${to}`);
-  if(image.src == "loading.gif"){
+  if(image.src == "https://www.artic.edu/iiif/2/25c31d8d-21a4-9ea1-1d73-6a2eca4dda7e/full/843,/0/default.jpg"){
     fetch(urls[arr[to]])
     .then(response => response.json())
     .then(json => json.sequences)
