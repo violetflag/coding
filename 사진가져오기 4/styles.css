@@ -1,0 +1,66 @@
+@font-face {
+    font-family: "GmarketSansMedium";
+    src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/GmarketSansMedium.woff")
+      format("woff");
+    font-weight: normal;
+    font-style: normal;
+  }
+  
+  * {
+    font-family: "GmarketSansMedium";
+  }
+  
+  body {
+    background-color: #000;
+  }
+  
+  #clock {
+    font-size: 100px;
+    z-index: 999;
+    position: fixed;
+    color: #fff;
+    text-shadow: 1px 1px 1px #000;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  
+  #clock2 {
+    font-size: 30px;
+    z-index: 999;
+    position: fixed;
+    color: #fff;
+    text-shadow: 1px 1px 1px #000;
+    top: calc(30% + 120px);
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  
+  #description {
+    position: fixed;
+    color: white;
+    left: 10px;
+    bottom: 10px;
+    font-style: italic;
+  }
+  
+  @media (max-width: 768px) {
+    #clock {
+      font-size: 50px;
+    }
+  
+    #clock2 {
+      font-size: 20px;
+      top: calc(30% + 80px);
+    }
+  
+    #description {
+      font-size: 11px;
+    }
+  }
+  .carousel-item img {
+    height: 100%; /* set your desired height here */
+    object-fit: fill; /* scale the image to cover the entire container */
+    display: block; /* center the image horizontally */
+    margin: 0 auto;
+  }
