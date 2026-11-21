@@ -1548,8 +1548,8 @@ fn stars(rd: vec3f, pixAng: f32) -> vec3f {
     var nF = n; var albF = alb;
     if (textureDimensions(brickC).x > 1u) {
       // photo brick: one tile covers 1.6 m (Bricks097); the same soot darkening as the procedural brick
-      let tuv = vec2f(uv.x, -uv.y) / 1.6;
-      albF = textureSampleLevel(brickC, rep, tuv, 0.0).rgb * mix(1.0, 0.34, clamp(soot * (0.7 + 0.3 * gn3(vec3f(uv * 4.0, 1.7))), 0.0, 1.0));
+      let tuv = vec2f(uv.x / 1.8, -uv.y / 1.2);   // Bricks097 is 2:1: 8 bricks x 16 courses per tile
+      albF = textureSampleLevel(brickC, rep, tuv, 0.0).rgb * 0.55 * mix(1.0, 0.22, clamp(soot * (0.7 + 0.3 * gn3(vec3f(uv * 4.0, 1.7))), 0.0, 1.0));
       let tn = textureSampleLevel(brickN, rep, tuv, 0.0).xyz * 2.0 - 1.0;
       nF = normalize(tu * tn.x + tv * tn.y + wn * max(tn.z, 0.05));
     }

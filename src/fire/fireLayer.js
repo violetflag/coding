@@ -57,13 +57,13 @@ export class FireLayer {
   }
 
   // 화실 벽돌의 사진 텍스처(ambientCG)를 읽어 불 셰이더에 넘긴다. 읽지 못하면 코드로 그린 벽돌이 남는다.
-  async loadBrick(dir = 'textures/firebrick/', size = 512) {
+  async loadBrick(dir = 'textures/firebrick/', size = 1024) {
     try {
       const load = async (name, format) => {
         const r = await fetch(dir + name); if (!r.ok) throw new Error(name + ' ' + r.status);
-        const bmp = await createImageBitmap(await r.blob(), { resizeWidth: size, resizeHeight: size, resizeQuality: 'high', colorSpaceConversion: 'none' });
-        const t = this.device.createTexture({ size: [size, size], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
-        this.device.queue.copyExternalImageToTexture({ source: bmp }, { texture: t }, [size, size]); bmp.close(); return t;
+        const bmp = await createImageBitmap(await r.blob(), { resizeWidth: size, resizeHeight: size / 2, resizeQuality: 'high', colorSpaceConversion: 'none' });
+        const t = this.device.createTexture({ size: [size, size / 2], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
+        this.device.queue.copyExternalImageToTexture({ source: bmp }, { texture: t }, [size, size / 2]); bmp.close(); return t;
       };
       const [c, n] = await Promise.all([load('color.jpg', 'rgba8unorm-srgb'), load('normal.jpg', 'rgba8unorm')]);
       this.renderer.setBrick(c, n); return true;
