@@ -38,7 +38,7 @@ export function setupArrange({ ctx, player, camera, canvas, toast, sfx }) {
   api.grab = (m) => {
     api.held = { m, from: { x: m.obj.position.x, z: m.obj.position.z, yaw: m.obj.rotation.y }, dist: Math.max(0.9, Math.min(2.2, Math.hypot(m.obj.position.x - player.pos.x, m.obj.position.z - player.pos.z))), yaw: m.obj.rotation.y, bad: false };
     m.col.min[1] = 99; m.col.max[1] = 99;                                            // 들고 있는 동안은 지나갈 수 있게
-    sfx?.('click'); toast(`${m.label}을(를) 옮기는 중 · G 또는 클릭: 내려놓기 · 휠: 돌리기 · Esc: 취소`);
+    sfx?.('click'); toast(`${m.label} 옮기는 중 · G 또는 클릭: 내려놓기 · 휠: 돌리기 · Esc: 취소`);
   };
   api.drop = (cancel = false) => {
     const h = api.held; if (!h) return;
