@@ -26,7 +26,7 @@ export function buildRoom(ctx) {
 
   // ---- 바닥, 천장, 벽
   box(W, 0.1, D, W / 2, -0.05, D / 2, M.floor, { cast: false });
-  box(W, 0.1, D, W / 2, H + 0.05, D / 2, M.ceiling, { cast: false });
+  box(W + 0.6, 0.1, D + 0.6, W / 2, H + 0.05, D / 2, M.ceiling);
   for (const x of [1.15, 2.55, 3.95]) box(0.16, 0.17, D, x, H - 0.085, D / 2, M.woodDark);     // 천장 들보
   box(W, 0.14, 0.16, W / 2, H - 0.07, D - 0.08, M.woodDark); box(W, 0.14, 0.16, W / 2, H - 0.07, 0.08, M.woodDark);
   box(0.1, H, D, -0.05, H / 2, D / 2, M.wall);                                   // 왼쪽 벽

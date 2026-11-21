@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { ROOM, FIREPLACE as FP, LAMP } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
+import { Environment } from './scene/environment.js';
 import { Player } from './player/player.js';
 import { FireLayer } from './fire/fireLayer.js';
 import { Mixer } from './audio/mixer.js';
@@ -35,8 +36,10 @@ async function main() {
   fireLight.shadow.mapSize.set(1024, 1024); fireLight.shadow.bias = -0.004; fireLight.shadow.radius = 4;
   scene.add(fireLight);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
-  scene.add(new THREE.HemisphereLight(0x223355, 0x120a06, 0.6));
-  const moon = new THREE.DirectionalLight(0x8fa8d8, 0.25); moon.position.set(2.6, 4, -6); moon.target.position.set(2.8, 0, 2); scene.add(moon, moon.target);
+  // 창밖 세계와 시간에 따른 조명 (해·달·하늘·계절·날씨)
+  const env = new Environment(scene, ctx, renderer, { url: Q });
+  env.recompute();
+  if (!HEADLESS) env.locate();
 
   // ---- 불 레이어
   const fireCfg = applyUrl(loadFireConfig(), Q);
@@ -50,11 +53,15 @@ async function main() {
   // ---- 플레이어
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); };
   let lampOn = true, fireSound = null;
+  const setLamp = (on) => { lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
+  // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
+  setLamp(env.state.day < 0.6);
+  if (env.state.day < 0.5) for (const c of ctx.candles) c.userData.set(1, true);
   const mixer = new Mixer();
   const player = new Player({
     camera, canvas: roomCanvas, ctx,
     onInteract(it) {
-      if (it.id === 'lamp') { lampOn = !lampOn; lamp.intensity = lampOn ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = lampOn; }
+      if (it.id === 'lamp') setLamp(!lampOn);
       else if (it.id === 'woodpile') { fire?.addLog(); fireSound?.trigger('log-shift', 0.6); toast('장작을 넣었습니다'); }
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
       else if (it.candle) { const st = it.candle.userData.state; it.candle.userData.set(st.frac, !st.lit); }
@@ -113,6 +120,7 @@ async function main() {
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(clock.elapsedTime);
     for (const c of ctx.candles) c.userData.flicker(clock.elapsedTime);
+    env.update(dt, clock.elapsedTime); ctx.clock.userData.tick(env.now());
 
     // 불빛 신호 → 방 조명. 물리 불이 없으면 느린 잡음으로 대신한다(대체 표시).
     // 불빛 측정값이 아직 없거나 끊기면(읽어오기 지연) 같은 잡음으로 이어 간다.
@@ -163,7 +171,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }
