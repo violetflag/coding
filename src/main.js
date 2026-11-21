@@ -5,12 +5,15 @@ import { ROOM, FIREPLACE as FP, LAMP } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
 import { Player } from './player/player.js';
 import { FireLayer } from './fire/fireLayer.js';
+import { Mixer } from './audio/mixer.js';
+import { FireSound } from './audio/fireSound.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
 const roomCanvas = $('room'), fireCanvas = $('fire');
 // 헤드리스 테스트 환경은 WebGPU 캔버스에 그리면 장치가 죽는다: 화면 출력은 건너뛰고 NANRO.capture()로만 읽는다.
 const HEADLESS = Q.has('headless');
+const LAMP_ON = 4.0;
 
 async function main() {
   const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: true, alpha: true, forceWebGL: Q.has('webgl') });
@@ -29,7 +32,7 @@ async function main() {
   fireLight.position.set(FP.faceX - 0.12, FP.hearthH + 0.3, FP.zc); fireLight.castShadow = true;
   fireLight.shadow.mapSize.set(1024, 1024); fireLight.shadow.bias = -0.004; fireLight.shadow.radius = 4;
   scene.add(fireLight);
-  const lamp = new THREE.PointLight(0xffc98a, 4.0, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
+  const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
   scene.add(new THREE.HemisphereLight(0x223355, 0x120a06, 0.6));
   const moon = new THREE.DirectionalLight(0x8fa8d8, 0.25); moon.position.set(2.6, 4, -6); moon.target.position.set(2.8, 0, 2); scene.add(moon, moon.target);
 
@@ -43,13 +46,14 @@ async function main() {
 
   // ---- 플레이어
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); };
-  let lampOn = true;
+  let lampOn = true, fireSound = null;
+  const mixer = new Mixer();
   const player = new Player({
     camera, canvas: roomCanvas, ctx,
     onInteract(it) {
-      if (it.id === 'lamp') { lampOn = !lampOn; lamp.intensity = lampOn ? 2.2 : 0; ctx.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.02; }
-      else if (it.id === 'woodpile') { fire?.addLog(); toast('장작을 넣었습니다'); }
-      else if (it.id === 'poker') { fire?.stoke(); toast('불을 뒤적였습니다'); }
+      if (it.id === 'lamp') { lampOn = !lampOn; lamp.intensity = lampOn ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.02; }
+      else if (it.id === 'woodpile') { fire?.addLog(); fireSound?.trigger('log-shift', 0.6); toast('장작을 넣었습니다'); }
+      else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
       else if (it.id === 'shelf') toast('책장은 5단계에서 내 서재가 됩니다');
     },
     onState(s) { if (s === 'reading') toast('책은 5단계에서 구현됩니다 · Space로 덮기'); },
@@ -67,8 +71,19 @@ async function main() {
   // ---- 시작 화면과 포인터 잠금
   const start = $('start'), hint = $('hint'), dot = $('dot'), prompt = $('prompt'), stats = $('stats');
   $('startMsg').textContent = '클릭해서 들어가기';
-  start.addEventListener('click', () => player.lock());
-  roomCanvas.addEventListener('click', () => { if (!player.locked) player.lock(); });
+  // 소리는 첫 클릭에서 켠다(브라우저 정책). 실패해도 화면은 그대로 돈다.
+  const startSound = async () => {
+    if (mixer.ctx || Q.has('mute')) return mixer.ctx?.resume().catch(() => {});
+    try { mixer.start(); fireSound = await FireSound.create(mixer, fire); } catch (e) { console.warn('소리를 켤 수 없습니다', e); }
+  };
+  start.addEventListener('click', () => { startSound(); player.lock(); });
+  roomCanvas.addEventListener('click', () => { startSound(); if (!player.locked) player.lock(); });
+  // 임시 볼륨 조절: [ 와 ] 로 전체 볼륨 (정식 소리 설정 화면은 6단계)
+  addEventListener('keydown', (e) => {
+    if (e.code !== 'BracketLeft' && e.code !== 'BracketRight') return;
+    mixer.setVolume('master', mixer.volume('master') + (e.code === 'BracketRight' ? 0.1 : -0.1));
+    toast('전체 볼륨 ' + Math.round(mixer.volume('master') * 100) + '%');
+  });
   document.addEventListener('pointerlockchange', () => {
     const on = player.locked;
     start.style.display = on ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0;
@@ -98,6 +113,7 @@ async function main() {
       if (fire.light.ref > 0 && performance.now() - fire.light.at < 500) target = fire.light.level;
     }
     level += (target - level) * (1 - Math.exp(-dt * 30));
+    fireSound?.update(power, level, fire ? fire.camPos(camera) : [camera.position.z - FP.fire.z, camera.position.y - FP.fire.y, FP.fire.x - camera.position.x]);
     prevCam.copy(camera.position);
     fireLight.intensity = 9 * power * Math.max(0.3, Math.min(1.8, level));
     fireLight.position.y = FP.hearthH + 0.3 + 0.03 * (level - 1);
@@ -134,7 +150,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }

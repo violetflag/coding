@@ -65,6 +65,7 @@ export class FireLayer {
   }
 
   // 방 좌표 → 불 좌표: (x, y, z)불 = (z - zc, y - 화로대 높이, -(x - 불 중심 x))
+  camPos(camera) { const e = camera.matrixWorld.elements, f = FP.fire; return [e[14] - f.z, e[13] - f.y, -(e[12] - f.x)]; }
   _cam(camera) {
     const e = camera.matrixWorld.elements, f = FP.fire;
     const P = (x, y, z) => [z - f.z, y - f.y, -(x - f.x)], D = (x, y, z) => [z, y, -x];
@@ -93,7 +94,7 @@ export class FireLayer {
     this.power += (this.target - this.power) * (1 - Math.exp(-k * dtReal));
     sim.setParams({ intensity: this.power, burstAmt: now < this.burstUntil ? 1 : 0 });
     this.popClock -= dtReal;
-    if (this.popClock <= 0) { this.popClock = 0.8 + Math.random() * 3; this.event({ type: 'pop', strength: 0.2 + Math.random() * 0.6 }); }
+    if (this.popClock <= 0 && !this.popsFromAudio) { this.popClock = 0.8 + Math.random() * 3; this.event({ type: 'pop', strength: 0.2 + Math.random() * 0.6 }); }
     this.acc += dtReal;
     let n = 0;
     while (this.acc >= this.q.dt && n < 2) {

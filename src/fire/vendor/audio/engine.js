@@ -19,7 +19,7 @@
 // oversampled clip, limiter lookahead); onEvent()'s audible time `time` includes that delay, `contextTime` does not.
 import { makeOutdoorIR, REVERB_DEFAULTS, EVENT_TYPES, decodeEvents, LiveMaster } from './fire-dsp.js';
 
-const WORKLET_URL = new URL('./worklet.js', import.meta.url);
+import WORKLET_URL from './worklet.js?worker&url'; // [nanro] 빌드 때 fire-dsp.js까지 한 파일로 묶이도록 Vite 워커 번들을 쓴다
 const modulePromises = new WeakMap();
 const GESTURES = ['pointerdown', 'pointerup', 'keydown', 'touchend', 'mousedown'];
 
