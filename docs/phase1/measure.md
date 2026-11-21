@@ -17,7 +17,8 @@
 | 브라우저 | Microsoft Edge 157.0.4341.60 (Playwright `channel: 'msedge'`, `headless: false`) |
 | 실행 인자 | `--enable-unsafe-webgpu --autoplay-policy=no-user-gesture-required` |
 | 뷰포트 | 1920×1080, devicePixelRatio 1 |
-| 화면 | 1920×1080 |
+| GPU (Windows 표시) | Intel(R) Arc(TM) B390 GPU, 드라이버 32.0.101.8622 |
+| 화면 | 1920×1080, 주사율 59~60 Hz |
 | 방 렌더러 | WebGPU, 픽셀 배율 0.833, 캔버스 버퍼 1600×900 (표시 1920×1080) |
 | 어댑터 vendor | `intel` |
 | 어댑터 architecture | `xe-3lpg` |
@@ -90,5 +91,5 @@
 2. **첫 실행의 low-start 시점 불일치(재현 안 됨)**: 첫 번째 실행에서 low의 시작 시점 스크린샷만 카메라가 다른 방향이었다(왼쪽에 책장이 보이고 벽난로가 오른쪽으로 치우침, [low-start-run1.png](low-start-run1.png)). 같은 실행의 med, high와 두 번째 실행 전체, 따로 돌린 확인(low, med 모두 x 2.6, z 4.1, yaw -0.569)에서는 시작 자세가 같았다. 첫 실행은 자세 값을 기록하지 않아 원인을 확인하지 못했다. 그 페이지는 준비까지 약 15초 더 걸린 첫 로드였다. 표와 스크린샷 9장은 두 번째 실행 것이다.
 3. **`/favicon.ico` 404**: 위 오류 목록 참고. 동작에는 영향이 없다.
 4. **경고 2종은 코드 쪽 정리 대상**: `THREE.Clock` 사용 중단 예고, `PCFSoftShadowMap` 제거(현재 `PCFShadowMap`으로 대체되어 그림자 가장자리가 의도와 다를 수 있음).
-5. **어댑터 device, description이 빈 문자열**: Edge가 값을 내주지 않아 "Arc B390"이라는 이름은 WebGPU로 확인되지 않는다. vendor `intel`, architecture `xe-3lpg`만 확인된다.
+5. **어댑터 device, description이 빈 문자열**: Edge가 값을 내주지 않아 "Arc B390"이라는 이름은 WebGPU로 확인되지 않는다. vendor `intel`, architecture `xe-3lpg`만 확인된다. Windows 장치 정보에는 이 PC의 유일한 그래픽 장치가 Intel(R) Arc(TM) B390 GPU로 나온다.
 6. **소리는 확인하지 않았다**: 시작 화면을 클릭하지 않고 숨겼기 때문에 소리 엔진은 켜지지 않은 상태로 쟀다.
