@@ -202,7 +202,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
     // 들고 있는 책
     held.visible = !!heldId && player.state !== 'reading' && !!reader.library.find((b) => b.id === heldId);
     held.position.y = -0.2 + (player.state === 'walk' ? Math.sin(player.bob) * 0.004 : 0);
-    labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); }
+    labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); mugBase(); }
   };
   refreshLabels();
   return api;

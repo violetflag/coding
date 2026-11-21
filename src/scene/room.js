@@ -130,7 +130,7 @@ export function buildRoom(ctx) {
         const t = 0.02 + r() * 0.035, h = Math.min(SH.pitch - 0.05, 0.19 + r() * 0.1), d = 0.13 + r() * 0.06;
         if (u + t > u1) break;
         const lean = k > 0.95 ? (r() - 0.5) * 0.3 : 0;
-        books.push({ along, a: u + t / 2, y: y + h / 2, dd: dep - 0.02 - d / 2 - r() * 0.02, t, h, d, lean, color: BOOK_COLORS[Math.floor(r() * BOOK_COLORS.length)], tone: 0.7 + r() * 0.6 });
+        books.push({ along, a: u + t / 2, y: y + h / 2, dd: dep - 0.02 - d / 2 - r() * 0.02, t, h, d, lean, color: BOOK_COLORS[Math.floor(r() * BOOK_COLORS.length)], tone: 0.5 + r() * 0.5 });
         u += t + 0.002 + Math.abs(lean) * 0.06;
       }
     }
@@ -139,9 +139,17 @@ export function buildRoom(ctx) {
   shelf('x', SH.depth, 1.93, 1, null);
   ctx.colliders.push({ min: [0, 0, 0], max: [SH.depth, SH.top, D] }, { min: [0, 0, 0], max: [1.95, SH.top, SH.depth] });
   // 책등 무늬(금박 띠)가 들어간 책 인스턴스
-  const bandCv = document.createElement('canvas'); bandCv.width = 8; bandCv.height = 128; const bc = bandCv.getContext('2d');
-  bc.fillStyle = '#fff'; bc.fillRect(0, 0, 8, 128); bc.fillStyle = '#e0b860'; for (const y of [14, 20, 96, 104]) bc.fillRect(0, y, 8, 3); bc.fillStyle = '#d9c9a0'; bc.fillRect(0, 34, 8, 22);
-  const bandTex = new THREE.CanvasTexture(bandCv); bandTex.colorSpace = THREE.SRGBColorSpace;
+  const bandCv = document.createElement('canvas'); bandCv.width = 64; bandCv.height = 512; const bc = bandCv.getContext('2d');
+  { // 책등: 천 결, 도드라진 띠(밴드), 금박 줄, 제목 딱지와 닳은 가장자리. 흰 바탕이라 책마다의 색이 곱해진다.
+    const br = (() => { let v = 77; return () => ((v = (v * 16807) % 2147483647) / 2147483647); })();
+    const gr = bc.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, '#8a8a8a'); gr.addColorStop(0.18, '#ffffff'); gr.addColorStop(0.82, '#f4f4f4'); gr.addColorStop(1, '#7c7c7c'); bc.fillStyle = gr; bc.fillRect(0, 0, 64, 512);   // 둥근 책등의 음영
+    bc.globalAlpha = 0.1; for (let i = 0; i < 2400; i++) { bc.fillStyle = br() > 0.5 ? '#000' : '#fff'; bc.fillRect(br() * 64, br() * 512, 1, 2 + br() * 3); } bc.globalAlpha = 1;
+    for (const y of [70, 150, 362, 442]) { bc.fillStyle = 'rgba(0,0,0,.28)'; bc.fillRect(0, y + 7, 64, 3); bc.fillStyle = 'rgba(255,255,255,.2)'; bc.fillRect(0, y - 2, 64, 2); bc.fillStyle = '#c9a24e'; bc.fillRect(0, y, 64, 2); bc.fillRect(0, y + 4, 64, 1); }
+    bc.fillStyle = '#d8c69c'; bc.fillRect(5, 176, 54, 92); bc.fillStyle = '#b08c40'; bc.fillRect(5, 176, 54, 2); bc.fillRect(5, 266, 54, 2);
+    bc.fillStyle = 'rgba(50,34,20,.75)'; for (let k = 0; k < 6; k++) bc.fillRect(12 + br() * 6, 190 + k * 12, 28 + br() * 14, 4);
+    bc.fillStyle = '#c9a24e'; bc.beginPath(); bc.arc(32, 318, 9, 0, 7); bc.fill(); bc.fillStyle = '#fff'; bc.beginPath(); bc.arc(32, 318, 5, 0, 7); bc.fill();
+    const eg = bc.createLinearGradient(0, 0, 0, 512); eg.addColorStop(0, 'rgba(0,0,0,.35)'); eg.addColorStop(0.04, 'rgba(0,0,0,0)'); eg.addColorStop(0.96, 'rgba(0,0,0,0)'); eg.addColorStop(1, 'rgba(0,0,0,.4)'); bc.fillStyle = eg; bc.fillRect(0, 0, 64, 512); }
+  const bandTex = new THREE.CanvasTexture(bandCv); bandTex.colorSpace = THREE.SRGBColorSpace; bandTex.anisotropy = 8;
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
   inst.material.userData.bookCover = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
