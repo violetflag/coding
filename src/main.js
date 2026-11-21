@@ -27,11 +27,11 @@ const HEADLESS = Q.has('headless');
 const LAMP_ON = 4.0;
 
 async function main() {
-  const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: true, alpha: true, forceWebGL: Q.has('webgl') });
+  const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa'), alpha: true, forceWebGL: Q.has('webgl') });
   await renderer.init();
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.enabled = !Q.has('noshadow');   // 측정용 주소 옵션: noshadow, nomsaa, nocandle, rs=배율 renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 60);
@@ -134,6 +134,8 @@ async function main() {
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
   let scale = Math.min(1, 1600 / innerWidth) * Math.min(devicePixelRatio, 1.5);
+  if (Q.has('rs')) scale = +Q.get('rs') || scale;
+  if (Q.has('nocandle')) scene.traverse((o) => { if (o.isPointLight && o.distance === 2.6) o.visible = false; });
   const fit = () => {
     // 책을 읽는 동안은 글자가 또렷하도록 화면 해상도를 낮추지 않는다
     const pr = player.state === 'reading' ? Math.max(1, Math.min(devicePixelRatio, 2)) : scale;
@@ -272,7 +274,7 @@ async function main() {
     if (acc > 1) {
       fpsMs = acc / frames * 1000; acc = 0; frames = 0;
       const now = performance.now();
-      if (!Q.has('fixed') && player.state !== 'reading' && now - lastFit > 1500) {
+      if (!Q.has('fixed') && !Q.has('rs') && player.state !== 'reading' && now - lastFit > 1500) {
         if (fpsMs > 24 && scale > 0.5) { scale = Math.max(0.5, scale * 0.88); lastFit = now; fit(); }
         else if (fpsMs < 12.5 && scale < Math.min(devicePixelRatio, 1.5)) { scale = Math.min(Math.min(devicePixelRatio, 1.5), scale * 1.08); lastFit = now; fit(); }
       }
