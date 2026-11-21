@@ -87,7 +87,7 @@ export function buildRoom(ctx) {
   }
   g.add(fb); ctx.fireboxFallback = fb; ctx.emberMat = emberMat;
   // 장작 더미, 부지깽이, 주전자 (화로대 위)
-  put(F.logStack(M), FP.faceX - 0.27, FP.hearthH, FP.z1 - 0.08);
+  ctx.woodPile = put(F.logStack(M), FP.faceX - 0.27, FP.hearthH, FP.z1 - 0.08);
   ctx.interact.push({ id: 'woodpile', label: '장작 넣기', pos: [FP.faceX - 0.27, FP.hearthH + 0.3, FP.z1 - 0.08], radius: 0.4 });
   put(F.fireTools(M), FP.faceX - 0.14, FP.hearthH, FP.z0 + 0.2);
   ctx.interact.push({ id: 'poker', label: '불 뒤적이기', pos: [FP.faceX - 0.14, FP.hearthH + 0.5, FP.z0 + 0.2], radius: 0.3 });
@@ -199,7 +199,8 @@ export function buildRoom(ctx) {
 
   // 고리버들 바구니 (윙체어 옆), 창 아래 철제 장작 선반과 기대 세운 책
   movable('basket', '바구니', put(F.basket(M), 2.0, 0, 1.25, 0.5), 0.24, 0.5);
-  movable('rack', '장작 선반', put(F.logRack(M), 2.75, 0, 0.3), 0.3, 0.7, [], (o) => { const p = o.position, c = Math.abs(Math.cos(o.rotation.y)), s2 = Math.abs(Math.sin(o.rotation.y)), hx = 0.47 * c + 0.19 * s2, hz = 0.19 * c + 0.47 * s2, m = ctx.movables.find((v) => v.id === 'rack'); if (m) { m.col.min[0] = p.x - hx; m.col.max[0] = p.x + hx; m.col.min[2] = p.z - hz; m.col.max[2] = p.z + hz; } });
+  ctx.woodRack = put(F.logRack(M), 2.75, 0, 0.3);
+  movable('rack', '장작 선반', ctx.woodRack, 0.3, 0.7, [[inter({ id: 'rack', label: '장작 채우기', pos: [0, 0, 0], radius: 0.5 }), null, 0.4]], (o) => { const p = o.position, c = Math.abs(Math.cos(o.rotation.y)), s2 = Math.abs(Math.sin(o.rotation.y)), hx = 0.47 * c + 0.19 * s2, hz = 0.19 * c + 0.47 * s2, m = ctx.movables.find((v) => v.id === 'rack'); if (m) { m.col.min[0] = p.x - hx; m.col.max[0] = p.x + hx; m.col.min[2] = p.z - hz; m.col.max[2] = p.z + hz; } });
   ctx.movables.find((v) => v.id === 'rack').sync();
   { const lb = F.bookStack(BOOK_COLORS, 3, 21); lb.rotation.set(0, 0.2, Math.PI / 2 - 0.22); put(lb, 3.72, 0.1, 0.36, 0.2); lb.rotation.z = Math.PI / 2 - 0.22; }
   return g;

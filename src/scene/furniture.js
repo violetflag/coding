@@ -49,10 +49,12 @@ export function logRack(M, w = 0.9, h = 0.62, d = 0.34) {
   for (const y of [0.06, h]) { for (const sz of [-1, 1]) bar(w, 0, y, sz * d / 2, 0, Math.PI / 2); for (const sx of [-1, 1]) bar(d, sx * w / 2, y, 0, Math.PI / 2); }
   for (const sx of [-1, 1]) for (let k = 1; k < 4; k++) { const z = -d / 2 + (d * k) / 4; bar(Math.hypot(h, d / 4), sx * w / 2, h / 2, z, 0.14 * (k % 2 ? 1 : -1)); }   // 옆면 격자
   for (let k = 0; k < 7; k++) bar(h * 1.02, -w / 2 + (w * (k + 0.5)) / 7, h / 2 + 0.03, d / 2, 0, (k % 2 ? 1 : -1) * 0.2);                                   // 앞면 격자
+  const logs = [];
   for (let row = 0; row < 3; row++) for (let i = 0; i < 6; i++) {
     const rad = 0.05 + r() * 0.014, log = cyl(rad, rad * 0.95, d * 0.92, [M.bark, M.endGrain, M.endGrain], 10);
-    g.add(at(log, -w / 2 + 0.085 + i * 0.146 + (row % 2) * 0.04 + (r() - 0.5) * 0.02, 0.12 + row * 0.105, (r() - 0.5) * 0.02, Math.PI / 2, 0, (r() - 0.5) * 0.1));
+    g.add(at(log, -w / 2 + 0.085 + i * 0.146 + (row % 2) * 0.04 + (r() - 0.5) * 0.02, 0.12 + row * 0.105, (r() - 0.5) * 0.02, Math.PI / 2, 0, (r() - 0.5) * 0.1)); logs.push(log);
   }
+  g.userData.max = logs.length; g.userData.setCount = (n) => logs.forEach((l, i) => { l.visible = i < n; });   // 위에서부터 줄어든다
   return g;
 }
 
@@ -193,13 +195,14 @@ export function painting(M, w = 0.9, h = 0.6, { seed = 77, frame = M.brass, f = 
 
 // ---- 장작 더미 (받침대에 쌓은 통나무)
 export function logStack(M) {
-  const g = new THREE.Group(), r = rng(5);
+  const g = new THREE.Group(), r = rng(5), logs = [];
   let n = 0;
   for (let row = 0; row < 4; row++) for (let i = 0; i < 4 - (row > 2 ? 1 : 0); i++) {
     const rad = 0.045 + r() * 0.012, len = 0.36 + r() * 0.06;
     const log = cyl(rad, rad * (0.92 + r() * 0.1), len, [M.bark, M.endGrain, M.endGrain], 10);
-    at(log, (r() - 0.5) * 0.03, 0.05 + row * 0.092, -0.15 + i * 0.1 + (row % 2) * 0.05, 0, 0, Math.PI / 2 + (r() - 0.5) * 0.08); g.add(log); n++;
+    at(log, (r() - 0.5) * 0.03, 0.05 + row * 0.092, -0.15 + i * 0.1 + (row % 2) * 0.05, 0, 0, Math.PI / 2 + (r() - 0.5) * 0.08); g.add(log); n++; logs.push(log);
   }
+  g.userData.max = logs.length; g.userData.setCount = (k) => logs.forEach((l, i) => { l.visible = i < k; });
   for (const z of [-0.23, 0.23]) { g.add(at(cyl(0.008, 0.008, 0.46, M.iron, 6), -0.15, 0.23, z)); g.add(at(cyl(0.008, 0.008, 0.46, M.iron, 6), 0.15, 0.23, z)); }
   return g;
 }

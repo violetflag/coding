@@ -65,23 +65,42 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   reader.ready.then(() => rebuildShelf(reader.library));
 
   // ================= 2. 장작 타이머 =================
-  const hearth = (api.hearth = { log: null, sleepT: null, base: 0.62, dim: 0 });
+  // 화실의 장작 세 개는 타는 만큼 줄어들고(fuel 1 → 0), 불 세기는 남은 장작에서 나온다. 더미에서 하나씩 꺼내 넣고, 더미는 창 아래 선반에서 채운다.
+  const HEARTH = 'nanro.hearth', PILE_MAX = ctx.woodPile.userData.max, RACK_MAX = ctx.woodRack.userData.max;
+  const hs = load(HEARTH, {});
+  const hearth = (api.hearth = { log: null, sleepT: null, dim: 0, fuel: Array.isArray(hs.fuel) && hs.fuel.length === 3 ? hs.fuel : [0.85, 0.65, 0.45], pile: hs.pile ?? PILE_MAX, rack: hs.rack ?? RACK_MAX, power: 0.62, out: false });
   const setFire = (v) => { if (fire) fire.target = v; api.firePower = v; };
   api.firePower = 0.62;
-  hearth.startLog = () => {
-    fire?.addLog(); sfx('log'); hearth.log = { total: prefs.logMinutes * 60, left: prefs.logMinutes * 60, warned: false };
-    if (hearth.sleepT == null) setFire(0.72);
-    store.addStat({ logs: 1 }).then((d) => toast(`장작을 넣었습니다 · ${prefs.logMinutes}분 타이머 · 오늘 장작 ${d.logs}개`)).catch(() => toast('장작을 넣었습니다'));
+  const fuelPower = () => hearth.fuel.reduce((p, f) => p + 0.16 * Math.min(1, Math.max(0, f) / 0.3), 0.2);
+  const syncWood = () => { ctx.woodPile.userData.setCount(hearth.pile); ctx.woodRack.userData.setCount(hearth.rack); fire?.setFuel(hearth.fuel); save(HEARTH, { fuel: hearth.fuel.map((f) => +f.toFixed(4)), pile: hearth.pile, rack: hearth.rack }); };
+  syncWood();
+  hearth.refill = () => {
+    const n = Math.min(PILE_MAX - hearth.pile, hearth.rack);
+    if (n > 0) { hearth.pile += n; hearth.rack -= n; sfx('log'); toast(`선반에서 장작 ${n}개를 벽난로 옆으로 옮겼습니다 · 선반에 ${hearth.rack}개 남음`); }
+    else if (hearth.rack <= 0 || hearth.rack < RACK_MAX && hearth.pile >= PILE_MAX) { hearth.rack = RACK_MAX; sfx('log'); toast('밖에서 장작을 해 와 선반을 채웠습니다'); }
+    else toast('벽난로 옆 장작 더미가 가득합니다');
+    syncWood();
   };
-  hearth.stopLog = () => { hearth.log = null; if (hearth.sleepT == null) setFire(hearth.base); toast('장작 타이머를 껐습니다'); };
+  hearth.reset = () => { hearth.fuel = [0.85, 0.65, 0.45]; hearth.pile = PILE_MAX; hearth.rack = RACK_MAX; hearth.out = false; syncWood(); };
+  hearth.startLog = () => {
+    if (hearth.pile <= 0) { hearth.refill(); return false; }
+    let i = 0; for (let j = 1; j < 3; j++) if (hearth.fuel[j] < hearth.fuel[i]) i = j;
+    if (hearth.fuel[i] > 0.55) { toast('화실이 가득 찼습니다. 장작이 좀 더 탄 뒤에 넣어 주세요'); return false; }
+    hearth.fuel[i] = 1; hearth.pile--; hearth.out = false; syncWood();
+    fire?.addLog(); sfx('log'); hearth.log = { total: prefs.logMinutes * 60, left: prefs.logMinutes * 60, warned: false };
+    store.addStat({ logs: 1 }).then((d) => toast(`장작을 넣었습니다 · 더미에 ${hearth.pile}개 남음 · 오늘 장작 ${d.logs}개`)).catch(() => toast('장작을 넣었습니다'));
+    return true;
+  };
+  hearth.stopLog = () => { hearth.log = null; toast('장작 알림을 껐습니다'); };
   hearth.status = () => {
     const f = (s) => `${Math.floor(s / 60)}분 ${String(Math.floor(s % 60)).padStart(2, '0')}초`;
-    return (hearth.log ? `장작이 타는 중: ${f(hearth.log.left)} 남음` : '장작 타이머가 꺼져 있습니다') + (hearth.sleepT != null ? ` · 잠들기까지 ${f(hearth.sleepT.left)}` : '');
+    const left = Math.max(...hearth.fuel) * prefs.logMinutes * 60;
+    return (left > 0 ? `장작이 타는 중: 마지막 장작이 ${f(left)} 뒤에 다 탑니다` : '장작이 다 탔습니다') + ` · 더미 ${hearth.pile}개 · 선반 ${hearth.rack}개` + (hearth.sleepT != null ? ` · 잠들기까지 ${f(hearth.sleepT.left)}` : '');
   };
   // ================= 5. 잠들기 모드 =================
   const veil = document.createElement('div'); veil.style.cssText = 'position:fixed;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none;transition:opacity 1s'; document.body.appendChild(veil);
   hearth.sleep = (minutes) => {
-    if (!minutes) { if (hearth.sleepT == null) return; hearth.sleepT = null; hearth.dim = 0; veil.style.opacity = 0; mixer.setScale(1, 1.5); music.fade = 1; music.applyVolume(); setFire(hearth.log ? 0.72 : hearth.base); toast('잠들기 모드를 껐습니다'); return; }
+    if (!minutes) { if (hearth.sleepT == null) return; hearth.sleepT = null; hearth.dim = 0; veil.style.opacity = 0; mixer.setScale(1, 1.5); music.fade = 1; music.applyVolume(); toast('잠들기 모드를 껐습니다'); return; }
     hearth.sleepT = { total: minutes * 60, left: minutes * 60 }; toast(`잠들기 모드: ${minutes}분에 걸쳐 불과 소리가 잦아듭니다`);
   };
 
@@ -119,7 +138,8 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
       if (it.candle) it.label = candleLabel(it.candle);
       else if (it.id === 'mug') it.label = tea.level <= 0.05 ? '빈 잔' : `차 마시기 (${tea.temp > 0.55 ? '따뜻함' : tea.temp > 0.2 ? '미지근함' : '식음'})`;
       else if (it.id === 'kettle') it.label = '차 채우기';
-      else if (it.id === 'woodpile') it.label = hearth.log ? `장작 넣기 (${Math.ceil(hearth.log.left / 60)}분 남음)` : `장작 넣기 (${prefs.logMinutes}분 타이머)`;
+      else if (it.id === 'woodpile') it.label = hearth.pile > 0 ? `장작 넣기 (${hearth.pile}개 남음)` : '장작 채우기 (더미가 비었음)';
+      else if (it.id === 'rack') it.label = hearth.rack > 0 ? `장작을 벽난로 옆으로 옮기기 (선반 ${hearth.rack}개)` : '장작 해 오기';
     }
   };
 
@@ -152,21 +172,22 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   api.session = load(SESSION, null);
 
   // ================= 매 프레임 =================
-  let labelT = 0, t = 0;
+  let labelT = 0, t = 0, woodT = 0, saveN = 0;
   api.update = (dt) => {
     t += dt;
-    // 장작 타이머
+    // 장작: 타는 만큼 줄어든다. 불 세기는 남은 장작에서 나온다.
+    const rate = dt / (prefs.logMinutes * 60); let any = false;
+    for (let i = 0; i < 3; i++) if (hearth.fuel[i] > 0) { hearth.fuel[i] = Math.max(0, hearth.fuel[i] - rate); any = true; }
+    hearth.power = fuelPower(); if (hearth.sleepT == null) setFire(hearth.power);
+    if ((woodT -= dt) <= 0) { woodT = 2; fire?.setFuel(hearth.fuel); if ((saveN = (saveN + 1) % 15) === 0) syncWood(); }
+    if (!any && !hearth.out) { hearth.out = true; sfx('chime'); toast('장작이 다 타고 숯불만 남았습니다. 장작을 넣어 주세요'); syncWood(); }
     const L = hearth.log;
-    if (L) {
-      L.left -= dt;
-      if (L.left < 120 && hearth.sleepT == null) setFire(0.3 + 0.42 * Math.max(0, L.left) / 120);       // 마지막 2분은 불이 잦아든다
-      if (L.left <= 0) { hearth.log = null; sfx('chime'); store.getStats().then((s) => toast(`장작이 다 탔습니다. 잠시 쉬어 가세요 · 오늘 장작 ${s[store.today()]?.logs || 0}개`)); if (hearth.sleepT == null) setFire(0.3); }
-    }
+    if (L) { L.left -= dt; if (L.left <= 0) { hearth.log = null; if (any) { sfx('chime'); store.getStats().then((s) => toast(`장작 하나가 다 탔습니다. 잠시 쉬어 가세요 · 오늘 장작 ${s[store.today()]?.logs || 0}개`)); } } }
     // 잠들기
     const S = hearth.sleepT;
     if (S) {
       S.left -= dt; const k = 1 - Math.max(0, S.left) / S.total, e = k * k * (3 - 2 * k);
-      hearth.dim = e; setFire(Math.max(0.1, (hearth.log ? 0.72 : hearth.base) * (1 - e) + 0.1 * e)); veil.style.opacity = (e * 0.88).toFixed(3);
+      hearth.dim = e; setFire(Math.max(0.1, hearth.power * (1 - e) + 0.1 * e)); veil.style.opacity = (e * 0.88).toFixed(3);
       mixer.setScale(1 - 0.9 * e, 2); music.fade = 1 - e; music.applyVolume();
       if (k > 0.5 && !S.lampOff) { S.lampOff = true; setLamp(false); }
       if (S.left <= 0) { hearth.sleepT = { total: 1, left: 0, lampOff: true, done: true }; if (!S.done) { reader.stopTts(); for (const c of ctx.candles) c.userData.set(c.userData.state.frac, false); } }

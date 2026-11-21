@@ -19,7 +19,7 @@ const LOGS = [
   { a: [-0.21, 0.195, -0.035], b: [0.23, 0.21, 0.015], r: 0.052, burn: 1.0 },
   { a: [-0.09, 0.035, 0.0], b: [0.08, 0.03, -0.03], r: 0.032, burn: 1.0 },
 ];
-const pack = (items, fn, max = 16) => { const f = new Float32Array(max * 8); items.slice(0, max).forEach((it, i) => f.set(fn(it), i * 8)); return f; };
+const pack = (items, fn, max = 16) => { const f = new Float32Array(max * 8); items.slice(0, max).forEach((it, i) => f.set(fn(it, i), i * 8)); return f; };
 
 export class FireLayer {
   // q = toQuality(설정값) (src/ui/fireConfig.js), name = 표시용 이름
@@ -90,6 +90,20 @@ export class FireLayer {
     if (x1 - x0 < 0.004 || y1 - y0 < 0.004) return null;
     return { x0, y0, x1, y1 };
   }
+  // 장작 세 개의 남은 양(1 = 새 장작, 0 = 다 탐). 탈수록 검게 변하고 가늘고 짧아지며 내려앉는다.
+  setFuel(fuel) {
+    const drop = [0, 0, 0], k = fuel.map((f) => (f > 0 ? 0.42 + 0.58 * Math.sqrt(f) : 0));
+    for (let i = 0; i < 3; i++) drop[i] = LOGS[i].r * (1 - k[i]) * (k[i] ? 0.9 : 1.6);
+    drop[2] += 0.75 * (drop[0] + drop[1]);                                   // 위 장작은 아래 둘이 줄어든 만큼 더 내려앉는다
+    const f32 = pack(LOGS, (l, i) => {
+      if (i > 2) return [...l.a, l.r, ...l.b, l.burn];
+      const f = fuel[i]; if (!(f > 0)) return [l.a[0], -5, l.a[2], 0.01, l.b[0], -5, l.b[2], 0];
+      const s = 0.5 * (1 - (0.86 + 0.14 * f)), m = (j) => l.a[j] + (l.b[j] - l.a[j]) * s, n = (j) => l.b[j] + (l.a[j] - l.b[j]) * s;
+      return [m(0), Math.max(l.r * k[i] * 0.9, m(1) - drop[i]), m(2), l.r * k[i], n(0), Math.max(l.r * k[i] * 0.9, n(1) - drop[i]), n(2), Math.min(1, 0.3 + 2.4 * (1 - f))];
+    });
+    this.device.queue.writeBuffer(this.renderer.logBuf, 0, f32); this.device.queue.writeBuffer(this.sim.logBuf, 0, f32); this.sim.geoReady = false;
+  }
+  visibleFrom(camera) { return !this.lost && !!this._holeRect(camera); }
   // 구멍 사각형에 맞춰 불 캔버스의 위치와 해상도를 정한다. 해상도는 계단식으로만 바꿔 잦은 재할당을 피한다.
   _fitCrop(rect) {
     const V = this.view, cw = (rect.x1 - rect.x0) / 2 * V.w, ch = (rect.y1 - rect.y0) / 2 * V.h;
@@ -140,7 +154,7 @@ export class FireLayer {
     this.target = Math.min(1, this.target + 0.08);
   }
   // 장작 넣기: 잠깐 식었다가 더 크게 타오른다 (연료 모델은 2단계)
-  addLog() { this.power *= 0.75; this.target = Math.min(1, this.target + 0.25); this.event({ type: 'log-shift', strength: 0.5 }); }
+  addLog() { this.power *= 0.8; this.event({ type: 'log-shift', strength: 0.5 }); }
 
   update(dtReal, camera, present = true) {
     if (this.lost) return;
