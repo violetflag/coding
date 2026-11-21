@@ -1515,18 +1515,33 @@ fn stars(rd: vec3f, pixAng: f32) -> vec3f {
     let p = ro + rd * t;
     var uv = vec2f(p.x, p.y);
     if (abs(wn.x) > 0.5) { uv = vec2f(p.z, p.y); } else if (abs(wn.y) > 0.5) { uv = vec2f(p.x, p.z); }
-    let bw = 0.205; let bh = 0.068;
+    // tangent frame of the wall face (u along the courses, v across them)
+    var tu = vec3f(1.0, 0.0, 0.0); var tv = vec3f(0.0, 1.0, 0.0);
+    if (abs(wn.x) > 0.5) { tu = vec3f(0.0, 0.0, 1.0); } else if (abs(wn.y) > 0.5) { tv = vec3f(0.0, 0.0, 1.0); }
+    let bw = 0.215; let bh = 0.072;
     let row = floor(uv.y / bh);
     let bu = uv.x / bw + 0.5 * (row - 2.0 * floor(row * 0.5));
     let cell = vec2f(fract(bu), fract(uv.y / bh));
-    let mort = 1.0 - smoothstep(0.0, 0.035, min(min(cell.x, 1.0 - cell.x) * bw / bh, min(cell.y, 1.0 - cell.y)));
+    // distance to the nearest brick edge in metres: 10 mm recessed joints that stay visible at room distance
+    let du = min(cell.x, 1.0 - cell.x) * bw; let dv = min(cell.y, 1.0 - cell.y) * bh;
+    let d = min(du, dv);
+    let mort = 1.0 - smoothstep(0.004, 0.0075, d);
     let bid = vec3f(floor(bu), row, wn.x * 3.0 + wn.y * 7.0);
     let hb = hq33(bid);
-    var alb = vec3f(0.36, 0.22, 0.15) * (0.75 + 0.5 * hb.x) * (0.85 + 0.3 * gn3(vec3f(uv * 23.0, hb.y * 9.0)));
-    alb = mix(alb, vec3f(0.16, 0.15, 0.14), mort);
-    let soot = smoothstep(0.05, 0.6, p.y) * (1.0 - 0.6 * smoothstep(0.25, 0.45, abs(p.x))) + 0.25;
-    alb *= mix(1.0, 0.12, clamp(soot * (0.7 + 0.3 * gn3(vec3f(uv * 4.0, 1.7))), 0.0, 1.0));
-    let n = normalize(wn + 0.25 * mort * vec3f(0.0, 0.0, 0.0));
+    // brick: per-brick tone (some pale, some burnt), fine speckle; mortar: paler grey so the bond reads
+    var alb = mix(vec3f(0.40, 0.21, 0.13), vec3f(0.50, 0.33, 0.22), hb.x) * (0.62 + 0.55 * hb.y) * (0.82 + 0.36 * gn3(vec3f(uv * 60.0, hb.z * 9.0)));
+    alb = mix(alb, vec3f(0.30, 0.27, 0.24) * (0.85 + 0.3 * gn3(vec3f(uv * 90.0, 4.0))), mort);
+    // soot: heavy above the fire on the back wall, but never hiding the bond completely
+    let soot = smoothstep(0.05, 0.6, p.y) * (1.0 - 0.6 * smoothstep(0.25, 0.45, abs(p.x))) + 0.2;
+    alb *= mix(1.0, 0.34, clamp(soot * (0.7 + 0.3 * gn3(vec3f(uv * 4.0, 1.7))), 0.0, 1.0));
+    // rounded arrises: tilt the normal towards the joint near the brick edge, and a slight face unevenness
+    let bev = (1.0 - smoothstep(0.0055, 0.016, d)) * (1.0 - mort);
+    let su = select(1.0, -1.0, cell.x < 0.5); let sv = select(1.0, -1.0, cell.y < 0.5);
+    var bn = vec3f(0.0);
+    if (du < dv) { bn = tu * su; } else { bn = tv * sv; }
+    let wob = vec3f(gn3(vec3f(uv * 35.0, 2.3)), gn3(vec3f(uv * 35.0, 7.1)), 0.0);
+    let n = normalize(wn + bn * bev * 0.7 + (tu * wob.x + tv * wob.y) * 0.10 - wn * mort * 0.0);
+    alb *= 1.0 - 0.45 * mort * (1.0 - smoothstep(0.0, 0.004, d)); // contact shadow deep in the joint
     let sh = fireLight(p, n, -rd, 0.85, select(1, 2, gDet > 0.5), 14);
     let bl = bedLight(p, n);
     col = alb / PI * (sh.diff + bl) + sh.spec * 0.02;
