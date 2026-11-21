@@ -1,0 +1,50 @@
+// 헤드리스 Chromium으로 장면 스크린샷을 찍는다 (room-at-dawn의 tools/shot.mjs와 같은 용도).
+//   npm run dev   (다른 터미널)
+//   node tools/shot.mjs [이름…]         → shots/<이름>.png   (이름: start, fire, seated, reading, shelf)
+// GPU가 없는 환경에서는 소프트웨어 렌더러(SwiftShader)로 돌아가 매우 느리다. --frames 수 로 촬영 전 진행할 프레임 수를 조절한다.
+import { createRequire } from 'node:module';
+import { mkdirSync, writeFileSync } from 'node:fs';
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
+
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args.splice(i, 2)[1] : d; };
+const url = opt('url', 'http://127.0.0.1:5320/'), frames = Number(opt('frames', 260)), query = opt('query', 'q=low&fixed&stats&headless');
+const W = Number(opt('w', 1280)), H = Number(opt('h', 720));
+const names = args.length ? args : ['start', 'fire', 'seated', 'reading'];
+const VIEWS = {
+  start: null,
+  fire: { pos: [3.2, 2.0], yaw: [5.33, 1.6], pitch: -0.18 },
+  shelf: { pos: [3.6, 3.2], yaw: [0.3, 1.0], pitch: 0 },
+  window: { pos: [2.7, 3.6], yaw: [2.6, 0], pitch: 0.05 },
+};
+
+mkdirSync('shots', { recursive: true });
+const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
+// 소프트웨어 WebGPU에서는 두 번째 읽어오기가 멈추는 일이 있어, 장면마다 새 페이지를 연다.
+for (const name of names) {
+  const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+  page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 400)); });
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await page.goto(url + '?' + query);
+  await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
+  await page.evaluate(() => { document.getElementById('start').style.display = 'none'; });
+  await page.evaluate(async ({ name, VIEWS }) => {
+    const p = window.NANRO.player, v = VIEWS[name];
+    const until = (f) => new Promise((r) => { const t = setInterval(() => { if (f()) { clearInterval(t); r(); } }, 50); });
+    if (name === 'seated' || name === 'reading') {
+      if (p.state === 'walk') { p.sit(window.NANRO.ctx.interact.find(i => i.id === 'chair:reading').chair); await until(() => p.state === 'seated' && !p.tween); }
+      if (name === 'reading') { p.openBook(); await until(() => !p.tween); }
+    } else if (v) {
+      p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch;
+      p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
+    }
+  }, { name, VIEWS });
+  // 시간 대신 프레임 수로 기다린다(불이 붙어 자리 잡는 데 약 250프레임).
+  await page.waitForFunction((n) => (window.__nanroFrames | 0) >= n, frames, { timeout: 900000, polling: 500 });
+  const url64 = await page.evaluate(({ W, H }) => window.NANRO.capture(W, H), { W, H });
+  writeFileSync(`shots/${name}.png`, Buffer.from(url64.split(',')[1], 'base64'));
+  console.log('shots/' + name + '.png', await page.evaluate(() => document.getElementById('stats').textContent.replace(/\n/g, ' | ')));
+  await page.close();
+}
+await browser.close();

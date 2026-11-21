@@ -1,0 +1,152 @@
+// 1인칭 플레이어: 걷기·충돌(room-at-dawn의 src/game/game.js를 바탕으로 함, MIT), 바라보고 상호작용, 의자에 앉기.
+// 상태: walk → sitting(전환) → seated ⇄ reading → standing(전환) → walk   (기획서 7.3)
+import * as THREE from 'three/webgpu';
+import { ROOM, PLAYER_START } from '../scene/layout.js';
+
+const R = 0.2, EYE = 1.62, EYE_CROUCH = 0.98;
+const ease = (t) => t * t * (3 - 2 * t);
+const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
+
+export class Player {
+  constructor({ camera, canvas, ctx, onInteract, onState }) {
+    this.camera = camera; this.canvas = canvas; this.ctx = ctx; this.onInteract = onInteract; this.onState = onState;
+    this.pos = new THREE.Vector3(PLAYER_START.x, 0, PLAYER_START.z); this.vel = new THREE.Vector3();
+    this.yaw = PLAYER_START.yaw; this.pitch = -0.05; this.eye = EYE; this.bob = 0; this.breath = 0;
+    this.state = 'walk'; this.chair = null; this.tween = null; this.focus = null;
+    this.keys = new Set(); this.sens = 0.0019; this.fov = 62;
+    this.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this._bind();
+  }
+
+  get locked() { return document.pointerLockElement === this.canvas; }
+  lock() { this.canvas.requestPointerLock?.(); }
+
+  _bind() {
+    document.addEventListener('mousemove', (e) => {
+      if (!this.locked || this.tween) return;
+      this.yaw -= e.movementX * this.sens; this.pitch -= e.movementY * this.sens;
+      this._clampLook();
+    });
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      this.keys.add(e.code);
+      if (e.code === 'KeyE') this.interact();
+      if (e.code === 'Space' && (this.state === 'seated' || this.state === 'reading')) { e.preventDefault(); this.state === 'reading' ? this.closeBook() : this.stand(); }
+    });
+    window.addEventListener('keyup', (e) => this.keys.delete(e.code));
+    window.addEventListener('blur', () => this.keys.clear());
+    this.canvas.addEventListener('mousedown', (e) => { if (this.locked && e.button === 0) this.interact(); });
+  }
+
+  _clampLook() {
+    if (this.state === 'seated' || this.state === 'reading') {
+      const c = this.chair, dy = Math.atan2(Math.sin(this.yaw - c.yaw), Math.cos(this.yaw - c.yaw));
+      this.yaw = c.yaw + Math.max(-1.22, Math.min(1.22, dy));           // 좌우 ±70°
+      this.pitch = Math.max(-0.95, Math.min(0.7, this.pitch));          // 무릎 위 책까지 내려다볼 수 있게
+    } else this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
+  }
+
+  blocked(x, z) {
+    if (x < R + 0.02 || x > ROOM.W - R - 0.02 || z < R + 0.05 || z > ROOM.D - R - 0.02) return true;
+    for (const c of this.ctx.colliders) {
+      if (c.max[1] < 0.25 || c.min[1] > this.eye) continue;
+      if (x > c.min[0] - R && x < c.max[0] + R && z > c.min[2] - R && z < c.max[2] + R) return true;
+    }
+    return false;
+  }
+
+  // 바라보는 방향에서 가장 가까운 상호작용 대상 (2m 이내, 시선에서 대상 반지름 안)
+  _findFocus() {
+    if (this.state !== 'walk') return this.state === 'seated' ? { id: 'book', label: '책 펼치기' } : null;
+    const o = this.camera.position, d = new THREE.Vector3(); this.camera.getWorldDirection(d);
+    let best = null, bestT = 2.0;
+    for (const it of this.ctx.interact) {
+      const v = new THREE.Vector3(it.pos[0] - o.x, it.pos[1] - o.y, it.pos[2] - o.z), t = v.dot(d);
+      if (t < 0.2 || t > bestT + it.radius) continue;
+      const miss = v.addScaledVector(d, -t).length();
+      if (miss < it.radius * 0.9 && t < bestT + it.radius * 0.5) { best = it; bestT = Math.min(bestT, t); }
+    }
+    return best;
+  }
+
+  interact() {
+    const f = this.focus; if (!f || this.tween) return;
+    if (f.chair) return this.sit(f.chair);
+    if (f.id === 'book') return this.openBook();
+    this.onInteract?.(f);
+  }
+
+  _setState(s) { this.state = s; this.onState?.(s, this); }
+
+  _startTween(dur, to, done) {
+    this.tween = { t: 0, dur: this.reduceMotion ? 0.01 : dur, from: { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.yaw, pitch: this.pitch }, to, done };
+  }
+
+  sit(chair) {
+    this.chair = chair; this.vel.set(0, 0, 0); this._setState('sitting');
+    this.standSpot = { x: this.pos.x, z: this.pos.z };
+    this._startTween(1.2, { x: chair.pos[0], z: chair.pos[1], eye: chair.eye, yaw: chair.yaw, pitch: -0.12 }, () => this._setState('seated'));
+  }
+  stand() {
+    if (this.state !== 'seated') return;
+    this._setState('standing');
+    // 의자 앞쪽의 비어 있는 곳으로 일어선다
+    const c = this.chair; let spot = this.standSpot;
+    for (const r of [0.75, 0.9, 1.1]) {
+      const x = c.pos[0] - Math.sin(c.yaw) * r, z = c.pos[1] - Math.cos(c.yaw) * r;
+      const eye = this.eye; this.eye = EYE; const bad = this.blocked(x, z); this.eye = eye;
+      if (!bad) { spot = { x, z }; break; }
+    }
+    this._startTween(1.0, { x: spot.x, z: spot.z, eye: EYE, yaw: this.yaw, pitch: 0 }, () => { this.chair = null; this._setState('walk'); });
+  }
+  openBook() {
+    if (this.state !== 'seated') return;
+    this._setState('reading');
+    this._startTween(0.8, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.chair.yaw, pitch: -0.72 }, null);
+  }
+  closeBook() {
+    if (this.state !== 'reading') return;
+    this._setState('seated');
+    this._startTween(0.6, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.yaw, pitch: -0.12 }, null);
+  }
+
+  update(dt) {
+    const K = this.keys, cam = this.camera;
+    if (this.tween) {
+      const tw = this.tween; tw.t = Math.min(1, tw.t + dt / tw.dur);
+      const e = ease(tw.t), a = tw.from, b = tw.to;
+      this.pos.x = a.x + (b.x - a.x) * e; this.pos.z = a.z + (b.z - a.z) * e;
+      // 앉을 때 끝에서 살짝 더 가라앉았다가 올라오는 쿠션 반동
+      const settle = this.state === 'sitting' ? -0.035 * Math.sin(Math.PI * Math.max(0, (tw.t - 0.7) / 0.3)) : 0;
+      this.eye = a.eye + (b.eye - a.eye) * e + settle;
+      this.yaw = lerpAngle(a.yaw, b.yaw, e); this.pitch = a.pitch + (b.pitch - a.pitch) * e;
+      if (tw.t >= 1) { this.tween = null; tw.done?.(); }
+    } else if (this.state === 'walk') {
+      const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+      const wish = new THREE.Vector3();
+      if (K.has('KeyW') || K.has('ArrowUp')) wish.add(fwd);
+      if (K.has('KeyS') || K.has('ArrowDown')) wish.sub(fwd);
+      if (K.has('KeyD') || K.has('ArrowRight')) wish.add(right);
+      if (K.has('KeyA') || K.has('ArrowLeft')) wish.sub(right);
+      const crouch = K.has('ControlLeft') || K.has('KeyQ');
+      const speed = (K.has('ShiftLeft') ? 0.7 : 1.5) * (crouch ? 0.6 : 1);
+      if (wish.lengthSq() > 0) wish.normalize().multiplyScalar(speed);
+      this.vel.lerp(wish, 1 - Math.exp(-dt * 9));
+      const nx = this.pos.x + this.vel.x * dt, nz = this.pos.z + this.vel.z * dt;
+      if (!this.blocked(nx, this.pos.z)) this.pos.x = nx; else this.vel.x = 0;
+      if (!this.blocked(this.pos.x, nz)) this.pos.z = nz; else this.vel.z = 0;
+      const eyeT = crouch ? EYE_CROUCH : EYE; this.eye += (eyeT - this.eye) * (1 - Math.exp(-dt * 7));
+      this.bob += Math.hypot(this.vel.x, this.vel.z) * dt * 6.2;
+    }
+    const sp = Math.hypot(this.vel.x, this.vel.z);
+    this.breath += dt;
+    const still = this.state === 'seated' || this.state === 'reading';
+    const sway = this.reduceMotion ? 0 : (still ? Math.sin(this.breath * 1.55) * 0.0015 : Math.sin(this.bob) * 0.011 * Math.min(1, sp));
+    cam.position.set(this.pos.x, this.eye + sway, this.pos.z);
+    cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
+    if (cam.fov !== this.fov) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
+    cam.updateMatrixWorld(true);
+    this.focus = this.tween ? null : this._findFocus();
+    this.stepPhase = this.bob; this.speed = sp;
+  }
+}
