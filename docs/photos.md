@@ -52,3 +52,20 @@ Edge 창 모드 1920×1080, 기본 설정(프리셋 "균형", 격자 96×120×60
 - **글자 크기**: 1080p에서 본문 한 글자가 약 22픽셀로 읽을 만하다. 글자 가장자리는 조금 부드럽게(흐리게) 나온다.
 - **성능**: 책 없이 앉기만 하면 60.0 fps, GPU 60%. 책을 펼치면 60 fps는 유지되지만 GPU가 75~76%로 오른다. 10초 측정 세 번 중 두 번에서 83ms짜리 끊김이 한 번씩 있었다.
 - **종이 밝기**: 0.4초 간격 3장의 같은 영역 평균 밝기가 197.4, 197.4, 192.6(0~255)으로 약 2.5% 흔들린다. 불빛을 따라 은은하게 변하는 정도다.
+
+## 텍스처 적용 (커밋 bfd472f, ambientCG 사진 텍스처)
+
+낮(`?time=13`), 밤(`?time=22`), 겨울 낮(`?time=13&season=winter`), 비교용 텍스처 끔(`?time=13&notex`). 모두 60 fps, 콘솔 오류 없음. 텍스처 20장을 읽는 데 준비 뒤 약 0.3~0.5초가 더 걸린다(첫 화면 1.2~1.5초, 텍스처까지 1.5~2.0초).
+
+| 장면 | 시작 위치 | 벽난로 정면 | 책장 쪽 | 앉은 시점 |
+|---|---|---|---|---|
+| 낮 | ![](textures/photos/day-start.png) | ![](textures/photos/day-fireplace.png) | ![](textures/photos/day-shelf.png) | ![](textures/photos/day-seated.png) |
+| 밤 | ![](textures/photos/night-start.png) | ![](textures/photos/night-fireplace.png) | ![](textures/photos/night-shelf.png) | ![](textures/photos/night-seated.png) |
+| 겨울 낮 | ![](textures/photos/winter-day-start.png) | ![](textures/photos/winter-day-fireplace.png) | ![](textures/photos/winter-day-shelf.png) | ![](textures/photos/winter-day-seated.png) |
+| 낮, 텍스처 끔 | ![](textures/photos/day-notex-start.png) | ![](textures/photos/day-notex-fireplace.png) | ![](textures/photos/day-notex-shelf.png) | ![](textures/photos/day-notex-seated.png) |
+
+이 사진들은 찍기만 하고 재질별 검토는 아직 하지 않았다.
+
+## 6·7단계 (커밋 ffc7e82, 일부만 촬영)
+
+`docs/phase6-7/photos/`에 설정 탭 5장(소리, 방, 난롯가, 조작·접근성, 불), 장작 넣기 전후, 촛불 2개 켜고 끄기, 차 마시기 전후, 주전자, 책장에 꽂힌 책, 꺼낸 책, 앉아서 손에 든 책, 펼친 책 사진이 있다. 인용구 카드와 잠들기 모드는 아직 찍지 못했다.
