@@ -49,7 +49,7 @@ async function main() {
   const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
   // 스탠드도 그림자를 드리운다. 움직이지 않는 빛이라 그림자는 가구나 스탠드를 옮겼을 때만 다시 그린다.
-  lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.004; lamp.shadow.radius = 6; lamp.shadow.autoUpdate = false; lamp.shadow.needsUpdate = true;
+  lamp.castShadow = !Q.has('nolampshadow'); lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.004; lamp.shadow.radius = 6; lamp.shadow.autoUpdate = false; lamp.shadow.needsUpdate = true;
   // 방의 반사와 간접광: 방 한가운데서 여섯 방향을 찍어 환경 맵으로 쓴다(금속과 가죽, 마룻바닥의 윤기). 조명이 바뀔 때만 다시 찍는다.
   const cubeRT = new THREE.CubeRenderTarget(128, { type: THREE.HalfFloatType }), cubeCam = new THREE.CubeCamera(0.1, 30, cubeRT); cubeCam.position.set(ROOM.W / 2 - 0.2, 1.25, ROOM.D / 2);
   let envDue = 0.5; const ENV_I = Q.has('noenv') ? 0 : 0.55;
@@ -215,7 +215,7 @@ async function main() {
         const i0 = Math.max(0, Math.min(rec.n - 1, rec.i)), i1 = Math.max(0, Math.min(rec.n - 1, rec.i + rec.dir));
         target = rec.buf[i0] + (rec.buf[i1] - rec.buf[i0]) * rec.t; power = fire.power;
       } else {
-        rec.on = false;
+        rec.on = false; fire.wantLight = prefs.fireReplay && player.state === 'reading' && rec.n < REC_N;
         fire.update(dt, camera, !HEADLESS);
         power = fire.power;
         if (fire.light.ref > 0 && performance.now() - fire.light.at < 500) {

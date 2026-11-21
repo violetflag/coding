@@ -208,7 +208,7 @@ export class Environment {
     L.castShadow = L.intensity > 0.01; L.shadow.needsUpdate = true;
     this.hemi.color.copy(zen).lerp(hor, 0.4).lerp(C(0xffffff), 0.55 * day).multiplyScalar(1 + day); this.hemi.groundColor.set(0x1a0f08).lerp(C(0x4a3a2c), day);
     this.hemi.intensity = 0.3 + 0.5 * dawn + 0.2 * night * (0.3 + 0.7 * ph.fraction) * (1 - oc) + 1.5 * day * (1 - 0.35 * oc);
-    this.fill.color.copy(hor).lerp(zen, 0.5).lerp(C(0xffffff), 0.5 * day); this.fill.intensity = (16 * day + 5 * dawn + 0.5 * (1 - day) * (oc > 0 ? 1 : 0.4)) * (1 - 0.3 * oc);
+    this.fill.color.copy(hor).lerp(zen, 0.5).lerp(C(0xffffff), 0.5 * day); this.fill.color.lerp(C(0xffe9cf), 0.45 * day); this.fill.intensity = (10 * day + 5 * dawn + 0.5 * (1 - day) * (oc > 0 ? 1 : 0.4)) * (1 - 0.3 * oc);
     this.renderer.toneMappingExposure = 1.12 - 0.2 * day;
 
     // 계절: 땅, 능선, 나무색

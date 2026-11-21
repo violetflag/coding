@@ -676,6 +676,8 @@ fn camera(c: vec3f) -> vec3f {
   }
 
   // Renders the scene into this.hdr (linear HDR).
+  // 불빛만 계산한다(그리지 않는다): 불이 화면 밖일 때 방 조명 신호를 이어 가는 데 쓴다
+  lightsOnly(enc) { const pass = enc.beginComputePass(); pass.setPipeline(this.pLights); pass.setBindGroup(0, this.bgLights); pass.dispatchWorkgroups(NLIGHTS); pass.end(); }
   renderHDR(enc, prof) {
     const W = this.w, H = this.h;
     let pass = enc.beginComputePass({ timestampWrites: prof?.pass('lights') });

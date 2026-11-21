@@ -182,7 +182,13 @@ export class FireLayer {
     // 구멍이 화면에 없으면 불은 그리지 않고 시뮬레이션만 돌린다(불빛은 마지막 값 유지 → main이 대체 흔들림으로 잇는다)
     this.rect = this.debug?.norender ? null : this._holeRect(camera);
     this.canvas.style.visibility = this.rect ? 'visible' : 'hidden';
-    if (!this.rect) { this.frame++; this.hidden = true; return; }
+    if (!this.rect) {
+      // 화면 밖이어도 불빛 신호가 필요하면(읽는 동안의 기록) 불빛 계산과 읽어오기만 한다
+      if (this.wantLight && present && this.w && this.frame % 2 === 0) {
+        r.uploadParams(sim.time, this.frame, [0, 0]); const enc = d.createCommandEncoder(); r.lightsOnly(enc); r.readLights(enc); d.queue.submit([enc.finish()]); this._collect();
+      }
+      this.frame++; this.hidden = true; return;
+    }
     this.hidden = false;
     this._fitCrop(this.rect);
     r.setCamera(this._cam(camera));
@@ -197,7 +203,11 @@ export class FireLayer {
     // 헤드리스 캡처(present=false)에서는 불빛 읽어오기를 쉰다: 소프트웨어 WebGPU에서 버퍼 매핑이 밀려 캡처가 멈춘다.
     if (present) r.readLights(enc);
     d.queue.submit([enc.finish()]);
-    if (present) r.collectLights().then((ls) => {
+    if (present) this._collect();
+  }
+
+  _collect() {
+    this.renderer.collectLights().then((ls) => {
       if (!ls.seq || ls.seq === this._prevSeq) return;
       const dt = this._prevSeq ? Math.max((ls.t - this._prevT) / 1000, 1e-3) : 1;
       const L = this.light;
