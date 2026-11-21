@@ -39,7 +39,7 @@ async function main() {
   // ---- 불 레이어
   let fire = null, fireErr = '';
   if (!Q.has('nofire')) {
-    try { fire = await FireLayer.create(fireCanvas, { quality: Q.get('q') || undefined }); }
+    try { fire = await FireLayer.create(fireCanvas, { quality: Q.get('q') || undefined, grid: Number(Q.get('grid')) || 0 }); }
     catch (e) { fireErr = e.message || String(e); console.warn('[fire] 물리 불꽃을 쓸 수 없어 대체 표시로 전환:', e); }
   }
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }

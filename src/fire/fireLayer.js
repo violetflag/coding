@@ -30,10 +30,13 @@ const LOGS = [
 const pack = (items, fn, max = 16) => { const f = new Float32Array(max * 8); items.slice(0, max).forEach((it, i) => f.set(fn(it), i * 8)); return f; };
 
 export class FireLayer {
-  static async create(canvas, { quality = FIRE_QUALITY_DEFAULT } = {}) {
+  static async create(canvas, { quality = FIRE_QUALITY_DEFAULT, grid = 0 } = {}) {
     if (!FIRE_QUALITY[quality]) quality = FIRE_QUALITY_DEFAULT;
     const { device, features } = await initGPU();
-    return new FireLayer(canvas, device, features, FIRE_QUALITY[quality], quality);
+    let q = FIRE_QUALITY[quality];
+    // 측정용: ?grid=N 이면 가로 N칸(8의 배수)으로 격자만 바꾼다. 비율은 8:10:5.
+    if (grid >= 32) { const n = Math.round(grid / 8) * 8; q = { ...q, res: [n, Math.round(n * 1.25 / 8) * 8, Math.round(n * 0.625 / 4) * 4] }; }
+    return new FireLayer(canvas, device, features, q, quality);
   }
 
   constructor(canvas, device, features, q, qualityName) {
