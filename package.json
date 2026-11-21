@@ -11,6 +11,8 @@
     "shot": "node tools/shot.mjs"
   },
   "dependencies": {
+    "fflate": "^0.8.2",
+    "pdfjs-dist": "^4.10.38",
     "three": "0.187.0"
   },
   "devDependencies": {

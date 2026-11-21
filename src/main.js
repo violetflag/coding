@@ -54,9 +54,10 @@ async function main() {
   const player = new Player({
     camera, canvas: roomCanvas, ctx,
     onInteract(it) {
-      if (it.id === 'lamp') { lampOn = !lampOn; lamp.intensity = lampOn ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.02; }
+      if (it.id === 'lamp') { lampOn = !lampOn; lamp.intensity = lampOn ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = lampOn ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = lampOn; }
       else if (it.id === 'woodpile') { fire?.addLog(); fireSound?.trigger('log-shift', 0.6); toast('장작을 넣었습니다'); }
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
+      else if (it.candle) { const st = it.candle.userData.state; it.candle.userData.set(st.frac, !st.lit); }
       else if (it.id === 'shelf') toast('책장은 5단계에서 내 서재가 됩니다');
     },
     onState(s) { if (s === 'reading') toast('책은 5단계에서 구현됩니다 · Space로 덮기'); },
@@ -111,6 +112,7 @@ async function main() {
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(clock.elapsedTime);
+    for (const c of ctx.candles) c.userData.flicker(clock.elapsedTime);
 
     // 불빛 신호 → 방 조명. 물리 불이 없으면 느린 잡음으로 대신한다(대체 표시).
     // 불빛 측정값이 아직 없거나 끊기면(읽어오기 지연) 같은 잡음으로 이어 간다.

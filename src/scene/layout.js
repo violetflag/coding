@@ -28,4 +28,9 @@ export const CHAIRS = [
 
 export const RUG = { x: 3.0, z: 2.4, w: 3.0, d: 2.0 };
 export const LAMP = { x: 0.95, z: 1.45, h: 1.55 };
+// 책장: 깊이, 맨 아래 칸 바닥 높이, 칸 간격, 칸 수, 전체 높이. library = 불러온 책이 꽂히는 칸(왼쪽 벽 책장)
+export const SHELF = { depth: 0.3, y0: 0.1, pitch: 0.35, rows: 7, top: 2.55, library: { row: 3, bay: 2 } };
+// 읽기 의자 오른쪽의 보조 탁자
+{ const c = CHAIRS[0]; var TABLE_POS = { x: c.pos[0] + Math.cos(c.yaw) * 0.68 - Math.sin(c.yaw) * 0.05, z: c.pos[1] - Math.sin(c.yaw) * 0.68 - Math.cos(c.yaw) * 0.05 }; }
+export const TABLE = TABLE_POS;
 export const PLAYER_START = { x: 2.6, z: 4.1, yaw: aim([2.6, 4.1], [4.2, 1.6]) };
