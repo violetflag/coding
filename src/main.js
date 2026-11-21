@@ -44,6 +44,7 @@ async function main() {
   const fireLight = new THREE.PointLight(0xff8a3c, 0, 9, 1.6);
   fireLight.position.set(FP.faceX - 0.12, FP.hearthH + 0.3, FP.zc); fireLight.castShadow = true;
   fireLight.shadow.mapSize.set(1024, 1024); fireLight.shadow.bias = -0.004; fireLight.shadow.radius = 4;
+  fireLight.shadow.autoUpdate = false; fireLight.shadow.needsUpdate = true;   // 불빛 그림자는 매 프레임이 아니라 초당 10번쯤만 다시 그린다(방 안은 거의 움직이지 않는다)
   scene.add(fireLight);
   // 불빛이 벽과 천장에 반사되어 방 전체에 퍼지는 빛(그림자 없음): 벽난로 그늘에 가린 쪽이 새까맣게 되지 않게 한다
   const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
@@ -192,7 +193,7 @@ async function main() {
   ctx.fireRec = rec;
   const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
   texturesReady.then(() => ctx.refreshEnv(0.2));
-  let envAge = 0, envDay = -1;
+  let envAge = 0, envDay = -1, shT = 0;
   const frame = () => {
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     player.update(dt);
@@ -234,6 +235,10 @@ async function main() {
     const lv = Math.max(0.3, Math.min(1.8, level));
     fireLight.intensity = 9 * power * lv;
     fireLight.position.y = FP.hearthH + 0.3 + 0.03 * (level - 1);
+    // 그림자 갱신: 평소 초당 10번, 책장을 넘기거나 가구를 옮기는 동안은 초당 30번. 설정에서 그림자를 끄면 드리우지 않는다.
+    const shOn = prefs.shadows !== false && !Q.has('noshadow'); if (fireLight.castShadow !== shOn) { fireLight.castShadow = shOn; lamp.castShadow = shOn && !Q.has('nolampshadow'); }
+    const busy = arrange.held || player.tween || (player.state === 'reading' && reading.reader.book3d.flipping);
+    if ((shT -= dt) <= 0) { shT = busy ? 1 / 30 : 0.1; fireLight.shadow.needsUpdate = true; if (arrange.held) lamp.shadow.needsUpdate = true; }
     bounce.intensity = 2.6 * power * (0.6 + 0.4 * level);
     reading.update(dt, { fire: power * lv / 0.62, day: env.state.day });
 
