@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args.splice(i, 2)[1] : d; };
-const url = opt('url', 'http://127.0.0.1:5320/'), frames = Number(opt('frames', 260)), query = opt('query', 'q=low&fixed&stats&headless');
+const url = opt('url', 'http://127.0.0.1:5320/'), frames = Number(opt('frames', 260)), query = opt('query', 'q=test&fixed&stats&headless');
 const W = Number(opt('w', 1280)), H = Number(opt('h', 720));
 const names = args.length ? args : ['start', 'fire', 'seated', 'reading'];
 const VIEWS = {

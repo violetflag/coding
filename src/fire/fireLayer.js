@@ -11,10 +11,14 @@ import { FIREPLACE as FP, ROOM } from '../scene/layout.js';
 
 // 격자 한 칸은 약 1.4cm. 계산 영역은 화구 안쪽(0.9 × 1.1 × 0.56 m)만 덮는다.
 export const FIRE_QUALITY = {
-  low: { res: [48, 64, 32], dt: 1 / 45, vcycles: 1, scale: 0.5, volScale: 0.5, surfScale: 0.5, stepMul: 1.0, sparks: 2048 },
-  med: { res: [64, 80, 40], dt: 1 / 60, vcycles: 1, scale: 0.66, volScale: 0.5, surfScale: 0.6, stepMul: 0.9, sparks: 4096 },
-  high: { res: [96, 120, 60], dt: 1 / 90, vcycles: 2, scale: 1.0, volScale: 0.6, surfScale: 0.75, stepMul: 0.7, sparks: 8192 },
+  // test: 서버의 소프트웨어 렌더러로 스크린샷을 찍을 때만 쓰는 아주 낮은 단계 (화면 설정에는 내놓지 않는다)
+  test: { res: [48, 64, 32], dt: 1 / 45, vcycles: 1, scale: 0.5, volScale: 0.5, surfScale: 0.5, stepMul: 1.0, sparks: 2048 },
+  low: { res: [96, 120, 60], dt: 1 / 90, vcycles: 2, scale: 1.0, volScale: 0.6, surfScale: 0.75, stepMul: 0.7, sparks: 8192 },
+  medium: { res: [112, 144, 72], dt: 1 / 90, vcycles: 2, scale: 1.0, volScale: 0.75, surfScale: 0.85, stepMul: 0.65, sparks: 12288 },
+  high: { res: [128, 160, 80], dt: 1 / 120, vcycles: 2, scale: 1.0, volScale: 1.0, surfScale: 1.0, stepMul: 0.6, sparks: 16384 },
+  ultra: { res: [160, 200, 104], dt: 1 / 120, vcycles: 3, scale: 1.0, volScale: 1.0, surfScale: 1.0, stepMul: 0.5, sparks: 24576 },
 };
+export const FIRE_QUALITY_DEFAULT = 'medium';
 
 // 장작 받침대 위 가로 장작 3개 + 숯 속 토막 1개 (참고 이미지의 배치). a, b = 양 끝, r = 반지름, burn = 타는 정도.
 const LOGS = [
@@ -26,9 +30,10 @@ const LOGS = [
 const pack = (items, fn, max = 16) => { const f = new Float32Array(max * 8); items.slice(0, max).forEach((it, i) => f.set(fn(it), i * 8)); return f; };
 
 export class FireLayer {
-  static async create(canvas, { quality = 'med' } = {}) {
+  static async create(canvas, { quality = FIRE_QUALITY_DEFAULT } = {}) {
+    if (!FIRE_QUALITY[quality]) quality = FIRE_QUALITY_DEFAULT;
     const { device, features } = await initGPU();
-    return new FireLayer(canvas, device, features, FIRE_QUALITY[quality] || FIRE_QUALITY.med, quality);
+    return new FireLayer(canvas, device, features, FIRE_QUALITY[quality], quality);
   }
 
   constructor(canvas, device, features, q, qualityName) {
