@@ -59,7 +59,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     const sleeve = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.95 });
     const cap = (r, len, m) => { const o = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 12), m); o.castShadow = true; o.receiveShadow = true; return o; };
     for (const s of [-1, 1]) {
-      const h = new THREE.Group(); h.position.set(s * (PW * 0.99), -PH * 0.5, 0.0); h.scale.setScalar(0.92);
+      const h = new THREE.Group(); h.position.set(s * (PW * 1.03), -PH * 0.54, 0.0); h.scale.setScalar(0.92);
       // 엄지: 쪽 여백 위에 비스듬히 얹힌다
       const t1 = cap(0.0112, 0.03, skin); t1.position.set(s * 0.012, -0.012, 0.021); t1.rotation.z = s * 0.75; t1.rotation.x = 0.12; h.add(t1);
       const t2 = cap(0.0095, 0.022, skin); t2.position.set(s * -0.012, 0.016, 0.02); t2.rotation.z = s * 1.02; h.add(t2);
