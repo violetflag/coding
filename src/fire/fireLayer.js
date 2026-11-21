@@ -50,7 +50,7 @@ export class FireLayer {
     this.sparks = new Sparks(device, { count: q.sparks, sim: this.sim, renderer: this.renderer, curlTex });
     // 벽난로 크기의 불: 모닥불(60kW)보다 훨씬 작게. 2단계에서 화구 경계 조건과 함께 다시 맞춘다.
     this.sim.setParams({ bedRadius: 0.17, hotR0: 0.08, hotR1: 0.3, hotY1: 0.35 });
-    this.power = 0.03; this.target = 0.62; this.acc = 0; this.frame = 0; this.w = 0; this.h = 0;
+    this.power = 0.45; this.target = 0.62; this.acc = 0; this.frame = 0; this.w = 0; this.h = 0;
     this.light = { level: 1, raw: 0, ref: 0, power: 0, at: 0 };
     this._prevSeq = 0; this._prevT = 0; this.burstUntil = 0; this.popClock = 1; this.lost = false; this.simMs = 0;
     device.lost.then(() => { this.lost = true; });
@@ -150,17 +150,20 @@ export class FireLayer {
     sim.setParams({ intensity: this.power, burstAmt: now < this.burstUntil ? 1 : 0 });
     this.popClock -= dtReal;
     if (this.popClock <= 0 && !this.popsFromAudio) { this.popClock = 0.8 + Math.random() * 3; this.event({ type: 'pop', strength: 0.2 + Math.random() * 0.6 }); }
-    this.acc += dtReal;
+    // 처음 들어왔을 때 불이 붙기까지 20초 넘게 걸리지 않도록, 불이 자리 잡을 때까지는 시뮬레이션을 3배 빠르게 돌린다
+    const warm = !this.debug?.nowarm && sim.time < 14;
+    this.acc += dtReal * (warm ? 3 : 1);
     let n = 0;
     this._t0 = this._t0 || now; const simOff = this.debug?.nosim && now - this._t0 > 20000; if (simOff) this.acc = 0; // 측정용: 불이 붙은 뒤 시뮬레이션 정지
-    while (this.acc >= this.q.dt && n < (this.q.maxSteps || 2)) {
+    const maxSteps = (this.q.maxSteps || 2) * (warm ? 3 : 1);
+    while (this.acc >= this.q.dt && n < maxSteps) {
       const enc = d.createCommandEncoder();
       sim.step(enc, this.q.dt);
       this.sparks.rate = this.power; this.sparks.step(enc, this.q.dt);
       d.queue.submit([enc.finish()]);
       this.acc -= this.q.dt; n++;
     }
-    if (n === (this.q.maxSteps || 2)) this.acc = Math.min(this.acc, this.q.dt);
+    if (n === maxSteps) this.acc = Math.min(this.acc, this.q.dt);
 
     // 구멍이 화면에 없으면 불은 그리지 않고 시뮬레이션만 돌린다(불빛은 마지막 값 유지 → main이 대체 흔들림으로 잇는다)
     this.rect = this.debug?.norender ? null : this._holeRect(camera);

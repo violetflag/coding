@@ -56,7 +56,7 @@ async function main() {
   const fireCfg = applyUrl(loadFireConfig(), Q);
   let fire = null, fireErr = '';
   if (!Q.has('nofire')) {
-    try { fire = await FireLayer.create(fireCanvas, { q: toQuality(fireCfg.values), name: fireCfg.custom || fireCfg.fromUrl ? '사용자 지정' : FIRE_PRESETS[fireCfg.preset].name, debug: { nosim: Q.has('nosim'), norender: Q.has('norender') } }); }
+    try { fire = await FireLayer.create(fireCanvas, { q: toQuality(fireCfg.values), name: fireCfg.custom || fireCfg.fromUrl ? '사용자 지정' : FIRE_PRESETS[fireCfg.preset].name, debug: { nosim: Q.has('nosim'), norender: Q.has('norender'), nowarm: HEADLESS || Q.has('nowarm') } }); }
     catch (e) { fireErr = e.message || String(e); console.warn('[fire] 물리 불꽃을 쓸 수 없어 대체 표시로 전환:', e); }
   }
   const brickReady = fire && !Q.has('notex') ? fire.loadBrick() : Promise.resolve(false);
