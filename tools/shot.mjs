@@ -16,7 +16,7 @@ const VIEWS = {
   start: null,
   fire: { pos: [3.2, 2.0], yaw: [5.33, 1.6], pitch: -0.18 },
   shelf: { pos: [3.6, 3.2], yaw: [0.3, 1.0], pitch: 0 },
-  window: { pos: [2.7, 3.6], yaw: [2.6, 0], pitch: 0.05 },
+  window: { pos: [2.8, 2.3], yaw: [2.8, 0], pitch: 0.0 },
   room1: { pos: [2.9, 4.4], yaw: [3.3, 0.5], pitch: -0.12 },
   room2: { pos: [4.6, 4.2], yaw: [1.0, 1.2], pitch: -0.1 },
   hearthclose: { pos: [4.0, 1.0], yaw: [5.0, 2.2], pitch: -0.75 },
