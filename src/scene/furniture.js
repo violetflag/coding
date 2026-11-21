@@ -81,7 +81,10 @@ export function floorLamp(M, h) {
   const g = new THREE.Group();
   g.add(at(cyl(0.14, 0.16, 0.025, M.brass, 24), 0, 0.0125, 0));
   g.add(at(cyl(0.012, 0.014, h, M.brass, 10), 0, h / 2, 0));
-  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xe8c890, roughness: 1, emissive: 0xffb060, emissiveIntensity: 1.6, side: THREE.DoubleSide });
+  // 갓: 전구 높이가 가장 밝고 위아래로 어두워지는 천
+  const sc = document.createElement('canvas'); sc.width = 64; sc.height = 128; { const c = sc.getContext('2d'), gr = c.createLinearGradient(0, 0, 0, 128); gr.addColorStop(0, '#5a3a1c'); gr.addColorStop(0.25, '#b98a4e'); gr.addColorStop(0.62, '#ffe2ae'); gr.addColorStop(0.85, '#d8a868'); gr.addColorStop(1, '#6a4420'); c.fillStyle = gr; c.fillRect(0, 0, 64, 128); c.globalAlpha = 0.07; for (let x = 0; x < 64; x += 2) { c.fillStyle = '#000'; c.fillRect(x, 0, 1, 128); } for (let y = 0; y < 128; y += 3) c.fillRect(0, y, 64, 1); }
+  const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace; st.wrapS = THREE.RepeatWrapping; st.repeat.x = 6;
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xd8b888, roughness: 1, emissive: 0xffb872, emissiveMap: st, emissiveIntensity: 1.6, side: THREE.DoubleSide });
   const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.21, 0.28, 24, 1, true), shadeMat); shade.position.y = h + 0.08; g.add(shade);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 4.2, 2.2) })); bulb.position.y = h + 0.04; g.add(bulb);
   g.userData = { shade, bulb };
@@ -167,16 +170,31 @@ export function painting(M, w = 0.9, h = 0.6, { seed = 77, frame = M.brass, f = 
   const g = new THREE.Group();
   const cv = document.createElement('canvas'); cv.width = 768; cv.height = Math.round(768 * h / w); const c = cv.getContext('2d');
   const W = cv.width, H = cv.height;
+  // 기본 그림: 유화풍 겨울 풍경 (흐린 하늘과 구름, 안개 낀 능선, 눈밭, 전나무, 불 켜진 오두막). 넣은 그림이 없을 때 쓴다.
   const drawDefault = () => {
     const r = rng(seed), sx = W / 384, sy = H / 256; c.save(); c.scale(sx, sy);
     const dusk = seed % 3;
-    const sky = c.createLinearGradient(0, 0, 0, 160); sky.addColorStop(0, ['#2b3a55', '#3a4a3a', '#4a3a48'][dusk]); sky.addColorStop(1, ['#c79a6a', '#c9b98a', '#d8a078'][dusk]); c.fillStyle = sky; c.fillRect(0, 0, 384, 256);
-    const hill = (y, col, amp) => { c.fillStyle = col; c.beginPath(); c.moveTo(0, 256); for (let x = 0; x <= 384; x += 8) c.lineTo(x, y + Math.sin(x * 0.02 + y + seed) * amp + Math.sin(x * 0.05 + seed) * amp * 0.4); c.lineTo(384, 256); c.fill(); };
-    hill(120, '#3c4660', 22); hill(150, '#56607a', 14); hill(185, '#c8cdd6', 8); hill(215, '#e4e6ea', 5);
-    for (let i = 0; i < 26; i++) { const x = r() * 384, y = 150 + r() * 70, s = 10 + (y - 140) * 0.25; c.fillStyle = `rgb(${20 + r() * 20},${32 + r() * 20},${30 + r() * 12})`; c.beginPath(); c.moveTo(x, y - s * 2.2); c.lineTo(x + s * 0.55, y); c.lineTo(x - s * 0.55, y); c.fill(); }
-    const hx = 120 + r() * 180; c.fillStyle = '#3a2416'; c.fillRect(hx, 178, 34, 20); c.fillStyle = '#e8e4dc'; c.beginPath(); c.moveTo(hx - 6, 180); c.lineTo(hx + 17, 162); c.lineTo(hx + 40, 180); c.fill(); c.fillStyle = '#ffb648'; c.fillRect(hx + 12, 184, 7, 8);
-    c.restore();
-    const img = c.getImageData(0, 0, W, H); for (let i = 0; i < img.data.length; i += 4) { const k = 0.8 + r() * 0.25; img.data[i] *= k; img.data[i + 1] *= k; img.data[i + 2] *= k; } c.putImageData(img, 0, 0);
+    const sky = c.createLinearGradient(0, 0, 0, 170); sky.addColorStop(0, ['#27344e', '#38483f', '#43364a'][dusk]); sky.addColorStop(0.55, ['#8d7f86', '#8f9478', '#a07e7c'][dusk]); sky.addColorStop(1, ['#e0b27c', '#d9c592', '#e6ad84'][dusk]); c.fillStyle = sky; c.fillRect(0, 0, 384, 256);
+    c.filter = 'blur(7px)'; for (let i = 0; i < 16; i++) { c.fillStyle = `rgba(${200 + r() * 55},${170 + r() * 50},${150 + r() * 50},${0.1 + r() * 0.18})`; c.beginPath(); c.ellipse(r() * 384, 15 + r() * 100, 30 + r() * 60, 5 + r() * 10, 0, 0, 7); c.fill(); }
+    c.filter = 'blur(1.2px)';
+    const ridge = (y, top, bot, amp, ph) => { const gr = c.createLinearGradient(0, y - amp, 0, y + 60); gr.addColorStop(0, top); gr.addColorStop(1, bot); c.fillStyle = gr; c.beginPath(); c.moveTo(0, 256); for (let x = 0; x <= 384; x += 4) c.lineTo(x, y + Math.sin(x * 0.021 + ph) * amp + Math.sin(x * 0.057 + ph * 2) * amp * 0.45 + Math.sin(x * 0.19 + ph) * amp * 0.12); c.lineTo(384, 256); c.fill(); };
+    ridge(112, '#39435e', '#8b8fa2', 24, seed); ridge(140, '#4a5570', '#a7abb8', 15, seed * 1.7); ridge(168, '#5d6a72', '#c2c6cc', 9, seed * 0.6);
+    const snow = c.createLinearGradient(0, 178, 0, 256); snow.addColorStop(0, '#cfd3da'); snow.addColorStop(1, '#f0efe9'); c.fillStyle = snow; c.beginPath(); c.moveTo(0, 256); for (let x = 0; x <= 384; x += 6) c.lineTo(x, 186 + Math.sin(x * 0.018 + seed) * 6); c.lineTo(384, 256); c.fill();
+    c.filter = 'blur(2px)'; for (let i = 0; i < 9; i++) { c.fillStyle = 'rgba(96,110,140,.22)'; c.beginPath(); c.ellipse(r() * 384, 200 + r() * 50, 30 + r() * 50, 2 + r() * 4, -0.1, 0, 7); c.fill(); }
+    c.filter = 'blur(0.6px)';
+    const fir = (x, y, s) => { for (let k = 0; k < 5; k++) { const t = k / 5, wy = y - s * 2.3 * (1 - t), hw = s * (0.16 + 0.5 * t); c.fillStyle = `rgb(${18 + r() * 16},${34 + r() * 18},${32 + r() * 12})`; c.beginPath(); c.moveTo(x, wy - s * 0.55); c.lineTo(x + hw, wy + s * 0.12); c.lineTo(x + hw * 0.4, wy); c.lineTo(x - hw * 0.4, wy + s * 0.04); c.lineTo(x - hw, wy + s * 0.12); c.fill(); c.fillStyle = 'rgba(235,238,242,.55)'; c.beginPath(); c.moveTo(x, wy - s * 0.55); c.lineTo(x - hw * 0.75, wy + s * 0.02); c.lineTo(x - hw * 0.2, wy - s * 0.12); c.fill(); } c.fillStyle = 'rgba(70,84,112,.25)'; c.beginPath(); c.ellipse(x + s * 0.7, y + 2, s * 0.9, s * 0.12, 0, 0, 7); c.fill(); };
+    const trees = []; for (let i = 0; i < 22; i++) trees.push([r() * 384, 172 + r() * 62]); trees.sort((a, b2) => a[1] - b2[1]);
+    const hx = 120 + r() * 170, hy = 196; let cabin = false;
+    for (const [x, y] of trees) {
+      if (!cabin && y > hy) { cabin = true; c.fillStyle = '#35221a'; c.fillRect(hx, hy - 20, 36, 20); c.fillStyle = '#ecebe6'; c.beginPath(); c.moveTo(hx - 6, hy - 18); c.lineTo(hx + 18, hy - 36); c.lineTo(hx + 42, hy - 18); c.fill(); c.fillStyle = '#4a2d20'; c.fillRect(hx + 27, hy - 38, 5, 10);
+        const gl = c.createRadialGradient(hx + 16, hy - 9, 0, hx + 16, hy - 9, 26); gl.addColorStop(0, 'rgba(255,190,90,.75)'); gl.addColorStop(1, 'rgba(255,170,70,0)'); c.fillStyle = gl; c.fillRect(hx - 12, hy - 36, 58, 54); c.fillStyle = '#ffd27a'; c.fillRect(hx + 12, hy - 14, 8, 9); }
+      if (Math.abs(x - hx - 18) > 30 || y < hy - 6) fir(x, y, 8 + (y - 165) * 0.3);
+    }
+    c.filter = 'none'; c.restore();
+    // 붓 자국, 캔버스 결, 오래된 바니시
+    const r2 = rng(seed + 9); c.globalAlpha = 0.07; for (let i = 0; i < 2600; i++) { const x = r2() * W, y = r2() * H, a = (r2() - 0.5) * 0.9; c.strokeStyle = r2() > 0.5 ? '#fff' : '#000'; c.lineWidth = 1 + r2() * 2.5; c.beginPath(); c.moveTo(x, y); c.lineTo(x + Math.cos(a) * (6 + r2() * 14), y + Math.sin(a) * (6 + r2() * 14)); c.stroke(); } c.globalAlpha = 1;
+    const img = c.getImageData(0, 0, W, H), d = img.data; for (let i = 0; i < d.length; i += 4) { const px = (i / 4) % W, py = (i / 4 / W) | 0, k = 0.86 + r2() * 0.12 + ((px % 3 === 0) + (py % 3 === 0)) * 0.03; d[i] *= k; d[i + 1] *= k * 0.97; d[i + 2] *= k * 0.9; } c.putImageData(img, 0, 0);
+    const vg = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.75); vg.addColorStop(0, 'rgba(40,24,8,0)'); vg.addColorStop(1, 'rgba(40,24,8,.42)'); c.fillStyle = vg; c.fillRect(0, 0, W, H);
   };
   drawDefault();
   const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;

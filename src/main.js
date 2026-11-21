@@ -17,6 +17,7 @@ import { buildSections, loadPrefs } from './ui/sections.js';
 import { setupReading } from './reading.js';
 import { setupCozy } from './cozy.js';
 import { setupArrange } from './scene/arrange.js';
+import { setupPost } from './scene/post.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -47,6 +48,13 @@ async function main() {
   // 불빛이 벽과 천장에 반사되어 방 전체에 퍼지는 빛(그림자 없음): 벽난로 그늘에 가린 쪽이 새까맣게 되지 않게 한다
   const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
+  // 스탠드도 그림자를 드리운다. 움직이지 않는 빛이라 그림자는 가구나 스탠드를 옮겼을 때만 다시 그린다.
+  lamp.castShadow = true; lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.004; lamp.shadow.radius = 6; lamp.shadow.autoUpdate = false; lamp.shadow.needsUpdate = true;
+  // 방의 반사와 간접광: 방 한가운데서 여섯 방향을 찍어 환경 맵으로 쓴다(금속과 가죽, 마룻바닥의 윤기). 조명이 바뀔 때만 다시 찍는다.
+  const cubeRT = new THREE.CubeRenderTarget(128, { type: THREE.HalfFloatType }), cubeCam = new THREE.CubeCamera(0.1, 30, cubeRT); cubeCam.position.set(ROOM.W / 2 - 0.2, 1.25, ROOM.D / 2);
+  let envDue = 0.5; const ENV_I = Q.has('noenv') ? 0 : 0.55;
+  const refreshEnv = () => { if (!ENV_I) return; lamp.shadow.needsUpdate = true; scene.environment = null; cubeCam.update(renderer, scene); scene.environment = cubeRT.texture; };
+  ctx.refreshEnv = (delay = 0.3) => { envDue = Math.max(0.05, delay); };
   const env = new Environment(scene, ctx, renderer, { url: Q });
   env.recompute();
   if (!HEADLESS) env.locate();
@@ -80,7 +88,7 @@ async function main() {
   // ---- 플레이어와 상호작용
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
   let lampOn = true, fitSoon = () => {};
-  const setLamp = (on) => { lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
+  const setLamp = (on) => { ctx.refreshEnv?.(0.1); lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
   const player = new Player({
@@ -119,7 +127,7 @@ async function main() {
     onTts: (on) => { if (!cozy?.hearth.sleepT) mixer.setScale(on ? 0.45 : 1); music.duck = on ? 0.35 : 1; music.applyVolume(); },
     onQuote: (text, meta) => cozy.quoteCard(text, meta),
   });
-  ctx.onLampMove = (o) => lamp.position.set(o.position.x, LAMP.h + 0.05, o.position.z);
+  ctx.onLampMove = (o) => { lamp.position.set(o.position.x, LAMP.h + 0.05, o.position.z); ctx.refreshEnv(0.4); };
   const arrange = setupArrange({ ctx, player, camera, canvas: roomCanvas, toast, sfx });
   cozy = setupCozy({ scene, camera, ctx, player, fire, reading, prefs, toast, sfx, mixer, music, setLamp, env });
   if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
@@ -180,6 +188,9 @@ async function main() {
   const shot = document.createElement('canvas');
   const REC_HZ = 30, REC_N = (Q.has('rec') ? +Q.get('rec') || 5 : 60) * REC_HZ, rec = { buf: new Float32Array(REC_N), n: 0, acc: 0, on: false, i: 0, dir: 1, t: 0 };  // 불빛 기록(기본 60초)
   ctx.fireRec = rec;
+  const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
+  texturesReady.then(() => ctx.refreshEnv(0.2));
+  let envAge = 0, envDay = -1;
   const frame = () => {
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     player.update(dt);
@@ -236,7 +247,11 @@ async function main() {
 
     // 책을 읽는 동안은 절전: 방은 한 프레임 걸러 그린다 (장을 넘기는 중과 화면을 찍을 때는 매 프레임)
     skip = prefs.readSave && player.state === 'reading' && !player.tween && !reading.reader.book3d.flipping && !ctx.captureNext && !skip;
-    if (!HEADLESS && !skip) renderer.render(scene, camera);
+    // 환경 맵: 예약된 때, 또는 낮밤이 눈에 띄게 달라졌을 때 다시 찍는다
+    envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
+    else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
+    scene.environmentIntensity = ENV_I * (0.75 + 0.25 * Math.min(1.4, level));
+    if (!HEADLESS && !skip) { if (post && prefs.post) post.render(); else renderer.render(scene, camera); }
     if (ctx.captureNext && !HEADLESS) {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
       const cb = ctx.captureNext; ctx.captureNext = null;
@@ -279,7 +294,7 @@ async function main() {
   // 테스트·스크린샷 도구용
   window.NANRO = {
     renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
-    async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
+    async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire, post: post && prefs.post ? post : null }, w, h); },
   };
 }
 

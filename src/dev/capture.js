@@ -6,10 +6,10 @@ import * as THREE from 'three/webgpu';
 const aces = (x) => { x *= 0.6; return Math.max(0, Math.min(1, (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14))); };
 const srgb = (x) => (x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055);
 
-export async function capture({ renderer, scene, camera, fire }, w = 1280, h = 720) {
+export async function capture({ renderer, scene, camera, fire, post }, w = 1280, h = 720) {
   const rt = new THREE.RenderTarget(w, h, { type: THREE.HalfFloatType, colorSpace: THREE.LinearSRGBColorSpace });
   const prev = renderer.getRenderTarget();
-  renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(prev);
+  if (post) post.renderLinear(rt); else { renderer.setRenderTarget(rt); renderer.render(scene, camera); renderer.setRenderTarget(prev); }
   const px = await renderer.readRenderTargetPixelsAsync(rt, 0, 0, w, h);
   rt.dispose();
   const half = px instanceof Uint16Array;

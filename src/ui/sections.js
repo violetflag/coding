@@ -2,7 +2,7 @@
 import { WEATHERS, SEASONS, SEOUL } from '../scene/environment.js';
 
 const KEY = 'nanro.prefs';
-export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, logMinutes: 25, sleepMinutes: 30 };
+export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, logMinutes: 25, sleepMinutes: 30 };
 export function loadPrefs() { const p = { ...PREF_DEFAULTS }; try { Object.assign(p, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* 기본값 */ } return p; }
 export const savePrefs = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* 무시 */ } };
 

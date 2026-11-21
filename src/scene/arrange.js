@@ -44,7 +44,7 @@ export function setupArrange({ ctx, player, camera, canvas, toast, sfx }) {
     const h = api.held; if (!h) return;
     if (!cancel && h.bad) { toast('여기에는 놓을 수 없습니다'); return; }
     const m = h.m; if (cancel) apply(m, h.from);
-    m.col.min[1] = 0; m.sync(); tint(m, null); api.held = null;
+    m.col.min[1] = 0; m.sync(); tint(m, null); api.held = null; ctx.refreshEnv?.(0.3);
     if (!cancel) { saved[m.id] = { x: +m.obj.position.x.toFixed(3), z: +m.obj.position.z.toFixed(3), yaw: +m.obj.rotation.y.toFixed(3) }; save(); sfx?.('book'); }
   };
   api.reset = () => { saved = {}; save(); for (const m of ctx.movables) apply(m, m.home); toast('가구 배치를 처음대로 되돌렸습니다'); };

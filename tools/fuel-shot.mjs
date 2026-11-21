@@ -1,3 +1,4 @@
+// 화실 장작 상태별 사진: node tools/fuel-shot.mjs 1,1,1 0.5,0.25,0.08,6,10 0,0,0,0,0  (장작 셋의 남은 양, 더미 개수, 선반 개수) → shots/fuelN.png
 import { createRequire } from 'node:module'; const { chromium } = createRequire(import.meta.url)('playwright');
 const b = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
 const fuels = process.argv.slice(2).map((s) => s.split(',').map(Number));

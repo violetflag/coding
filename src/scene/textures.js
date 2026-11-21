@@ -113,35 +113,64 @@ function fabric({ size = 256, seed = 21, base = [0.62, 0.52, 0.38], threads = 64
   }, { bump: 1.2 });
 }
 
-// ---- 러그: 테두리와 마름모 무늬를 그린 뒤 직조 잡음을 얹는다 (반복하지 않고 한 장으로 쓴다)
-function rug({ w = 768, h = 512, seed = 31 }) {
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d');
-  const P = { field: '#5a1a17', dark: '#2a0f10', cream: '#c9b48a', navy: '#1c2740', gold: '#a8782e' };
-  c.fillStyle = P.dark; c.fillRect(0, 0, w, h);
-  c.fillStyle = P.cream; c.fillRect(14, 14, w - 28, h - 28);
-  c.fillStyle = P.navy; c.fillRect(20, 20, w - 40, h - 40);
-  // 테두리 무늬
-  c.fillStyle = P.gold;
-  for (let x = 34; x < w - 34; x += 26) { for (const y of [38, h - 38]) { c.beginPath(); c.moveTo(x, y - 9); c.lineTo(x + 9, y); c.lineTo(x, y + 9); c.lineTo(x - 9, y); c.fill(); } }
-  for (let y = 60; y < h - 50; y += 26) { for (const x of [38, w - 38]) { c.beginPath(); c.moveTo(x, y - 9); c.lineTo(x + 9, y); c.lineTo(x, y + 9); c.lineTo(x - 9, y); c.fill(); } }
-  c.fillStyle = P.cream; c.fillRect(56, 56, w - 112, h - 112);
-  c.fillStyle = P.field; c.fillRect(61, 61, w - 122, h - 122);
-  // 바탕의 작은 마름모 격자
-  c.strokeStyle = 'rgba(201,180,138,.28)'; c.lineWidth = 1.5;
-  for (let k = -h; k < w + h; k += 44) { c.beginPath(); c.moveTo(k, 61); c.lineTo(k + h, h - 61); c.stroke(); c.beginPath(); c.moveTo(k, h - 61); c.lineTo(k + h, 61); c.stroke(); }
-  c.fillStyle = P.field; c.strokeStyle = P.cream;
-  // 가운데 큰 무늬
-  const med = (cx, cy, rx, ry, cols) => cols.forEach((col, i) => { const k = 1 - i / cols.length; c.fillStyle = col; c.beginPath(); c.moveTo(cx, cy - ry * k); c.lineTo(cx + rx * k, cy); c.lineTo(cx, cy + ry * k); c.lineTo(cx - rx * k, cy); c.fill(); });
-  med(w / 2, h / 2, w * 0.3, h * 0.36, [P.cream, P.navy, P.gold, P.field, P.cream, P.navy]);
-  for (const [x, y] of [[0.2, 0.26], [0.8, 0.26], [0.2, 0.74], [0.8, 0.74]]) med(w * x, h * y, w * 0.07, h * 0.1, [P.cream, P.navy, P.gold]);
-  // 직조 잡음과 바랜 얼룩
-  const img = c.getImageData(0, 0, w, h), d = img.data, r = rng(seed);
+// ---- 러그: 페르시아풍. 사분면 하나를 그려 네 번 뒤집어 대칭을 맞춘 뒤 직조 잡음과 바랜 얼룩을 얹는다 (한 장으로 쓴다)
+function rug({ w = 2048, h = 1408, seed = 31 }) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; const c = cv.getContext('2d'), r = rng(seed);
+  const P = { field: '#6a1b18', deep: '#3b0f10', cream: '#d8c6a0', navy: '#182540', blue: '#3d5878', gold: '#b08338', rose: '#b5574a', green: '#4c5a3a' };
+  const lobed = (cx, cy, rx, ry, n, amp, col, rot = 0) => { c.fillStyle = col; c.beginPath(); for (let i = 0; i <= 180; i++) { const t = (i / 180) * Math.PI * 2, k = 1 + amp * Math.cos(n * t + rot); c.lineTo(cx + Math.cos(t) * rx * k, cy + Math.sin(t) * ry * k); } c.fill(); };
+  const rosette = (x, y, s, cols) => { lobed(x, y, s, s, 8, 0.22, cols[0]); lobed(x, y, s * 0.68, s * 0.68, 8, 0.25, cols[1], Math.PI); lobed(x, y, s * 0.4, s * 0.4, 6, 0.2, cols[2]); c.fillStyle = cols[3] || cols[0]; c.beginPath(); c.arc(x, y, s * 0.14, 0, 7); c.fill(); };
+  const leaf = (x, y, len, ang, col) => { c.save(); c.translate(x, y); c.rotate(ang); c.fillStyle = col; c.beginPath(); c.moveTo(0, 0); c.quadraticCurveTo(len * 0.5, -len * 0.28, len, 0); c.quadraticCurveTo(len * 0.5, len * 0.28, 0, 0); c.fill(); c.restore(); };
+  const vine = (x0, y0, x1, y1, col, n = 6) => { c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); for (let i = 0; i <= 40; i++) { const t = i / 40, x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t, o = Math.sin(t * Math.PI * n) * 9, nx = -(y1 - y0), ny = x1 - x0, L = Math.hypot(nx, ny); c.lineTo(x + (nx / L) * o, y + (ny / L) * o); } c.stroke(); };
+  // 사분면(왼쪽 위)을 그린다: 좌표는 전체 기준, 가운데는 (w/2, h/2)
+  const quad = () => {
+    c.fillStyle = P.deep; c.fillRect(0, 0, w / 2 + 2, h / 2 + 2);
+    // 바깥 가는 띠, 주 테두리, 안쪽 가는 띠
+    const B0 = 26, B1 = 58, B2 = 190, B3 = 222;
+    c.fillStyle = P.cream; c.fillRect(B0, B0, w, h); c.fillStyle = P.navy; c.fillRect(B0 + 8, B0 + 8, w, h);
+    for (let x = B0 + 26; x < w / 2 + 20; x += 30) { c.fillStyle = (x / 30) % 2 < 1 ? P.gold : P.rose; c.beginPath(); c.moveTo(x, B0 + 10); c.lineTo(x + 9, B0 + 18); c.lineTo(x, B0 + 26); c.lineTo(x - 9, B0 + 18); c.fill(); }
+    for (let y = B0 + 26; y < h / 2 + 20; y += 30) { c.fillStyle = (y / 30) % 2 < 1 ? P.gold : P.rose; c.beginPath(); c.moveTo(B0 + 18, y - 9); c.lineTo(B0 + 27, y); c.lineTo(B0 + 18, y + 9); c.lineTo(B0 + 9, y); c.fill(); }
+    c.fillStyle = P.cream; c.fillRect(B1 - 4, B1 - 4, w, h); c.fillStyle = P.navy; c.fillRect(B1, B1, w, h);
+    const mid = (B1 + B2) / 2;
+    vine(B1 + 20, mid, w / 2 + 40, mid, P.green, 9); vine(mid, B1 + 20, mid, h / 2 + 40, P.green, 6);
+    for (let x = mid + 4; x < w / 2 + 60; x += 124) { rosette(x, mid, 44, [P.rose, P.cream, P.gold, P.deep]); for (const a of [0.6, -0.6, Math.PI - 0.6, Math.PI + 0.6]) leaf(x + Math.cos(a) * 50, mid + Math.sin(a) * 50, 26, a, P.blue); rosette(x + 62, mid + (((x / 124) | 0) % 2 ? 22 : -22), 17, [P.gold, P.field, P.cream]); }
+    for (let y = mid + 124; y < h / 2 + 60; y += 124) { rosette(mid, y, 44, [P.rose, P.cream, P.gold, P.deep]); for (const a of [0.97, 2.17, -0.97, -2.17]) leaf(mid + Math.cos(a) * 50, y + Math.sin(a) * 50, 26, a, P.blue); rosette(mid + (((y / 124) | 0) % 2 ? 22 : -22), y - 62, 17, [P.gold, P.field, P.cream]); }
+    c.fillStyle = P.cream; c.fillRect(B2, B2, w, h); c.fillStyle = P.gold; c.fillRect(B2 + 5, B2 + 5, w, h); c.fillStyle = P.deep; c.fillRect(B2 + 12, B2 + 12, w, h);
+    for (let x = B2 + 30; x < w / 2 + 20; x += 22) { c.fillStyle = P.cream; c.fillRect(x, B2 + 15, 8, 8); } for (let y = B2 + 30; y < h / 2 + 20; y += 22) { c.fillStyle = P.cream; c.fillRect(B2 + 15, y, 8, 8); }
+    c.fillStyle = P.cream; c.fillRect(B3 + 4, B3 + 4, w, h); c.fillStyle = P.field; c.fillRect(B3 + 9, B3 + 9, w, h);
+    // 바탕: 잔 꽃무늬와 덩굴
+    c.save(); c.beginPath(); c.rect(B3 + 9, B3 + 9, w, h); c.clip();
+    for (let j = 0; j < 9; j++) for (let i = 0; i < 12; i++) {
+      const x = B3 + 60 + i * 76 + (j % 2) * 38, y = B3 + 54 + j * 66;
+      rosette(x, y, 13, (i + j) % 3 === 0 ? [P.navy, P.cream, P.gold] : (i + j) % 3 === 1 ? [P.gold, P.deep, P.cream] : [P.blue, P.cream, P.rose]);
+      for (const a of [0.8, 2.3, 3.9, 5.5]) leaf(x + Math.cos(a) * 15, y + Math.sin(a) * 15, 17, a, (i + j) % 2 ? P.green : P.deep);
+    }
+    // 모서리 장식(스팬드럴)
+    lobed(B3 + 9, B3 + 9, 330, 240, 12, 0.07, P.cream); lobed(B3 + 9, B3 + 9, 316, 228, 12, 0.07, P.navy); lobed(B3 + 9, B3 + 9, 250, 176, 10, 0.08, P.gold); lobed(B3 + 9, B3 + 9, 236, 164, 10, 0.08, P.deep);
+    rosette(B3 + 110, B3 + 86, 40, [P.rose, P.cream, P.blue, P.gold]); rosette(B3 + 230, B3 + 60, 20, [P.cream, P.field, P.gold]); rosette(B3 + 70, B3 + 170, 20, [P.cream, P.field, P.gold]);
+    // 가운데 큰 메달리온 (사분의 일)
+    const cx = w / 2, cy = h / 2;
+    lobed(cx, cy, 470, 330, 16, 0.045, P.cream); lobed(cx, cy, 456, 318, 16, 0.045, P.navy); lobed(cx, cy, 380, 262, 12, 0.07, P.gold); lobed(cx, cy, 366, 250, 12, 0.07, P.cream);
+    lobed(cx, cy, 350, 238, 12, 0.07, P.deep); lobed(cx, cy, 240, 170, 8, 0.12, P.rose); lobed(cx, cy, 226, 158, 8, 0.12, P.field); lobed(cx, cy, 130, 96, 8, 0.16, P.cream); lobed(cx, cy, 116, 84, 8, 0.16, P.navy);
+    for (let k = 0; k < 5; k++) { const a = Math.PI + (k / 4) * (Math.PI / 2), x = cx + Math.cos(a) * 292, y = cy + Math.sin(a) * 200; rosette(x, y, 24, [P.cream, P.rose, P.gold, P.deep]); }
+    for (let k = 0; k < 4; k++) { const a = Math.PI + ((k + 0.5) / 4) * (Math.PI / 2), x = cx + Math.cos(a) * 415, y = cy + Math.sin(a) * 288; rosette(x, y, 15, [P.gold, P.cream, P.rose]); leaf(x, y, 30, a + 1.2, P.blue); leaf(x, y, 30, a - 1.2, P.blue); }
+    rosette(cx, cy, 62, [P.gold, P.cream, P.rose, P.deep]);
+    lobed(cx, cy - 372, 46, 70, 6, 0.1, P.cream); lobed(cx, cy - 372, 34, 56, 6, 0.1, P.navy); lobed(cx - 520, cy, 70, 46, 6, 0.1, P.cream); lobed(cx - 520, cy, 56, 34, 6, 0.1, P.navy);   // 메달리온 끝의 펜던트
+    c.restore();
+  };
+  const q = document.createElement('canvas'); q.width = w / 2; q.height = h / 2;
+  quad(); q.getContext('2d').drawImage(cv, 0, 0);
+  c.clearRect(0, 0, w, h);
+  for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { c.save(); c.translate(sx < 0 ? w : 0, sy < 0 ? h : 0); c.scale(sx, sy); c.drawImage(q, 0, 0); c.restore(); }
+  // 직조 잡음, 결(가로 실), 바랜 얼룩
+  const img = c.getImageData(0, 0, w, h), d = img.data;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = (y * w + x) * 4, k = 0.72 + 0.2 * r() + 0.1 * ((x + y) % 2) + 0.16 * fbm(x / w, y / h, 4, 3, 3, seed);
-    d[i] *= k; d[i + 1] *= k; d[i + 2] *= k;
+    const i = (y * w + x) * 4, k = 0.8 + 0.18 * r() + 0.08 * (y % 3 === 0 ? 1 : 0) + 0.05 * ((x + y) % 2);
+    d[i] *= k; d[i + 1] *= k * 0.98; d[i + 2] *= k * 0.96;
   }
   c.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+  const lo = document.createElement('canvas'); lo.width = 256; lo.height = 176; { const l = lo.getContext('2d'), li = l.createImageData(256, 176); for (let y = 0; y < 176; y++) for (let x = 0; x < 256; x++) { const v = 255 * clamp01(0.62 + 0.5 * fbm(x / 256, y / 176, 5, 4, 3, seed)), i = (y * 256 + x) * 4; li.data[i] = li.data[i + 1] = li.data[i + 2] = v; li.data[i + 3] = 255; } l.putImageData(li, 0, 0); }
+  c.globalCompositeOperation = 'multiply'; c.drawImage(lo, 0, 0, w, h); c.globalCompositeOperation = 'source-over';
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 16;
   return { map: t };
 }
 
