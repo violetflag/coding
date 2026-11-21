@@ -36,6 +36,9 @@ export class Renderer {
     this.device = device;
     this.sim = sim;
     this.noiseTex = noiseTex;
+    // [nanro] firebrick photo texture; 1x1 placeholders until setBrick() is called
+    const ph = (format) => device.createTexture({ size: [1, 1], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+    this.brickC = ph('rgba8unorm-srgb'); this.brickN = ph('rgba8unorm');
     this.format = format;
     this.params = { ...RP_DEFAULTS };
     this.U = new UniformStruct(device, 'RP', RP_FIELDS);
@@ -604,10 +607,11 @@ fn camera(c: vec3f) -> vec3f {
     this.makeBindGroups();
   }
 
+  setBrick(color, normal) { this.brickC = color; this.brickN = normal; if (this.surf) this.makeBindGroups(); }
   makeBindGroups() {
     const d = this.device, U = this.U.buffer, sim = this.sim;
     this.bgLights = bindGroup(d, this.pLights, [U, sim.S, this.bbTex, this.lightBuf, this.lightState]);
-    this.bgSurface = bindGroup(d, this.pSurface, [this.Usurf.buffer, this.logBuf, this.stoneBuf, this.noiseTex, this.rep, this.bbTex, this.lightBuf, this.surf, this.depth, sim.S, this.lin]);
+    this.bgSurface = bindGroup(d, this.pSurface, [this.Usurf.buffer, this.logBuf, this.stoneBuf, this.noiseTex, this.rep, this.bbTex, this.lightBuf, this.surf, this.depth, sim.S, this.lin, this.brickC, this.brickN]);
     this.bgVolume = bindGroup(d, this.pVolume, [U, sim.S, this.lin, this.noiseTex, this.rep, this.bbTex, this.lightBuf, this.depth, this.vol, this.aux, sim.S2, this.curlTex]);
     if (!this.sSharp) this.sSharp = tex3D(d, sim.res, 'rgba16float', 'sSharp');
     this.bgSharpen = bindGroup(d, this.pSharpen, [U, sim.S, this.sSharp]);

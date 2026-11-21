@@ -50,7 +50,7 @@ async function main() {
   env.recompute();
   if (!HEADLESS) env.locate();
   // ambientCG 사진 텍스처를 읽어 코드로 그린 임시 텍스처와 바꾼다 (없으면 그대로 둔다)
-  const texturesReady = Q.has('notex') ? Promise.resolve(0) : applyPhotoTextures(ctx.materials, { onGround: (t) => env.setGroundTextures(t) }).catch((e) => { console.warn('사진 텍스처를 읽지 못했습니다', e); return 0; });
+  const texturesReady = Q.has('notex') ? Promise.resolve(0) : applyPhotoTextures(ctx.materials, { scene, onGround: (t) => env.setGroundTextures(t) }).catch((e) => { console.warn('사진 텍스처를 읽지 못했습니다', e); return 0; });
 
   // ---- 불 레이어
   const fireCfg = applyUrl(loadFireConfig(), Q);
@@ -59,6 +59,7 @@ async function main() {
     try { fire = await FireLayer.create(fireCanvas, { q: toQuality(fireCfg.values), name: fireCfg.custom || fireCfg.fromUrl ? '사용자 지정' : FIRE_PRESETS[fireCfg.preset].name, debug: { nosim: Q.has('nosim'), norender: Q.has('norender') } }); }
     catch (e) { fireErr = e.message || String(e); console.warn('[fire] 물리 불꽃을 쓸 수 없어 대체 표시로 전환:', e); }
   }
+  const brickReady = fire && !Q.has('notex') ? fire.loadBrick() : Promise.resolve(false);
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }
 
   // ---- 소리 (첫 클릭에서 켠다)
@@ -253,7 +254,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }

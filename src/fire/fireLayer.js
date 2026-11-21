@@ -56,6 +56,19 @@ export class FireLayer {
     device.lost.then(() => { this.lost = true; });
   }
 
+  // 화실 벽돌의 사진 텍스처(ambientCG)를 읽어 불 셰이더에 넘긴다. 읽지 못하면 코드로 그린 벽돌이 남는다.
+  async loadBrick(dir = 'textures/firebrick/', size = 512) {
+    try {
+      const load = async (name, format) => {
+        const r = await fetch(dir + name); if (!r.ok) throw new Error(name + ' ' + r.status);
+        const bmp = await createImageBitmap(await r.blob(), { resizeWidth: size, resizeHeight: size, resizeQuality: 'high', colorSpaceConversion: 'none' });
+        const t = this.device.createTexture({ size: [size, size], format, usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT });
+        this.device.queue.copyExternalImageToTexture({ source: bmp }, { texture: t }, [size, size]); bmp.close(); return t;
+      };
+      const [c, n] = await Promise.all([load('color.jpg', 'rgba8unorm-srgb'), load('normal.jpg', 'rgba8unorm')]);
+      this.renderer.setBrick(c, n); return true;
+    } catch (e) { console.warn('[fire] 화실 벽돌 텍스처를 읽지 못했습니다', e); return false; }
+  }
   // 화면(방 캔버스)의 CSS 크기와 픽셀 배율을 알려 준다. 실제 불 화면 크기는 매 프레임 구멍 영역에 맞춰 정한다.
   resize(cssW, cssH, dpr = 1) { this.view = { w: cssW, h: cssH, dpr }; }
 

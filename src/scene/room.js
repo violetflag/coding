@@ -133,6 +133,7 @@ export function buildRoom(ctx) {
   bc.fillStyle = '#fff'; bc.fillRect(0, 0, 8, 128); bc.fillStyle = '#e0b860'; for (const y of [14, 20, 96, 104]) bc.fillRect(0, y, 8, 3); bc.fillStyle = '#d9c9a0'; bc.fillRect(0, 34, 8, 22);
   const bandTex = new THREE.CanvasTexture(bandCv); bandTex.colorSpace = THREE.SRGBColorSpace;
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
+  inst.material.userData.bookCover = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
   books.forEach((b, i) => {
     const z = b.along === 'z';

@@ -194,10 +194,27 @@ const PHOTO = {
   stone: {}, hearth: {}, firebrick: {},
   leather: {}, leatherGreen: { from: 'leather', tint: 0x7a9a64 },
   cloth: {}, blanket: { tint: 0xc8483e }, curtain: { tint: 0x9c4444 },
-  rug: { keepMap: true }, wicker: {}, bark: { tint: 0x9a8262 }, endGrain: {},
+  rug: { keepMap: true }, wicker: {}, bark: { tint: 0x8a6448, normalScale: 2.5 }, endGrain: {},
   iron: {}, brass: {}, copper: {}, paper: { tint: 0xd9ccb0 },
 };
-export async function applyPhotoTextures(M, { onGround, anisotropy = 8 } = {}) {
+// 둥근 형상(원기둥, 회전체, 공, 고리)의 UV는 0~1이라 작은 소품에서는 사진이 통째로 눌려 무늬가 사라진다.
+// 형상 크기를 재서 UV를 미터 단위로 바꾼다. 원기둥의 양 끝면은 0~1로 둔다(나이테 사진을 한 장씩 붙이는 용도).
+function meterUVs(root, mats) {
+  const seen = new Set();
+  root.traverse((o) => {
+    const g = o.geometry; if (!o.isMesh || !g || seen.has(g) || o.isInstancedMesh) return;
+    const used = (Array.isArray(o.material) ? o.material : [o.material]).some((m) => mats.has(m)); if (!used) return;
+    const P = g.parameters || {}, uv = g.attributes.uv; if (!uv) return;
+    let su = 0, sv = 0, n = uv.count;
+    if (g.type === 'CylinderGeometry') { su = Math.PI * (P.radiusTop + P.radiusBottom); sv = P.height; n = (P.radialSegments + 1) * (P.heightSegments + 1); }
+    else if (g.type === 'SphereGeometry') { su = 2 * Math.PI * P.radius; sv = Math.PI * P.radius; }
+    else if (g.type === 'TorusGeometry') { su = 2 * Math.PI * P.radius; sv = 2 * Math.PI * P.tube; }
+    else if (g.type === 'LatheGeometry') { let r = 0, len = 0; P.points.forEach((p, i) => { r = Math.max(r, p.x); if (i) len += p.distanceTo(P.points[i - 1]); }); su = 2 * Math.PI * r; sv = len; }
+    else return;
+    seen.add(g); for (let i = 0; i < n; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv); uv.needsUpdate = true;
+  });
+}
+export async function applyPhotoTextures(M, { scene, onGround, anisotropy = 8 } = {}) {
   let man; try { const r = await fetch('textures/manifest.json'); if (!r.ok) return 0; man = await r.json(); } catch { return 0; }
   const loader = new THREE.TextureLoader(), cache = new Map();
   const tex = (key, name, size, srgb) => {
@@ -212,13 +229,18 @@ export async function applyPhotoTextures(M, { onGround, anisotropy = 8 } = {}) {
   await Promise.all(Object.entries(PHOTO).map(async ([key, P]) => {
     const m = M[key], t = await load(P.from || key); if (!m || !t || !(t.map || t.normalMap)) return;
     if (t.map && !P.keepMap) { m.map = t.map; m.color.set(P.tint ?? 0xffffff); }
-    if (t.normalMap) { m.normalMap = t.normalMap; m.normalScale.set(1, 1); }
+    if (t.normalMap) { m.normalMap = t.normalMap; m.normalScale.setScalar(P.normalScale || 1); }
     if (t.roughnessMap) { m.roughnessMap = t.roughnessMap; m.roughness = 1; }
     if (t.aoMap) { m.aoMap = t.aoMap; m.aoMapIntensity = 0.8; }
     if (t.metalnessMap) { m.metalnessMap = t.metalnessMap; m.metalness = 1; }
     m.needsUpdate = true; n++;
     for (const c of m.userData.clones || []) { for (const k of ['map', 'normalMap', 'roughnessMap', 'aoMap']) c[k] = m[k]; c.color.copy(m.color); c.normalScale.copy(m.normalScale); c.roughness = m.roughness; c.needsUpdate = true; }
   }));
+  if (scene && n) { const mats = new Set(); for (const k of Object.keys(PHOTO)) { if (M[k]) { mats.add(M[k]); for (const c of M[k].userData.clones || []) mats.add(c); } } meterUVs(scene, mats); }
+  // 책장의 책과 탁자 위 책: 표지에 가죽 결을 입힌다
+  const lt = await load('leather');
+  const bookMats = new Set(); scene?.traverse((o) => { if (o.material?.userData?.bookCover) bookMats.add(o.material); });
+  if (lt?.normalMap) for (const m of bookMats) { m.normalMap = lt.normalMap; m.normalScale.set(0.6, 0.6); if (lt.roughnessMap) { m.roughnessMap = lt.roughnessMap; m.roughness = 1; } m.needsUpdate = true; }
   // 창밖 땅: 풀밭과 눈
   const [grass, snow] = await Promise.all([load('grass'), load('snow')]);
   if (grass?.map || snow?.map) onGround?.({ grass, snow });

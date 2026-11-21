@@ -28,7 +28,7 @@ for (const name of names) {
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   await page.goto(url + '?' + query);
   await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
-  await page.evaluate(() => { document.getElementById("start").style.display = "none"; }); await page.evaluate(() => window.NANRO.texturesReady);
+  await page.evaluate(() => { document.getElementById("start").style.display = "none"; }); await page.evaluate(() => Promise.all([window.NANRO.texturesReady, window.NANRO.brickReady]));
   await page.evaluate(async ({ name, VIEWS }) => {
     const p = window.NANRO.player, v = VIEWS[name];
     const until = (f) => new Promise((r) => { const t = setInterval(() => { if (f()) { clearInterval(t); r(); } }, 50); });

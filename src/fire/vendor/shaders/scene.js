@@ -824,6 +824,9 @@ export const SURFACE_PASS = (NLIGHTS) => /* wgsl */`
 @group(0) @binding(8) var depthOut: texture_storage_2d<r32float, write>;
 @group(0) @binding(9) var simS: texture_3d<f32>;
 @group(0) @binding(10) var lin: sampler;
+// [nanro] firebrick photo texture (ambientCG, CC0): colour (sRGB) and GL normal map. 1x1 placeholders = procedural brick.
+@group(0) @binding(11) var brickC: texture_2d<f32>;
+@group(0) @binding(12) var brickN: texture_2d<f32>;
 
 fn camRay(px: vec2f) -> vec3f {
   let ndc = vec2f(px.x / R.width * 2.0 - 1.0, 1.0 - px.y / R.height * 2.0);
@@ -1542,9 +1545,17 @@ fn stars(rd: vec3f, pixAng: f32) -> vec3f {
     let wob = vec3f(gn3(vec3f(uv * 35.0, 2.3)), gn3(vec3f(uv * 35.0, 7.1)), 0.0);
     let n = normalize(wn + bn * bev * 0.7 + (tu * wob.x + tv * wob.y) * 0.10 - wn * mort * 0.0);
     alb *= 1.0 - 0.45 * mort * (1.0 - smoothstep(0.0, 0.004, d)); // contact shadow deep in the joint
-    let sh = fireLight(p, n, -rd, 0.85, select(1, 2, gDet > 0.5), 14);
-    let bl = bedLight(p, n);
-    col = alb / PI * (sh.diff + bl) + sh.spec * 0.02;
+    var nF = n; var albF = alb;
+    if (textureDimensions(brickC).x > 1u) {
+      // photo brick: one tile covers 1.6 m (Bricks097); the same soot darkening as the procedural brick
+      let tuv = vec2f(uv.x, -uv.y) / 1.6;
+      albF = textureSampleLevel(brickC, rep, tuv, 0.0).rgb * mix(1.0, 0.34, clamp(soot * (0.7 + 0.3 * gn3(vec3f(uv * 4.0, 1.7))), 0.0, 1.0));
+      let tn = textureSampleLevel(brickN, rep, tuv, 0.0).xyz * 2.0 - 1.0;
+      nF = normalize(tu * tn.x + tv * tn.y + wn * max(tn.z, 0.05));
+    }
+    let sh = fireLight(p, nF, -rd, 0.85, select(1, 2, gDet > 0.5), 14);
+    let bl = bedLight(p, nF);
+    col = albF / PI * (sh.diff + bl) + sh.spec * 0.02;
   } else if (tr.x < t) {
     // ---- tree trunk (leaning, tapering, flared roots, furrowed bark)
     t = tr.x;
