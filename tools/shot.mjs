@@ -32,7 +32,19 @@ for (const name of names) {
   await page.evaluate(async ({ name, VIEWS }) => {
     const p = window.NANRO.player, v = VIEWS[name];
     const until = (f) => new Promise((r) => { const t = setInterval(() => { if (f()) { clearInterval(t); r(); } }, 50); });
-    if (name === 'seated' || name === 'reading') {
+    if (name.startsWith('book')) {
+      // 로컬 테스트용 책(books/test.epub, 저장소에는 넣지 않는다)을 서재에 넣고 펼친다
+      const R = window.NANRO.reading, fn = name.includes('pdf') ? 'test.pdf' : 'test.epub', f = await (await fetch('/books/' + fn)).blob();
+      await R.reader.ready; const meta = await R.reader.addFile(new File([f], fn)); R.setPicked(meta.id);
+      p.seatNow(window.NANRO.ctx.interact.find(i => i.id === 'chair:reading').chair); p.openBook();
+      await until(() => !p.tween && R.reader.cur && !R.opening);
+      const m = name.match(/^book(\d+)/); if (m) await R.reader.gotoPage(+m[1]);
+      if (name.endsWith('old')) await R.reader.setMeta(meta.id, { age: 'old' });
+      if (m && !name.includes('pdf')) { const pg = R.reader.pages[R.reader.cur.spread], g = pg.g0 + 60; R.reader.addHighlight(g, g + 70, 'yellow'); R.reader.addHighlight(g + 160, g + 215, 'pencil', '다시 읽어 볼 것'); R.reader.addHighlight(g + 300, g + 350, 'blue'); R.reader.toggleBookmark(); }
+      if (name.includes('flip')) { R.reader.set.flip = 9999; R.reader.next(); await until(() => R.reader.book3d.flip); R.reader.book3d.flip.t = 0.42; }
+      if (name.includes('single')) { R.reader.set.single = true; R.place(); }
+      window.__bookReady = true;
+    } else if (name === 'seated' || name === 'reading') {
       if (p.state === 'walk') { p.sit(window.NANRO.ctx.interact.find(i => i.id === 'chair:reading').chair); await until(() => p.state === 'seated' && !p.tween); }
       if (name === 'reading') { p.openBook(); await until(() => !p.tween); }
     } else if (v) {
@@ -41,6 +53,7 @@ for (const name of names) {
     }
   }, { name, VIEWS });
   // 시간 대신 프레임 수로 기다린다(불이 붙어 자리 잡는 데 약 250프레임).
+  if (name.startsWith('book')) { await page.waitForFunction(() => window.__bookReady, null, { timeout: 300000 }); await page.waitForTimeout(1500); }
   await page.waitForFunction((n) => (window.__nanroFrames | 0) >= n, frames, { timeout: 900000, polling: 500 });
   const url64 = await page.evaluate(({ W, H }) => window.NANRO.capture(W, H), { W, H });
   writeFileSync(`shots/${name}.png`, Buffer.from(url64.split(',')[1], 'base64'));

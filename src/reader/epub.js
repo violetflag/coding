@@ -49,7 +49,7 @@ function chapterBlocks(doc, css, path, files, images) {
     const last = cur.runs[cur.runs.length - 1];
     if ((!last || /\s$/.test(last.text)) && /^\s/.test(text)) text = text.replace(/^\s+/, '');
     if (!text) return;
-    if (last && !!last.b === !!st.b && !!last.i === !!st.i) last.text += text; else cur.runs.push({ text, b: st.b, i: st.i });
+    if (last && !!last.b === !!st.b && !!last.i === !!st.i && !!last.s === !!st.small) last.text += text; else cur.runs.push({ text, b: st.b, i: st.i, s: st.small });
   };
   const walk = (node, st) => {
     for (const n of node.childNodes) {

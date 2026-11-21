@@ -10,6 +10,7 @@ import { Mixer } from './audio/mixer.js';
 import { FireSound } from './audio/fireSound.js';
 import { loadFireConfig, applyUrl, toQuality, FIRE_PRESETS } from './ui/fireConfig.js';
 import { Settings } from './ui/settings.js';
+import { setupReading } from './reading.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -35,6 +36,8 @@ async function main() {
   fireLight.position.set(FP.faceX - 0.12, FP.hearthH + 0.3, FP.zc); fireLight.castShadow = true;
   fireLight.shadow.mapSize.set(1024, 1024); fireLight.shadow.bias = -0.004; fireLight.shadow.radius = 4;
   scene.add(fireLight);
+  // 불빛이 벽과 천장에 반사되어 방 전체에 퍼지는 빛(그림자 없음): 벽난로 그늘에 가린 쪽이 새까맣게 되지 않게 한다
+  const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
   // 창밖 세계와 시간에 따른 조명 (해·달·하늘·계절·날씨)
   const env = new Environment(scene, ctx, renderer, { url: Q });
@@ -52,7 +55,7 @@ async function main() {
 
   // ---- 플레이어
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); };
-  let lampOn = true, fireSound = null;
+  let lampOn = true, fireSound = null, settings = null;
   const setLamp = (on) => { lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
@@ -65,9 +68,17 @@ async function main() {
       else if (it.id === 'woodpile') { fire?.addLog(); fireSound?.trigger('log-shift', 0.6); toast('장작을 넣었습니다'); }
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
       else if (it.candle) { const st = it.candle.userData.state; it.candle.userData.set(st.frac, !st.lit); }
-      else if (it.id === 'shelf') toast('책장은 5단계에서 내 서재가 됩니다');
+      else if (it.id === 'shelf') reading.ui.open('lib');
     },
-    onState(s) { if (s === 'reading') toast('책은 5단계에서 구현됩니다 · Space로 덮기'); },
+    onState(s) { reading.onState(s); },
+  });
+  // ---- 읽기 모드 (리더, 3D 책, 메뉴)
+  const sfx = (name, opt) => ctx.sfx?.(name, opt);
+  const uiMode = () => player.state === 'reading' || reading.ui.isOpen || settings?.isOpen;
+  const reading = setupReading({
+    scene, camera, player, canvas: roomCanvas, toast, sfx,
+    onUiMode: (open) => { if (open) { if (player.locked) document.exitPointerLock(); } else if (player.state !== 'reading' && !settings?.isOpen) player.lock(); syncOverlay(); },
+    onTts: (on) => ctx.onTts?.(on), onQuote: (text, meta) => ctx.quoteCard?.(text, meta),
   });
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
@@ -96,16 +107,16 @@ async function main() {
     toast('전체 볼륨 ' + Math.round(mixer.volume('master') * 100) + '%');
   });
   // ---- 설정창 (O 키 또는 시작 화면의 버튼)
-  const settings = new Settings({
+  settings = new Settings({
     cfg: fireCfg, fire, mixer,
-    onOpen: () => { if (player.locked) document.exitPointerLock(); },
+    onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); }, onClose: () => syncOverlay(),
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
   });
   $('openSettings').addEventListener('click', (e) => { e.stopPropagation(); settings.open(); });
-  addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat) settings.toggle(); });
+  addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) settings.toggle(); });
+  const syncOverlay = () => { const on = player.locked; start.style.display = on || uiMode() ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0; };
   document.addEventListener('pointerlockchange', () => {
-    const on = player.locked;
-    start.style.display = on ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0;
+    const on = player.locked; syncOverlay();
     if (on) { hint.style.opacity = 0.85; setTimeout(() => (hint.style.opacity = 0), 7000); }
   });
   let showStats = Q.has('stats');
@@ -138,6 +149,9 @@ async function main() {
     prevCam.copy(camera.position);
     fireLight.intensity = 9 * power * Math.max(0.3, Math.min(1.8, level));
     fireLight.position.y = FP.hearthH + 0.3 + 0.03 * (level - 1);
+    bounce.intensity = 1.5 * power * (0.6 + 0.4 * level);
+
+    reading.update(dt, { fire: power * Math.max(0.3, Math.min(1.8, level)), day: env.state.day });
 
     if (!HEADLESS) renderer.render(scene, camera);
 
@@ -171,7 +185,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }

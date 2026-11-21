@@ -64,9 +64,9 @@ export class Environment {
     this.skyTex = new THREE.CanvasTexture(cv); this.skyTex.colorSpace = THREE.SRGBColorSpace;
     this.skyMat = new THREE.MeshBasicMaterial({ map: this.skyTex, side: THREE.BackSide, fog: false, depthWrite: false });
     const sky = new THREE.Mesh(new THREE.SphereGeometry(48, 24, 16), this.skyMat); sky.renderOrder = -3; sky.position.set(wx, 0, 0); g.add(sky);
-    const sc = document.createElement('canvas'); sc.width = 2048; sc.height = 1024; const s2 = sc.getContext('2d');
-    s2.fillStyle = '#000'; s2.fillRect(0, 0, 2048, 1024);
-    for (let i = 0; i < 2600; i++) { const v = Math.acos(1 - r()) / Math.PI, b = Math.pow(r(), 3), rad = 0.5 + b * 1.4; s2.fillStyle = `rgba(${225 + r() * 30},${225 + r() * 30},${235 + r() * 20},${0.35 + b * 0.65})`; s2.beginPath(); s2.arc(r() * 2048, v * 1024, rad, 0, 7); s2.fill(); }
+    const sc = document.createElement('canvas'); sc.width = 4096; sc.height = 2048; const s2 = sc.getContext('2d');
+    s2.fillStyle = '#000'; s2.fillRect(0, 0, 4096, 2048);
+    for (let i = 0; i < 5200; i++) { const v = Math.acos(1 - r()) / Math.PI, b = Math.pow(r(), 3), rad = 0.45 + b * 0.9; s2.fillStyle = `rgba(${225 + r() * 30},${225 + r() * 30},${235 + r() * 20},${0.35 + b * 0.65})`; s2.beginPath(); s2.arc(r() * 4096, v * 2048, rad, 0, 7); s2.fill(); }
     const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
     this.starMat = new THREE.MeshBasicMaterial({ map: st, side: THREE.BackSide, fog: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
     const stars = new THREE.Mesh(new THREE.SphereGeometry(47, 24, 16), this.starMat); stars.renderOrder = -2; stars.position.copy(sky.position); stars.rotation.z = 0.6; g.add(stars);

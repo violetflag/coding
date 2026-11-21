@@ -73,7 +73,7 @@ export function drawPage(cv, o) {
       if (l.orn) { c.font = fontOf(o.T, o.T.size, false, false); font = ''; c.textAlign = 'center'; c.fillText('⁂', W / 2, l.y); c.textAlign = 'left'; continue; }
       if (l.bullet) { c.font = fontOf(o.T, l.size, false, false); font = ''; c.fillText('•', l.bullet, l.y); }
       if (l.quote) { c.fillStyle = 'rgba(90,70,50,.35)'; c.fillRect(l.quote, l.top + 2, 3, l.h - 4); c.fillStyle = P.ink; }
-      for (const a of l.atoms) { if (a.space) continue; if (a.font !== font) { font = a.font; c.font = font; } c.fillText(a.t, a.x, l.y); }
+      for (const a of l.atoms) { if (a.space) continue; if (a.font !== font) { font = a.font; c.font = font; } c.fillText(a.t, a.x, l.y - (a.rise || 0)); }
     }
     // 여백 메모 (손글씨체)
     c.font = `26px ${HAND}`; c.fillStyle = '#34435e';

@@ -13,7 +13,7 @@ export class Player {
     this.pos = new THREE.Vector3(PLAYER_START.x, 0, PLAYER_START.z); this.vel = new THREE.Vector3();
     this.yaw = PLAYER_START.yaw; this.pitch = -0.05; this.eye = EYE; this.bob = 0; this.breath = 0;
     this.state = 'walk'; this.chair = null; this.tween = null; this.focus = null;
-    this.keys = new Set(); this.sens = 0.0019; this.fov = 62;
+    this.keys = new Set(); this.sens = 0.0019; this.baseFov = 62; this.fov = 62; this.invertY = false; this.sway = true; this.readPitch = -0.5; this.readFov = 42;
     this.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._bind();
   }
@@ -24,14 +24,14 @@ export class Player {
   _bind() {
     document.addEventListener('mousemove', (e) => {
       if (!this.locked || this.tween) return;
-      this.yaw -= e.movementX * this.sens; this.pitch -= e.movementY * this.sens;
+      this.yaw -= e.movementX * this.sens; this.pitch -= e.movementY * this.sens * (this.invertY ? -1 : 1);
       this._clampLook();
     });
     window.addEventListener('keydown', (e) => {
       if (e.repeat) return;
       this.keys.add(e.code);
       if (e.code === 'KeyE') this.interact();
-      if (e.code === 'Space' && (this.state === 'seated' || this.state === 'reading')) { e.preventDefault(); this.state === 'reading' ? this.closeBook() : this.stand(); }
+      if (e.code === 'Space' && this.state === 'seated' && !this.tween) { e.preventDefault(); this.stand(); }
     });
     window.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.keys.clear());
@@ -79,7 +79,7 @@ export class Player {
   _setState(s) { this.state = s; this.onState?.(s, this); }
 
   _startTween(dur, to, done) {
-    this.tween = { t: 0, dur: this.reduceMotion ? 0.01 : dur, from: { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.yaw, pitch: this.pitch }, to, done };
+    this.tween = { t: 0, dur: this.reduceMotion ? 0.01 : dur, from: { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.yaw, pitch: this.pitch, fov: this.fov }, to: { fov: this.baseFov, ...to }, done };
   }
 
   sit(chair) {
@@ -87,6 +87,8 @@ export class Player {
     this.standSpot = { x: this.pos.x, z: this.pos.z };
     this._startTween(1.2, { x: chair.pos[0], z: chair.pos[1], eye: chair.eye, yaw: chair.yaw, pitch: -0.12 }, () => this._setState('seated'));
   }
+  // 전환 없이 바로 앉은 상태로 (다시 열었을 때 앉아 있던 자리에서 시작)
+  seatNow(chair) { this.chair = chair; this.standSpot = { x: this.pos.x, z: this.pos.z }; this.pos.x = chair.pos[0]; this.pos.z = chair.pos[1]; this.eye = chair.eye; this.yaw = chair.yaw; this.pitch = -0.12; this.vel.set(0, 0, 0); this._setState('seated'); }
   stand() {
     if (this.state !== 'seated') return;
     this._setState('standing');
@@ -102,7 +104,7 @@ export class Player {
   openBook() {
     if (this.state !== 'seated') return;
     this._setState('reading');
-    this._startTween(0.8, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.chair.yaw, pitch: -0.72 }, null);
+    this._startTween(0.8, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.chair.yaw, pitch: this.readPitch, fov: this.readFov }, null);
   }
   closeBook() {
     if (this.state !== 'reading') return;
@@ -119,7 +121,7 @@ export class Player {
       // 앉을 때 끝에서 살짝 더 가라앉았다가 올라오는 쿠션 반동
       const settle = this.state === 'sitting' ? -0.035 * Math.sin(Math.PI * Math.max(0, (tw.t - 0.7) / 0.3)) : 0;
       this.eye = a.eye + (b.eye - a.eye) * e + settle;
-      this.yaw = lerpAngle(a.yaw, b.yaw, e); this.pitch = a.pitch + (b.pitch - a.pitch) * e;
+      this.yaw = lerpAngle(a.yaw, b.yaw, e); this.pitch = a.pitch + (b.pitch - a.pitch) * e; this.fov = a.fov + (b.fov - a.fov) * e;
       if (tw.t >= 1) { this.tween = null; tw.done?.(); }
     } else if (this.state === 'walk') {
       const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
@@ -141,10 +143,10 @@ export class Player {
     const sp = Math.hypot(this.vel.x, this.vel.z);
     this.breath += dt;
     const still = this.state === 'seated' || this.state === 'reading';
-    const sway = this.reduceMotion ? 0 : (still ? Math.sin(this.breath * 1.55) * 0.0015 : Math.sin(this.bob) * 0.011 * Math.min(1, sp));
+    const sway = this.reduceMotion || !this.sway ? 0 : (still ? Math.sin(this.breath * 1.55) * 0.0015 : Math.sin(this.bob) * 0.011 * Math.min(1, sp));
     cam.position.set(this.pos.x, this.eye + sway, this.pos.z);
     cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
-    if (cam.fov !== this.fov) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
+    if (Math.abs(cam.fov - this.fov) > 1e-4) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     cam.updateMatrixWorld(true);
     this.focus = this.tween ? null : this._findFocus();
     this.stepPhase = this.bob; this.speed = sp;

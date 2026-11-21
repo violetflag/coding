@@ -26,7 +26,7 @@ export const fontOf = (T, size, b, i) => `${i ? 'italic ' : ''}${b ? '700 ' : '4
 function atomize(block, T, size, bold) {
   const out = []; let g = block.g0;
   for (const r of block.runs) {
-    const font = fontOf(T, size, bold || r.b, r.i), s = r.text; let i = 0;
+    const font = fontOf(T, r.s ? Math.round(size * 0.6) : size, bold || r.b, r.i), s = r.text, rise = r.s ? size * 0.36 : 0; let i = 0;
     while (i < s.length) {
       const ch = s[i];
       if (ch === '\n') { out.push({ br: true, g, n: 1 }); i++; g++; continue; }
@@ -34,7 +34,7 @@ function atomize(block, T, size, bold) {
       let j = i + 1;
       if (!CJK.test(ch)) { while (j < s.length && !/\s/.test(s[j]) && !CJK.test(s[j])) j++; }
       else if (ch >= '\ud800' && ch <= '\udbff') j++;
-      const t = s.slice(i, j); out.push({ t, w: width(font, t), font, g, n: j - i, cjk: j - i === 1 && CJK.test(ch) });
+      const t = s.slice(i, j); out.push({ t, w: width(font, t), font, g, n: j - i, rise });
       g += j - i; i = j;
     }
   }
