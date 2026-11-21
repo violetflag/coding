@@ -1336,7 +1336,7 @@ fn shadeGround(p: vec3f, n: vec3f) -> Surf {
   }
   // ash: patchy grey-white powder (0.4-0.55), brighter fluffy clumps, thin flaky edge
   let ashN = fbm2(xz * 18.0, 2, 73) * 0.5 + 0.5;
-  var ashC = vec3f(0.47, 0.46, 0.445) * (0.82 + 0.3 * ashN) * (0.9 + 0.2 * mix(0.5, g3, f3));
+  var ashC = vec3f(0.31, 0.30, 0.30) * (0.82 + 0.3 * ashN) * (0.9 + 0.2 * mix(0.5, g3, f3));
   ashC = mix(ashC, vec3f(0.56, 0.55, 0.535), gp.clump);
   let ashAmt = gp.ash * smoothstep(0.0, 0.6, gp.ash + 0.35 * (ashN - 0.5));
   var alb = mix(soil, ashC, ashAmt);
