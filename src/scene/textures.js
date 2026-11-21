@@ -190,13 +190,12 @@ export function boxUV(geo, w, h, d) {
 // 파일이 없거나 읽지 못한 재질은 코드로 그린 텍스처가 그대로 남는다.
 // tint: 사진 색에 곱하는 색(같은 사진을 색만 바꿔 여러 재질에 쓴다). from: 다른 열쇠의 사진을 빌려 쓴다.
 const PHOTO = {
-  floor: { tint: 0xd8c4ae }, wall: { tint: 0xc9b29a }, ceiling: { tint: 0x9a8672 },
-  wood: { tint: 0xb89878 }, woodDark: { tint: 0x6e5644 },
-  stone: {}, hearth: { tint: 0x8c867f }, firebrick: {},
-  leather: { tint: 0xc8a48a }, leatherGreen: { from: 'leather', tint: 0x5f7a52 },
-  cloth: {}, blanket: { tint: 0xa8423a }, curtain: { tint: 0x8a2f2a },
-  rug: { keepMap: true }, wicker: {}, bark: {}, endGrain: {},
-  iron: { tint: 0x55555c }, brass: {}, copper: {}, paper: {},
+  floor: { tint: 0xb39279 }, wall: {}, ceiling: {}, wood: { tint: 0xbfa58e }, woodDark: {},
+  stone: {}, hearth: {}, firebrick: {},
+  leather: {}, leatherGreen: { from: 'leather', tint: 0x7a9a64 },
+  cloth: {}, blanket: { tint: 0xc8483e }, curtain: { tint: 0x9c4444 },
+  rug: { keepMap: true }, wicker: {}, bark: { tint: 0x9a8262 }, endGrain: {},
+  iron: {}, brass: {}, copper: {}, paper: { tint: 0xd9ccb0 },
 };
 export async function applyPhotoTextures(M, { onGround, anisotropy = 8 } = {}) {
   let man; try { const r = await fetch('textures/manifest.json'); if (!r.ok) return 0; man = await r.json(); } catch { return 0; }
@@ -206,7 +205,7 @@ export async function applyPhotoTextures(M, { onGround, anisotropy = 8 } = {}) {
     const p = loader.loadAsync(`textures/${key}/${name}.jpg`).then((t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / size, 1 / size); t.anisotropy = anisotropy; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; return t; }, () => null);
     cache.set(id, p); return p;
   };
-  const load = async (key) => { const e = man[key]; if (!e) return null; const size = e.sizeM || 1, has = (n) => !e.maps || e.maps.includes(n);
+  const load = async (key) => { const e = man[key]; if (!e) return null; const size = e.tileable === false ? 1 : e.sizeM || 1, has = (n) => !e.maps || e.maps.includes(n);
     const [map, normalMap, roughnessMap, aoMap, metalnessMap] = await Promise.all([has('color') && tex(key, 'color', size, true), has('normal') && tex(key, 'normal', size), has('roughness') && tex(key, 'roughness', size), has('ao') && tex(key, 'ao', size), has('metalness') && tex(key, 'metalness', size)]);
     return { map, normalMap, roughnessMap, aoMap, metalnessMap }; };
   let n = 0;

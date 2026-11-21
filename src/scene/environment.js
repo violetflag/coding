@@ -185,7 +185,7 @@ export class Environment {
     const P = PALETTE[season], col = new THREE.Color(), snowC = C(0xdfe6ee);
     // 사진 텍스처가 있으면 풀밭/눈 사진을 깔고, 계절 색은 옅게 곱한다
     const gt = this.groundTex && (snowy ? this.groundTex.snow : this.groundTex.grass);
-    if (gt?.map) { const gm = this.groundMat; if (gm.map !== gt.map) { gm.map = gt.map; gm.normalMap = gt.normalMap || null; gm.roughnessMap = gt.roughnessMap || null; gm.needsUpdate = true; } gm.color.set(snowy ? 0xf2f5f8 : P.ground).lerp(C(0xffffff), snowy ? 0 : 0.45).multiplyScalar(snowy ? 1 : 1.5); }
+    if (gt?.map) { const gm = this.groundMat; if (gm.map !== gt.map) { gm.map = gt.map; gm.normalMap = gt.normalMap || null; gm.roughnessMap = gt.roughnessMap || null; gm.needsUpdate = true; } gm.color.set(snowy ? 0xf2f5f8 : P.ground).lerp(C(0xffffff), snowy ? 0 : 0.35).multiplyScalar(snowy ? 1 : 1.15); }
     else this.groundMat.color.set(snowy ? 0xdfe6ee : P.ground);
     this.hillMat.color.set(snowy ? PALETTE.winter.hill : P.hill).multiplyScalar(0.05 + 0.6 * day).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.55);   // 먼 산은 지평선 색에 물든다
     for (let i = 0; i < this.conifers.count; i++) { col.set(P.conifer).multiplyScalar(this.treeTone[i]); if (snowy) col.lerp(snowC, 0.3 + 0.3 * (this.treeTone[i] - 0.7)); this.conifers.setColorAt(i, col); }
