@@ -1,0 +1,600 @@
+{
+  "mode": "fixed",
+  "args": [
+    "--enable-unsafe-webgpu",
+    "--autoplay-policy=no-user-gesture-required"
+  ],
+  "channel": "msedge",
+  "browserVersion": "157.0.4341.60",
+  "runs": {
+    "low": {
+      "logs": [
+        "[error] Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "start": {
+          "perf": {
+            "simRatio": 1.0007708490249851,
+            "jank": 0.013333333333333334,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99700014999248,
+            "low1Fps": 59.171597633131,
+            "maxMs": 16.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 low 96×120×60 · 1600×900 · 광량 0.97\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.0080064001349764,
+              "raw": 0.28531716888675307,
+              "ref": 0.28305094972467226,
+              "power": 0.6199999999999979,
+              "at": 35381.40000000596
+            },
+            "power": 0.6199999999999979,
+            "simT": 26.911111111112763,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              96,
+              120,
+              60
+            ],
+            "quality": "low",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 2.6,
+            "z": 4.1,
+            "yaw": -0.569313191100662,
+            "pitch": -0.05,
+            "state": "walk"
+          },
+          "gpu3dPercent": 70.8551722368124
+        },
+        "fire": {
+          "perf": {
+            "simRatio": 1.00051080462849,
+            "jank": 0.02666666666666667,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99640021598705,
+            "low1Fps": 58.88125613346334,
+            "maxMs": 17.39999999999418,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 low 96×120×60 · 1600×900 · 광량 0.94\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.8919272809716767,
+              "raw": 0.26316061740821706,
+              "ref": 0.29504716698599753,
+              "power": 0.619999999999998,
+              "at": 46047.69999998808
+            },
+            "power": 0.619999999999998,
+            "simT": 37.577777777781094,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              96,
+              120,
+              60
+            ],
+            "quality": "low",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 69.5736562293914
+        },
+        "seated": {
+          "perf": {
+            "simRatio": 1.001841522445641,
+            "jank": 0.01,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99580029397939,
+            "low1Fps": 59.171597633131,
+            "maxMs": 16.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 low 96×120×60 · 1600×900 · 광량 0.96\n상태: seated",
+          "fire": {
+            "light": {
+              "level": 0.9876320011552564,
+              "raw": 0.26918230494511847,
+              "ref": 0.2725532431414227,
+              "power": 0.6199999999999981,
+              "at": 58284.40000000596
+            },
+            "power": 0.6199999999999981,
+            "simT": 49.833333333338565,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              96,
+              120,
+              60
+            ],
+            "quality": "low",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.4,
+            "z": 3.5,
+            "yaw": -0.49934672168012995,
+            "pitch": -0.12,
+            "state": "seated"
+          },
+          "gpu3dPercent": 78.6546771467578
+        }
+      }
+    },
+    "medium": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "start": {
+          "perf": {
+            "simRatio": 1.0007111483889082,
+            "jank": 0.006666666666666667,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99640021598703,
+            "low1Fps": 59.17159763313524,
+            "maxMs": 16.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 medium 112×144×72 · 1600×900 · 광량 0.97\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.8776037836901724,
+              "raw": 0.23955819785134894,
+              "ref": 0.2729685107373262,
+              "power": 0.6199999999999979,
+              "at": 35451.59999999404
+            },
+            "power": 0.6199999999999979,
+            "simT": 28.0666666666685,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              112,
+              144,
+              72
+            ],
+            "quality": "medium",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 2.6,
+            "z": 4.1,
+            "yaw": -0.569313191100662,
+            "pitch": -0.05,
+            "state": "walk"
+          },
+          "gpu3dPercent": 81.9406051398403
+        },
+        "fire": {
+          "perf": {
+            "simRatio": 1.0017413863557336,
+            "jank": 0.006666666666666667,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99640021598701,
+            "low1Fps": 59.2300098716666,
+            "maxMs": 16.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 medium 112×144×72 · 1600×900 · 광량 0.85\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.8801447634255116,
+              "raw": 0.23105284283749863,
+              "ref": 0.2625168636330279,
+              "power": 0.6199999999999979,
+              "at": 46092.39999997616
+            },
+            "power": 0.6199999999999979,
+            "simT": 38.70000000000349,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              112,
+              144,
+              72
+            ],
+            "quality": "medium",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 85.3174733619609
+        },
+        "seated": {
+          "perf": {
+            "simRatio": 0.971678082493861,
+            "jank": 0.1045045045045045,
+            "jank20": 0.08108108108108109,
+            "frames": 555,
+            "avgFps": 55.49667019978802,
+            "low1Fps": 29.850746268656717,
+            "maxMs": 33.599999999998545,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "55 fps (18.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 medium 112×144×72 · 1600×900 · 광량 0.90\n상태: seated",
+          "fire": {
+            "light": {
+              "level": 0.9279321830470627,
+              "raw": 0.24705594386173746,
+              "ref": 0.26624353414543367,
+              "power": 0.6199999999999989,
+              "at": 58242
+            },
+            "power": 0.6199999999999989,
+            "simT": 50.6444444444498,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              112,
+              144,
+              72
+            ],
+            "quality": "medium",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.4,
+            "z": 3.5,
+            "yaw": -0.49934672168012995,
+            "pitch": -0.12,
+            "state": "seated"
+          },
+          "gpu3dPercent": 99.3795854801766
+        }
+      }
+    },
+    "high": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "start": {
+          "perf": {
+            "simRatio": 0.7952970272354607,
+            "jank": 0.2615062761506276,
+            "jank20": 0.25732217573221755,
+            "frames": 478,
+            "avgFps": 47.71792516870983,
+            "low1Fps": 29.850746268656717,
+            "maxMs": 33.5,
+            "medianMs": 16.700000000000728
+          },
+          "stats": "47 fps (21.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 128×160×80 · 1600×900 · 광량 0.96\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.0096465663430327,
+              "raw": 0.27041112753537855,
+              "ref": 0.26782751167551133,
+              "power": 0.6199999999999989,
+              "at": 35444.90000000596
+            },
+            "power": 0.6199999999999989,
+            "simT": 22.649999999999356,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              128,
+              160,
+              80
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 2.6,
+            "z": 4.1,
+            "yaw": -0.569313191100662,
+            "pitch": -0.05,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.5353783760374
+        },
+        "fire": {
+          "perf": {
+            "simRatio": 0.7238129467689833,
+            "jank": 0.391705069124424,
+            "jank20": 0.3824884792626728,
+            "frames": 434,
+            "avgFps": 43.397396156230634,
+            "low1Fps": 29.850746268656717,
+            "maxMs": 33.5,
+            "medianMs": 16.700000000004366
+          },
+          "stats": "44 fps (23.0 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 128×160×80 · 1600×900 · 광량 1.04\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.9588271677240314,
+              "raw": 0.23357259815904174,
+              "ref": 0.24360239886972868,
+              "power": 0.6199999999999991,
+              "at": 46310.59999999404
+            },
+            "power": 0.6199999999999991,
+            "simT": 30.574999999998905,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              128,
+              160,
+              80
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.5280774227404
+        },
+        "seated": {
+          "perf": {
+            "simRatio": 0.6111594043621041,
+            "jank": 0.644808743169399,
+            "jank20": 0.639344262295082,
+            "frames": 366,
+            "avgFps": 36.598170091495426,
+            "low1Fps": 29.828486204325454,
+            "maxMs": 33.599999999998545,
+            "medianMs": 33.299999999995634
+          },
+          "stats": "37 fps (27.0 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 128×160×80 · 1600×900 · 광량 0.92\n상태: seated",
+          "fire": {
+            "light": {
+              "level": 0.9198964761205367,
+              "raw": 0.2241259684645092,
+              "ref": 0.2436425992299826,
+              "power": 0.6199999999999993,
+              "at": 58946.79999998212
+            },
+            "power": 0.6199999999999993,
+            "simT": 38.39166666666513,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              128,
+              160,
+              80
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.4,
+            "z": 3.5,
+            "yaw": -0.49934672168012995,
+            "pitch": -0.12,
+            "state": "seated"
+          },
+          "gpu3dPercent": 99.5918740085293
+        }
+      }
+    },
+    "ultra": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "start": {
+          "perf": {
+            "simRatio": 0.3906626636216079,
+            "jank": 1,
+            "jank20": 1,
+            "frames": 234,
+            "avgFps": 23.360054307134796,
+            "low1Fps": 19.920318725099314,
+            "maxMs": 50.20000000000073,
+            "medianMs": 49.900000000001455
+          },
+          "stats": "23 fps (43.0 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 ultra 160×200×104 · 1600×900 · 광량 1.12\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.1202588698524778,
+              "raw": 0.311700743226121,
+              "ref": 0.27823992437316525,
+              "power": 0.6199999999999993,
+              "at": 35277.60000002384
+            },
+            "power": 0.6199999999999993,
+            "simT": 11.408333333333326,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              160,
+              200,
+              104
+            ],
+            "quality": "ultra",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 2.6,
+            "z": 4.1,
+            "yaw": -0.569313191100662,
+            "pitch": -0.05,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.7827003457443
+        },
+        "fire": {
+          "perf": {
+            "simRatio": 0.3599389596602768,
+            "jank": 1,
+            "jank20": 1,
+            "frames": 216,
+            "avgFps": 21.562911791718236,
+            "low1Fps": 19.89389920424269,
+            "maxMs": 50.30000000000291,
+            "medianMs": 50
+          },
+          "stats": "22 fps (46.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 ultra 160×200×104 · 1600×900 · 광량 1.14\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.164894058717334,
+              "raw": 0.3262010419461438,
+              "ref": 0.28002635905390755,
+              "power": 0.6199999999999993,
+              "at": 46374.70000001788
+            },
+            "power": 0.6199999999999993,
+            "simT": 15.433333333333097,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              160,
+              200,
+              104
+            ],
+            "quality": "ultra",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.9563378486564
+        },
+        "seated": {
+          "perf": {
+            "simRatio": 0.33169806188879575,
+            "jank": 1,
+            "jank20": 1,
+            "frames": 199,
+            "avgFps": 19.89900504974751,
+            "low1Fps": 14.9812734082397,
+            "maxMs": 66.79999999999563,
+            "medianMs": 50
+          },
+          "stats": "20 fps (49.9 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 ultra 160×200×104 · 1600×900 · 광량 1.04\n상태: seated",
+          "fire": {
+            "light": {
+              "level": 0.9877218500681072,
+              "raw": 0.30893388320640397,
+              "ref": 0.3127741713773992,
+              "power": 0.6199999999999993,
+              "at": 59794
+            },
+            "power": 0.6199999999999993,
+            "simT": 19.874999999999513,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              160,
+              200,
+              104
+            ],
+            "quality": "ultra",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.4,
+            "z": 3.5,
+            "yaw": -0.49934672168012995,
+            "pitch": -0.12,
+            "state": "seated"
+          },
+          "gpu3dPercent": 99.9610557966398
+        }
+      }
+    }
+  }
+}
