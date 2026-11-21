@@ -184,3 +184,44 @@ export function boxUV(geo, w, h, d) {
   for (let f = 0; f < 6; f++) for (let k = 0; k < 4; k++) { const i = f * 4 + k; uv.setXY(i, uv.getX(i) * dims[f][0], uv.getY(i) * dims[f][1]); }
   uv.needsUpdate = true; return geo;
 }
+
+// ---- ambientCG(CC0) 사진 텍스처 ----
+// public/textures/manifest.json 에 적힌 재질을 읽어, 위에서 코드로 그린 임시 텍스처를 바꿔 끼운다.
+// 파일이 없거나 읽지 못한 재질은 코드로 그린 텍스처가 그대로 남는다.
+// tint: 사진 색에 곱하는 색(같은 사진을 색만 바꿔 여러 재질에 쓴다). from: 다른 열쇠의 사진을 빌려 쓴다.
+const PHOTO = {
+  floor: { tint: 0xd8c4ae }, wall: { tint: 0xc9b29a }, ceiling: { tint: 0x9a8672 },
+  wood: { tint: 0xb89878 }, woodDark: { tint: 0x6e5644 },
+  stone: {}, hearth: { tint: 0x8c867f }, firebrick: {},
+  leather: { tint: 0xc8a48a }, leatherGreen: { from: 'leather', tint: 0x5f7a52 },
+  cloth: {}, blanket: { tint: 0xa8423a }, curtain: { tint: 0x8a2f2a },
+  rug: { keepMap: true }, wicker: {}, bark: {}, endGrain: {},
+  iron: { tint: 0x55555c }, brass: {}, copper: {}, paper: {},
+};
+export async function applyPhotoTextures(M, { onGround, anisotropy = 8 } = {}) {
+  let man; try { const r = await fetch('textures/manifest.json'); if (!r.ok) return 0; man = await r.json(); } catch { return 0; }
+  const loader = new THREE.TextureLoader(), cache = new Map();
+  const tex = (key, name, size, srgb) => {
+    const id = key + '/' + name; if (cache.has(id)) return cache.get(id);
+    const p = loader.loadAsync(`textures/${key}/${name}.jpg`).then((t) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1 / size, 1 / size); t.anisotropy = anisotropy; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; return t; }, () => null);
+    cache.set(id, p); return p;
+  };
+  const load = async (key) => { const e = man[key]; if (!e) return null; const size = e.sizeM || 1, has = (n) => !e.maps || e.maps.includes(n);
+    const [map, normalMap, roughnessMap, aoMap, metalnessMap] = await Promise.all([has('color') && tex(key, 'color', size, true), has('normal') && tex(key, 'normal', size), has('roughness') && tex(key, 'roughness', size), has('ao') && tex(key, 'ao', size), has('metalness') && tex(key, 'metalness', size)]);
+    return { map, normalMap, roughnessMap, aoMap, metalnessMap }; };
+  let n = 0;
+  await Promise.all(Object.entries(PHOTO).map(async ([key, P]) => {
+    const m = M[key], t = await load(P.from || key); if (!m || !t || !(t.map || t.normalMap)) return;
+    if (t.map && !P.keepMap) { m.map = t.map; m.color.set(P.tint ?? 0xffffff); }
+    if (t.normalMap) { m.normalMap = t.normalMap; m.normalScale.set(1, 1); }
+    if (t.roughnessMap) { m.roughnessMap = t.roughnessMap; m.roughness = 1; }
+    if (t.aoMap) { m.aoMap = t.aoMap; m.aoMapIntensity = 0.8; }
+    if (t.metalnessMap) { m.metalnessMap = t.metalnessMap; m.metalness = 1; }
+    m.needsUpdate = true; n++;
+    for (const c of m.userData.clones || []) { for (const k of ['map', 'normalMap', 'roughnessMap', 'aoMap']) c[k] = m[k]; c.color.copy(m.color); c.normalScale.copy(m.normalScale); c.roughness = m.roughness; c.needsUpdate = true; }
+  }));
+  // 창밖 땅: 풀밭과 눈
+  const [grass, snow] = await Promise.all([load('grass'), load('snow')]);
+  if (grass?.map || snow?.map) onGround?.({ grass, snow });
+  return n;
+}

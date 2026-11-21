@@ -4,7 +4,7 @@ import { rng } from '../scene/textures.js';
 
 export const PAPERS = { white: { name: '흰색', c: '#f4f1ea', ink: '#17130f' }, cream: { name: '미색', c: '#ece2cb', ink: '#1c1612' }, old: { name: '오래된 누런 종이', c: '#d9c493', ink: '#2a1e12' } };
 export const PENS = {
-  pencil: { name: '연필', c: '#3a3a3c', line: true }, yellow: { name: '노랑 색연필', c: '#e3b92e' }, pink: { name: '분홍 색연필', c: '#de6f86' }, blue: { name: '파랑 색연필', c: '#5f97d6' }, green: { name: '초록 색연필', c: '#74a84f' },
+  pencil: { name: '연필', c: '#3a3a3c', line: true }, yellow: { name: '노랑 색연필', c: '#e3b92e' }, pink: { name: '분홍 색연필', c: '#de6f86' }, blue: { name: '파랑 색연필', c: '#8fc0ee' }, green: { name: '초록 색연필', c: '#74a84f' },
 };
 const HAND = '"Nanum Pen Script", "Gaegu", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive';
 
@@ -76,15 +76,15 @@ export function drawPage(cv, o) {
       for (const a of l.atoms) { if (a.space) continue; if (a.font !== font) { font = a.font; c.font = font; } c.fillText(a.t, a.x, l.y - (a.rise || 0)); }
     }
     // 여백 메모 (손글씨체)
-    c.font = `26px ${HAND}`; c.fillStyle = '#34435e';
+    c.font = `34px ${HAND}`; c.fillStyle = '#2c3a55';
     const mw = o.T.margin - 16, mx = o.side === 'L' ? 8 : W - o.T.margin + 8;
     for (const hl of o.highlights || []) {
       if (!hl.note || hl.start < page.g0 || hl.start >= page.g1) continue;
       const rc = rectsFor(page, hl.start, hl.start + 1)[0]; if (!rc) continue;
       let y = rc.base - 4, line = '', n = 0;
       c.save(); c.strokeStyle = '#34435e'; c.globalAlpha = 0.7; c.lineWidth = 1.5; c.beginPath(); c.moveTo(o.side === 'L' ? mw + 10 : W - mw - 10, rc.top + 4); c.lineTo(o.side === 'L' ? mw + 10 : W - mw - 10, rc.top + rc.h - 4); c.stroke(); c.restore();
-      for (const ch of hl.note) { if (c.measureText(line + ch).width > mw) { c.fillText(n === 3 ? line.slice(0, -1) + '…' : line, mx, y); y += 26; line = ''; if (++n > 3) break; } line += ch; }
-      if (n <= 3 && line) c.fillText(line, mx, y);
+      for (const ch of hl.note) { if (c.measureText(line + ch).width > mw) { c.fillText(n === 6 ? line.slice(0, -1) + '…' : line, mx, y); y += 36; line = ''; if (++n > 6) break; } line += ch; }
+      if (n <= 6 && line) c.fillText(line, mx, y);
     }
   }
   // 머리글과 쪽 번호

@@ -80,7 +80,8 @@ export class Environment {
 
     // ---- 땅, 먼 능선, 숲
     this.groundMat = new THREE.MeshStandardMaterial({ roughness: 1 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 90), this.groundMat); ground.rotation.x = -Math.PI / 2; ground.position.set(wx, -0.45, -44.6); g.add(ground);
+    const gg = new THREE.PlaneGeometry(160, 90); { const uv = gg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 160, uv.getY(i) * 90); }  // 미터 단위 UV
+    const ground = new THREE.Mesh(gg, this.groundMat); ground.rotation.x = -Math.PI / 2; ground.position.set(wx, -0.45, -44.6); g.add(ground);
     this.hillMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, fog: false });
     for (const [z, base, amp, seed] of [[-40, 1.2, 2.6, 1], [-46, 2.4, 4.2, 2]]) {
       const n = 80, pos = [], idx = [];
@@ -133,6 +134,7 @@ export class Environment {
   }
   _dir(az, alt, out = new THREE.Vector3()) { return out.set(-Math.sin(az) * Math.cos(alt), Math.sin(alt), Math.cos(az) * Math.cos(alt)); }
 
+  setGroundTextures(t) { this.groundTex = t; this.recompute(); }
   // 해·달·하늘·계절을 다시 계산한다 (몇 초에 한 번, 또는 설정이 바뀌었을 때)
   recompute() {
     const o = this.opts, date = this.now(), S = this.state;
@@ -145,6 +147,9 @@ export class Environment {
 
     // 하늘
     let [zen, hor] = this._skyColors(alt);
+    // 아침은 저녁보다 맑고 차가운 빛: 해가 동쪽에 낮게 있을 때 지평선을 연한 분홍, 하늘을 옅은 푸른빛으로 돌린다
+    const dawn = (Math.sin(sp.az) > 0 ? 1 : 0) * sstep(-8, -1, alt) * (1 - sstep(5, 16, alt));
+    hor.lerp(C(0xe9b9b4), 0.6 * dawn); zen.lerp(C(0x7f9cc8), 0.5 * dawn); S.dawn = dawn;
     const grey = (c) => { const l = 0.3 * c.r + 0.55 * c.g + 0.15 * c.b; return new THREE.Color(l * 0.95, l, l * 1.08); };
     zen = zen.lerp(grey(zen).multiplyScalar(1.5 - 0.2 * day), oc * 0.85); hor = hor.lerp(grey(hor).multiplyScalar(1.1), oc * 0.85);
     if (oc > 0 && day < 0.5) { zen.lerp(C(0x1a1d26), oc * (1 - day) * 0.6); hor.lerp(C(0x242833), oc * (1 - day) * 0.6); }  // 눈 오는 밤은 살짝 밝은 회색 하늘
@@ -172,13 +177,16 @@ export class Environment {
     else { L.intensity = moonI; L.color.set(0x9db8e8); L.position.copy(L.target.position).addScaledVector(md, 18); }
     L.castShadow = L.intensity > 0.01; L.shadow.needsUpdate = true;
     this.hemi.color.copy(zen).lerp(hor, 0.4).lerp(C(0xffffff), 0.55 * day).multiplyScalar(1 + day); this.hemi.groundColor.set(0x1a0f08).lerp(C(0x4a3a2c), day);
-    this.hemi.intensity = 0.22 + 0.2 * night * (0.3 + 0.7 * ph.fraction) * (1 - oc) + 1.5 * day * (1 - 0.35 * oc);
-    this.fill.color.copy(hor).lerp(zen, 0.5).lerp(C(0xffffff), 0.5 * day); this.fill.intensity = (16 * day + 0.5 * (1 - day) * (oc > 0 ? 1 : 0.4)) * (1 - 0.3 * oc);
+    this.hemi.intensity = 0.3 + 0.5 * dawn + 0.2 * night * (0.3 + 0.7 * ph.fraction) * (1 - oc) + 1.5 * day * (1 - 0.35 * oc);
+    this.fill.color.copy(hor).lerp(zen, 0.5).lerp(C(0xffffff), 0.5 * day); this.fill.intensity = (16 * day + 5 * dawn + 0.5 * (1 - day) * (oc > 0 ? 1 : 0.4)) * (1 - 0.3 * oc);
     this.renderer.toneMappingExposure = 1.12 - 0.2 * day;
 
     // 계절: 땅, 능선, 나무색
     const P = PALETTE[season], col = new THREE.Color(), snowC = C(0xdfe6ee);
-    this.groundMat.color.set(snowy ? 0xdfe6ee : P.ground);
+    // 사진 텍스처가 있으면 풀밭/눈 사진을 깔고, 계절 색은 옅게 곱한다
+    const gt = this.groundTex && (snowy ? this.groundTex.snow : this.groundTex.grass);
+    if (gt?.map) { const gm = this.groundMat; if (gm.map !== gt.map) { gm.map = gt.map; gm.normalMap = gt.normalMap || null; gm.roughnessMap = gt.roughnessMap || null; gm.needsUpdate = true; } gm.color.set(snowy ? 0xf2f5f8 : P.ground).lerp(C(0xffffff), snowy ? 0 : 0.45).multiplyScalar(snowy ? 1 : 1.5); }
+    else this.groundMat.color.set(snowy ? 0xdfe6ee : P.ground);
     this.hillMat.color.set(snowy ? PALETTE.winter.hill : P.hill).multiplyScalar(0.05 + 0.6 * day).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.55);   // 먼 산은 지평선 색에 물든다
     for (let i = 0; i < this.conifers.count; i++) { col.set(P.conifer).multiplyScalar(this.treeTone[i]); if (snowy) col.lerp(snowC, 0.3 + 0.3 * (this.treeTone[i] - 0.7)); this.conifers.setColorAt(i, col); }
     this.conifers.instanceColor.needsUpdate = true;

@@ -8,7 +8,7 @@ export class Mixer {
   constructor() {
     this.vol = { ...DEFAULTS };
     try { Object.assign(this.vol, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* 저장소 사용 불가 */ }
-    this.ctx = null; this.nodes = {};
+    this.ctx = null; this.nodes = {}; this.scale = 1;
   }
   // 사용자 조작(클릭) 안에서 불러야 브라우저가 소리를 허용한다.
   start() {
@@ -20,10 +20,12 @@ export class Mixer {
     return this.ctx;
   }
   channel(name) { return this.nodes[name]; }
+  // 전체 소리를 일시적으로 줄인다 (낭독 중, 잠들기 모드). 저장되는 볼륨 값은 그대로 둔다.
+  setScale(k, tc = 0.4) { this.scale = k; const n = this.nodes.master; if (n) n.gain.setTargetAtTime(this.vol.master * k, this.ctx.currentTime, tc); this.onChange?.('scale', k); }
   volume(name) { return this.vol[name]; }
   setVolume(name, v) {
     this.vol[name] = Math.max(0, Math.min(1, +v || 0));
-    const n = this.nodes[name]; if (n) n.gain.setTargetAtTime(this.vol[name], this.ctx.currentTime, 0.03);
+    const n = this.nodes[name]; if (n) n.gain.setTargetAtTime(this.vol[name] * (name === 'master' ? this.scale : 1), this.ctx.currentTime, 0.03);
     try { localStorage.setItem(KEY, JSON.stringify(this.vol)); } catch { /* 무시 */ }
     this.onChange?.(name, this.vol[name]);
   }

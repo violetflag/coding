@@ -1,16 +1,21 @@
-// 난로 — 진입점 (1단계 프로토타입).
+// 난로 — 진입점.
 // 방은 three.js WebGPURenderer로, 불은 별도 WebGPU 캔버스(src/fire/fireLayer.js)로 그린다.
 import * as THREE from 'three/webgpu';
-import { ROOM, FIREPLACE as FP, LAMP } from './scene/layout.js';
+import { ROOM, FIREPLACE as FP, LAMP, CHAIRS, RUG } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
+import { applyPhotoTextures } from './scene/textures.js';
 import { Environment } from './scene/environment.js';
 import { Player } from './player/player.js';
 import { FireLayer } from './fire/fireLayer.js';
 import { Mixer } from './audio/mixer.js';
 import { FireSound } from './audio/fireSound.js';
+import { Sfx, Ambient } from './audio/sfx.js';
+import { Music } from './audio/music.js';
 import { loadFireConfig, applyUrl, toQuality, FIRE_PRESETS } from './ui/fireConfig.js';
 import { Settings } from './ui/settings.js';
+import { buildSections, loadPrefs } from './ui/sections.js';
 import { setupReading } from './reading.js';
+import { setupCozy } from './cozy.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -24,14 +29,16 @@ async function main() {
   await renderer.init();
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.05, 60);
   const ctx = { colliders: [], interact: [], animated: [] };
   scene.add(buildRoom(ctx));
+  const prefs = loadPrefs();
 
-  // ---- 임시 조명 (4단계에서 분리 굽기 + 하늘로 교체). 불빛의 세기는 불 레이어의 실제 광량 신호를 따른다.
+  // ---- 조명: 불빛(그림자), 불빛의 반사광, 스탠드. 해·달·하늘빛은 Environment가 맡는다.
+  // 불빛의 세기는 불 레이어의 실제 광량 신호를 따른다.
   const fireLight = new THREE.PointLight(0xff8a3c, 0, 9, 1.6);
   fireLight.position.set(FP.faceX - 0.12, FP.hearthH + 0.3, FP.zc); fireLight.castShadow = true;
   fireLight.shadow.mapSize.set(1024, 1024); fireLight.shadow.bias = -0.004; fireLight.shadow.radius = 4;
@@ -39,10 +46,11 @@ async function main() {
   // 불빛이 벽과 천장에 반사되어 방 전체에 퍼지는 빛(그림자 없음): 벽난로 그늘에 가린 쪽이 새까맣게 되지 않게 한다
   const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
-  // 창밖 세계와 시간에 따른 조명 (해·달·하늘·계절·날씨)
   const env = new Environment(scene, ctx, renderer, { url: Q });
   env.recompute();
   if (!HEADLESS) env.locate();
+  // ambientCG 사진 텍스처를 읽어 코드로 그린 임시 텍스처와 바꾼다 (없으면 그대로 둔다)
+  const texturesReady = Q.has('notex') ? Promise.resolve(0) : applyPhotoTextures(ctx.materials, { onGround: (t) => env.setGroundTextures(t) }).catch((e) => { console.warn('사진 텍스처를 읽지 못했습니다', e); return 0; });
 
   // ---- 불 레이어
   const fireCfg = applyUrl(loadFireConfig(), Q);
@@ -53,33 +61,62 @@ async function main() {
   }
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }
 
-  // ---- 플레이어
-  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2200); };
-  let lampOn = true, fireSound = null, settings = null;
+  // ---- 소리 (첫 클릭에서 켠다)
+  const mixer = new Mixer(), music = new Music(mixer);
+  let fireSound = null, sfxEngine = null, ambient = null, settings = null, cozy = null;
+  const sfx = (name, opt) => sfxEngine?.play(name, opt);
+  mixer.onChange = () => music.applyVolume();
+  const startSound = async () => {
+    if (mixer.ctx || Q.has('mute')) return mixer.ctx?.resume().catch(() => {});
+    try {
+      mixer.start(); sfxEngine = new Sfx(mixer); ambient = new Ambient(mixer, sfxEngine.noise);
+      if (music.state.auto && music.state.url) music.play();
+      fireSound = await FireSound.create(mixer, fire);
+    } catch (e) { console.warn('소리를 켤 수 없습니다', e); }
+  };
+
+  // ---- 플레이어와 상호작용
+  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
+  let lampOn = true;
   const setLamp = (on) => { lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
-  if (env.state.day < 0.5) for (const c of ctx.candles) c.userData.set(1, true);
-  const mixer = new Mixer();
   const player = new Player({
     camera, canvas: roomCanvas, ctx,
     onInteract(it) {
-      if (it.id === 'lamp') setLamp(!lampOn);
-      else if (it.id === 'woodpile') { fire?.addLog(); fireSound?.trigger('log-shift', 0.6); toast('장작을 넣었습니다'); }
+      if (it.id === 'lamp') { setLamp(!lampOn); sfx('click'); }
+      else if (it.id === 'woodpile') { cozy.hearth.startLog(); fireSound?.trigger('log-shift', 0.6); }
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
-      else if (it.candle) { const st = it.candle.userData.state; it.candle.userData.set(st.frac, !st.lit); }
+      else if (it.candle) cozy.toggleCandle(it.candle);
+      else if (it.id === 'mug') cozy.sip();
+      else if (it.id === 'kettle') cozy.refill();
+      else if (it.libBook) reading.setPicked(it.libBook), toast('책을 꺼냈습니다. 의자에 앉아 E로 펼치세요');
       else if (it.id === 'shelf') reading.ui.open('lib');
     },
-    onState(s) { reading.onState(s); },
+    onState(s) { reading.onState(s); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
   });
+  const applyPrefs = () => {
+    player.sens = 0.0019 * prefs.sens; player.invertY = prefs.invertY; player.sway = prefs.sway;
+    if (player.baseFov !== prefs.fov) { if (player.state !== 'reading') player.fov = prefs.fov; player.baseFov = prefs.fov; }
+    if (ambient) ambient.clock = prefs.clockTick;
+  };
+  applyPrefs();
+
   // ---- 읽기 모드 (리더, 3D 책, 메뉴)
-  const sfx = (name, opt) => ctx.sfx?.(name, opt);
-  const uiMode = () => player.state === 'reading' || reading.ui.isOpen || settings?.isOpen;
+  const uiMode = () => player.state === 'reading' || reading.ui.isOpen || !!settings?.isOpen;
+  const start = $('start'), hint = $('hint'), dot = $('dot'), prompt = $('prompt'), stats = $('stats');
+  const syncOverlay = () => { const on = player.locked; start.style.display = on || uiMode() ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0; };
+  // 읽는 중에 옆 메뉴를 열면 책이 메뉴에 가리지 않게 화면을 왼쪽으로 민다
+  const panelShift = (open) => { const w = Math.min(420, innerWidth * 0.4); if (open && player.state === 'reading' && innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, w / 2, 0, innerWidth, innerHeight); else camera.clearViewOffset(); };
   const reading = setupReading({
     scene, camera, player, canvas: roomCanvas, toast, sfx,
-    onUiMode: (open) => { if (open) { if (player.locked) document.exitPointerLock(); } else if (player.state !== 'reading' && !settings?.isOpen) player.lock(); syncOverlay(); },
-    onTts: (on) => ctx.onTts?.(on), onQuote: (text, meta) => ctx.quoteCard?.(text, meta),
+    onUiMode: (open) => { panelShift(open); if (open) { if (player.locked) document.exitPointerLock(); } else if (player.state !== 'reading' && !settings?.isOpen) player.lock(); syncOverlay(); },
+    // 낭독 중에는 불 소리와 음악을 낮춘다 (브라우저 음성 합성에는 잔향을 직접 입힐 수 없어, 방의 소리를 낮춰 목소리가 묻히지 않게 한다)
+    onTts: (on) => { if (!cozy?.hearth.sleepT) mixer.setScale(on ? 0.45 : 1); music.duck = on ? 0.35 : 1; music.applyVolume(); },
+    onQuote: (text, meta) => cozy.quoteCard(text, meta),
   });
+  cozy = setupCozy({ scene, camera, ctx, player, fire, reading, prefs, toast, sfx, mixer, music, setLamp, env });
+  if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
   let scale = Math.min(1, 1600 / innerWidth) * Math.min(devicePixelRatio, 1.5);
@@ -91,16 +128,10 @@ async function main() {
   addEventListener('resize', fit); fit();
 
   // ---- 시작 화면과 포인터 잠금
-  const start = $('start'), hint = $('hint'), dot = $('dot'), prompt = $('prompt'), stats = $('stats');
   $('startMsg').textContent = '클릭해서 들어가기';
-  // 소리는 첫 클릭에서 켠다(브라우저 정책). 실패해도 화면은 그대로 돈다.
-  const startSound = async () => {
-    if (mixer.ctx || Q.has('mute')) return mixer.ctx?.resume().catch(() => {});
-    try { mixer.start(); fireSound = await FireSound.create(mixer, fire); } catch (e) { console.warn('소리를 켤 수 없습니다', e); }
-  };
   start.addEventListener('click', () => { startSound(); player.lock(); });
-  roomCanvas.addEventListener('click', () => { startSound(); if (!player.locked) player.lock(); });
-  // 임시 볼륨 조절: [ 와 ] 로 전체 볼륨 (정식 소리 설정 화면은 6단계)
+  roomCanvas.addEventListener('click', () => { startSound(); if (!player.locked && !uiMode()) player.lock(); });
+  addEventListener('keydown', () => startSound(), { once: true });
   addEventListener('keydown', (e) => {
     if (e.code !== 'BracketLeft' && e.code !== 'BracketRight') return;
     mixer.setVolume('master', mixer.volume('master') + (e.code === 'BracketRight' ? 0.1 : -0.1));
@@ -109,56 +140,92 @@ async function main() {
   // ---- 설정창 (O 키 또는 시작 화면의 버튼)
   settings = new Settings({
     cfg: fireCfg, fire, mixer,
-    onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); }, onClose: () => syncOverlay(),
+    sections: buildSections({ env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth }),
+    onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); },
+    onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && mixer.ctx) player.lock(); },
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
   });
   $('openSettings').addEventListener('click', (e) => { e.stopPropagation(); settings.open(); });
-  addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) settings.toggle(); });
-  const syncOverlay = () => { const on = player.locked; start.style.display = on || uiMode() ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0; };
+  const typing = (e) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
+  addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && !typing(e)) settings.toggle(); });
   document.addEventListener('pointerlockchange', () => {
     const on = player.locked; syncOverlay();
-    if (on) { hint.style.opacity = 0.85; setTimeout(() => (hint.style.opacity = 0), 7000); }
+    if (on) { hint.style.opacity = 0.85; setTimeout(() => (hint.style.opacity = 0), 9000); }
   });
   let showStats = Q.has('stats');
   addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); showStats = !showStats; stats.textContent = ''; } });
+  addEventListener('beforeunload', () => { cozy.saveSession(); reading.reader.flush(); });
+
+  // ---- 서재가 기억하는 자리: 앉아 있던 의자에서, 펼친 책 그대로 다시 시작한다
+  const ses = cozy.session, wantSeat = prefs.startSeated || (ses && ses.state !== 'walk');
+  if (!Q.has('fresh') && !HEADLESS) {
+    if (wantSeat) {
+      const chair = CHAIRS.find((c) => c.id === (ses?.chair || 'reading')) || CHAIRS[0]; player.seatNow(chair);
+      if (ses?.state === 'reading') reading.reader.ready.then(() => { if (reading.reader.library.length && player.state === 'seated') { player.openBook(); syncOverlay(); } });
+    } else if (ses?.state === 'walk' && ses.x) { if (!player.blocked(ses.x, ses.z)) { player.pos.x = ses.x; player.pos.z = ses.z; player.yaw = ses.yaw; } }
+  }
 
   // ---- 루프
-  const clock = new THREE.Clock();
-  let acc = 0, frames = 0, lastFit = 0, fpsMs = 16.7, fbT = 0, prevCam = new THREE.Vector3(), level = 1;
+  const clock = new THREE.Timer();
+  let acc = 0, frames = 0, lastFit = 0, fpsMs = 16.7, fbT = 0, prevCam = new THREE.Vector3(), level = 1, stepPhase = 0, skip = false, elapsed = 0;
+  const clockPos = new THREE.Vector3(ctx.clock.position.x, ctx.clock.position.y, ctx.clock.position.z), kettlePos = ctx.kettle.position;
+  const shot = document.createElement('canvas');
   const frame = () => {
-    const dt = Math.min(0.05, clock.getDelta());
+    clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
-    for (const fn of ctx.animated) fn(clock.elapsedTime);
-    for (const c of ctx.candles) c.userData.flicker(clock.elapsedTime);
-    env.update(dt, clock.elapsedTime); ctx.clock.userData.tick(env.now());
+    for (const fn of ctx.animated) fn(elapsed);
+    env.update(dt, elapsed); ctx.clock.userData.tick(env.now());
+    cozy.update(dt);
 
     // 불빛 신호 → 방 조명. 물리 불이 없으면 느린 잡음으로 대신한다(대체 표시).
     // 불빛 측정값이 아직 없거나 끊기면(읽어오기 지연) 같은 잡음으로 이어 간다.
     fbT += dt;
     const synth = 1 + 0.12 * Math.sin(fbT * 12.6) * Math.sin(fbT * 3.1) + 0.08 * Math.sin(fbT * 7.3 + 1.3);
-    let power = 0.6, target = synth;
+    let power = cozy.firePower, target = synth;
     if (fire) {
       fire.moving = prevCam.distanceToSquared(camera.position) > 1e-8 || player.tween !== null;
       fire.update(dt, camera, !HEADLESS);
       power = fire.power;
       if (fire.light.ref > 0 && performance.now() - fire.light.at < 500) target = fire.light.level;
-    }
+    } else ctx.emberMat.emissiveIntensity = 0.05 + 0.4 * power;
+    if (!prefs.flicker) target = 1;                                       // 접근성: 불빛 흔들림 끄기
     level += (target - level) * (1 - Math.exp(-dt * 30));
-    fireSound?.update(power, level, fire ? fire.camPos(camera) : [camera.position.z - FP.fire.z, camera.position.y - FP.fire.y, FP.fire.x - camera.position.x]);
+    const camFire = fire ? fire.camPos(camera) : [camera.position.z - FP.fire.z, camera.position.y - FP.fire.y, FP.fire.x - camera.position.x];
+    fireSound?.update(power, level, camFire);
     prevCam.copy(camera.position);
-    fireLight.intensity = 9 * power * Math.max(0.3, Math.min(1.8, level));
+    const lv = Math.max(0.3, Math.min(1.8, level));
+    fireLight.intensity = 9 * power * lv;
     fireLight.position.y = FP.hearthH + 0.3 + 0.03 * (level - 1);
-    bounce.intensity = 1.5 * power * (0.6 + 0.4 * level);
+    bounce.intensity = 2.6 * power * (0.6 + 0.4 * level);
+    reading.update(dt, { fire: power * lv / 0.62, day: env.state.day });
 
-    reading.update(dt, { fire: power * Math.max(0.3, Math.min(1.8, level)), day: env.state.day });
+    // 환경음과 발소리
+    if (ambient) {
+      const kd = Math.hypot(camera.position.x - kettlePos.x, camera.position.z - kettlePos.z);
+      ambient.update({ dt, weather: env.state.weather, day: env.state.day, season: env.state.season, clockDist: camera.position.distanceTo(clockPos), kettle: (cozy.kettleBoil || 0) / (1 + kd * kd * 0.5) });
+      if (player.state === 'walk' && player.speed > 0.3) {
+        const ph = Math.floor(player.bob / Math.PI);
+        if (ph !== stepPhase) { stepPhase = ph; const onRug = Math.abs(player.pos.x - RUG.x) < RUG.w / 2 && Math.abs(player.pos.z - RUG.z) < RUG.d / 2; sfx(onRug ? 'steprug' : 'step', { pan: ph % 2 ? 0.15 : -0.15, gain: Math.min(1, player.speed / 1.4) }); }
+      }
+    }
 
-    if (!HEADLESS) renderer.render(scene, camera);
+    // 책을 읽는 동안은 절전: 방은 한 프레임 걸러 그린다 (장을 넘기는 중과 화면을 찍을 때는 매 프레임)
+    skip = prefs.readSave && player.state === 'reading' && !player.tween && !reading.reader.book3d.flipping && !ctx.captureNext && !skip;
+    if (!HEADLESS && !skip) renderer.render(scene, camera);
+    if (ctx.captureNext && !HEADLESS) {
+      // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
+      const cb = ctx.captureNext; ctx.captureNext = null;
+      try { shot.width = 1600; shot.height = 900; const c2 = shot.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, 1600, 900);
+        if (fire && !fire.hidden) { const r = fireCanvas.getBoundingClientRect(), kx = 1600 / innerWidth, ky = 900 / innerHeight; c2.drawImage(fireCanvas, r.left * kx, r.top * ky, r.width * kx, r.height * ky); }
+        c2.drawImage(roomCanvas, 0, 0, 1600, 900); cb(shot);
+      } catch (e) { console.warn('화면을 찍지 못했습니다', e); cb(null); }
+    } else if (ctx.captureNext && HEADLESS) { const cb = ctx.captureNext; ctx.captureNext = null; window.NANRO.capture(1600, 900).then((u) => { const im = new Image(); im.onload = () => cb(im); im.src = u; }, () => cb(null)); }
 
     // 상호작용 힌트
     const f = player.locked ? player.focus : null;
     prompt.style.opacity = f ? 1 : 0;
-    if (f && prompt.dataset.id !== f.id) { prompt.dataset.id = f.id; prompt.innerHTML = `<kbd>E</kbd>${f.label}`; }
+    if (f && prompt.dataset.label !== f.label) { prompt.dataset.label = f.label; prompt.innerHTML = `<kbd>E</kbd>${f.label}`; }
 
     // 해상도 자동 조절 + 성능 표시
     acc += dt; frames++;
@@ -173,19 +240,20 @@ async function main() {
         const be = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
         stats.textContent = `${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms) · 방 ${be} ×${scale.toFixed(2)}\n` +
           (fire ? `불: 물리 시뮬레이션 ${fire.quality} ${fire.sim.res.join('×')} · ${fire.w}×${fire.h} · 광량 ${level.toFixed(2)}` : `불: 대체 표시 (${fireErr || '꺼짐'})`) +
-          `\n상태: ${player.state}`;
+          `\n상태: ${player.state} · ${env.state.season} ${env.state.weather} · 해 ${env.state.sunAlt.toFixed(0)}°`;
       }
     }
   };
   if (HEADLESS && fire) {
     // 소프트웨어 WebGPU는 프레임을 내는 속도보다 처리 속도가 느려 일이 쌓인다. GPU가 끝낼 때까지 기다렸다가 다음 프레임을 낸다.
-    const tick = async () => { try { frame(); } catch (e) { console.error("frame:", e.stack || e); } await fire.device.queue.onSubmittedWorkDone(); setTimeout(tick, 0); };
+    const tick = async () => { try { frame(); } catch (e) { console.error('frame:', e.stack || e); } await fire.device.queue.onSubmittedWorkDone(); setTimeout(tick, 0); };
     tick();
   } else renderer.setAnimationLoop(frame);
+  syncOverlay();
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }

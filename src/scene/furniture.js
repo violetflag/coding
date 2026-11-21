@@ -173,7 +173,7 @@ export function curtain(M, w, h) {
   const geo = new THREE.PlaneGeometry(w, h, 28, 6), p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = p.getY(i), k = 0.6 + 0.4 * (0.5 - y / h); p.setZ(i, 0.028 * Math.sin((x / w) * Math.PI * 9) * k + 0.01 * Math.sin((x / w) * Math.PI * 23)); }
   geo.computeVertexNormals();
-  const m = M.curtain.clone(); m.side = THREE.DoubleSide;
+  const m = M.curtain.clone(); m.side = THREE.DoubleSide; (M.curtain.userData.clones ??= []).push(m);
   return shadow(new THREE.Mesh(geo, m));
 }
 

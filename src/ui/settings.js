@@ -18,6 +18,9 @@ const CSS = `
 #settings button { background: #2a1f15; color: inherit; border: 1px solid #5c4a33; border-radius: 5px; padding: 7px 14px; font: inherit; cursor: pointer; }
 #settings button.primary { background: #a8621f; border-color: #d98a3a; color: #fff; }
 #settings button:hover { filter: brightness(1.2); }
+#settings .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+#settings .row.wide { grid-template-columns: 210px 1fr; }
+#settings input[type=text] { width: 100%; box-sizing: border-box; background: #0e0a07; color: inherit; border: 1px solid #4a3a28; border-radius: 4px; padding: 6px 8px; font: inherit; }
 #settings .state { margin-right: auto; align-self: center; opacity: .8; font-size: 12px; }
 `;
 
@@ -30,15 +33,18 @@ export class Settings {
     const el = (this.el = document.createElement('div')); el.id = 'settings';
     el.innerHTML = `<div class="box">
       <h2>설정</h2>
+      <div class="tabs" id="setTabs"></div>
+      <div data-tab="fire">
       <div class="note" id="setStats"></div>
       <h3>불 그래픽</h3>
       <div class="note">프리셋을 고르거나 항목을 직접 바꿀 수 있습니다. 각 항목은 표시된 최소와 최대 사이에서 입력합니다. <span class="tag">바로 적용</span> 표시가 없는 항목은 "적용"을 누르면 화면을 다시 불러옵니다.</div>
       <div class="row"><label for="setPreset">프리셋</label><select id="setPreset"></select><span></span><span></span></div>
       <div id="setFields"></div>
-      <h3>소리</h3>
-      <div id="setSound"></div>
       <div class="btns"><span class="state" id="setState"></span>
-        <button id="setReset">프리셋 값으로 되돌리기</button><button id="setClose">닫기</button><button id="setApply" class="primary">적용</button></div>
+        <button id="setReset">프리셋 값으로 되돌리기</button><button id="setApply" class="primary">적용</button></div>
+      </div>
+      <div data-tab="sound"><h3>볼륨</h3><div id="setSound"></div></div>
+      <div class="btns"><button id="setClose">닫기</button></div>
     </div>`;
     document.body.appendChild(el);
     const $ = (id) => el.querySelector('#' + id);
@@ -75,7 +81,7 @@ export class Settings {
     }
 
     const snd = $('setSound');
-    for (const [k, name] of [['master', '전체'], ['fire', '불 소리']]) {
+    for (const [k, name] of [['master', '전체'], ['fire', '불 소리'], ['ambient', '환경음 (바람, 시계, 새)'], ['effects', '효과음 (책장, 발소리)'], ['music', '음악']]) {
       const row = document.createElement('div'); row.className = 'row';
       row.innerHTML = `<label>${name} 볼륨</label><input type="range" min="0" max="1" step="0.01"><span class="rng" style="text-align:left"></span><span></span>`;
       const r = row.querySelector('input'), t = row.querySelector('.rng');
@@ -84,6 +90,16 @@ export class Settings {
       (this._snd = this._snd || []).push(show); snd.appendChild(row);
     }
 
+    // 탭: 불 그래픽, 소리 + 바깥에서 넘긴 구역(sections: [{ key, label, build(el, settings), onShow }])
+    const box = el.querySelector('.box'), tabs = $('setTabs'), closeRow = box.lastElementChild;
+    this.sectionEls = { fire: box.querySelector('[data-tab=fire]'), sound: box.querySelector('[data-tab=sound]') };
+    const order = [['fire', '불 그래픽'], ['sound', '소리']];
+    for (const sec of this.sections || []) {
+      let d = this.sectionEls[sec.key]; if (!d) { d = document.createElement('div'); d.dataset.tab = sec.key; box.insertBefore(d, closeRow); this.sectionEls[sec.key] = d; order.push([sec.key, sec.label]); }
+      sec.build(d, this);
+    }
+    this.tab = this.sections?.length ? order[2][0] : 'fire';
+    for (const [k, label] of order) { const b = document.createElement('button'); b.textContent = label; b.dataset.k = k; b.addEventListener('click', () => this.show(k)); tabs.appendChild(b); }
     $('setApply').addEventListener('click', () => this.apply());
     $('setClose').addEventListener('click', () => this.close());
     $('setReset').addEventListener('click', () => { this.cfg.custom = false; this.cfg.values = { ...FIRE_PRESETS[this.cfg.preset].v }; this._fill(); this._live(); });
@@ -92,9 +108,15 @@ export class Settings {
     this._fill();
   }
 
+  show(k) {
+    this.tab = k; for (const [key, d] of Object.entries(this.sectionEls)) d.style.display = key === k ? '' : 'none';
+    for (const b of this.$('setTabs').children) b.classList.toggle('primary', b.dataset.k === k);
+    for (const s of this._snd || []) s();
+    for (const sec of this.sections || []) (sec.key === k ? sec.onShow : sec.onHide)?.call(sec, this.sectionEls[sec.key]);
+  }
   get isOpen() { return this.el.classList.contains('open'); }
-  open() { this._fill(); this.el.classList.add('open'); this.onOpen?.(); this._tick = setInterval(() => { this.$('setStats').textContent = this.getStats?.() || ''; }, 500); }
-  close() { this.el.classList.remove('open'); clearInterval(this._tick); this.onClose?.(); }
+  open(tab) { this._fill(); this.el.classList.add('open'); this.show(tab || this.tab); this.onOpen?.(); this._tick = setInterval(() => { this.$('setStats').textContent = this.getStats?.() || ''; }, 500); }
+  close() { this.el.classList.remove('open'); clearInterval(this._tick); for (const sec of this.sections || []) sec.onHide?.(this.sectionEls[sec.key]); this.onClose?.(); }
   toggle() { this.isOpen ? this.close() : this.open(); }
 
   _fill() {
