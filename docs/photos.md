@@ -17,3 +17,38 @@ Edge 창 모드 1920×1080, 기본 설정(프리셋 "균형", 격자 96×120×60
 - **3단계 (c196aa2)**: 회색 상자가 널빤지 벽과 천장, 자연석 벽난로, 가죽 안락의자, 무늬 러그, 주전자, 장작 더미, 벽난로 위 그림과 시계, 커튼으로 바뀌었다. 깨진 면이나 빈 재질은 보이지 않는다.
 - **4단계 (30294c8)**: 창밖에 별이 보이고 창턱과 벽난로 선반의 초에 불이 켜졌다. 밤이라 해와 낮 조명은 이 사진으로 확인되지 않는다.
 - **공통**: 벽난로 오른쪽과 방의 오른쪽 절반이 거의 검정으로 나온다. 불 보기 시점에서 화면 오른쪽 3분의 1이 비어 보인다.
+
+## 4단계 보충: 시각, 계절, 날씨 (커밋 f9374dc에서 촬영)
+
+주소 옵션으로 시각을 바꿔 찍었다. 모두 60 fps, 콘솔 오류 없음. 계절을 지정하지 않으면 PC 날짜(11월)에 따라 가을이다.
+
+| 장면 | 주소 옵션 | 시작 위치 | 창 쪽 | 불 보기 |
+|---|---|---|---|---|
+| 낮 | `?time=13` | ![](phase4/photos-day/noon-start.png) | ![](phase4/photos-day/noon-window.png) | ![](phase4/photos-day/noon-fire.png) |
+| 해질녘 | `?time=17.2` | ![](phase4/photos-day/dusk-start.png) | ![](phase4/photos-day/dusk-window.png) | ![](phase4/photos-day/dusk-fire.png) |
+| 아침 | `?time=7.3` | ![](phase4/photos-day/morning-start.png) | ![](phase4/photos-day/morning-window.png) | ![](phase4/photos-day/morning-fire.png) |
+| 겨울 낮 | `?time=13&season=winter` | ![](phase4/photos-day/winter-noon-start.png) | ![](phase4/photos-day/winter-noon-window.png) | ![](phase4/photos-day/winter-noon-fire.png) |
+| 밤, 거센 눈 | `?time=22&weather=heavy` | ![](phase4/photos-day/night-heavy-snow-start.png) | ![](phase4/photos-day/night-heavy-snow-window.png) | ![](phase4/photos-day/night-heavy-snow-fire.png) |
+
+- **낮**: 창밖에 가을 나무(붉은색, 주황색)와 침엽수, 들판이 보인다. 실내가 고르게 밝아져 천장 들보, 널빤지 벽, 돌 벽난로가 모두 보이고 방 오른쪽 벽도 보인다. 밝기는 창이 하나인 통나무집으로 자연스럽다.
+- **겨울 낮**: 창밖이 흰 눈과 흰 나무로 바뀐다. 실내 밝기는 가을 낮과 비슷하다.
+- **해질녘과 아침**: 창밖이 어두운 주황빛이고 실내는 밤에 가깝게 어둡다. 두 장면이 거의 똑같이 보인다. 방 오른쪽은 다시 거의 검정이다.
+- **밤, 거센 눈**: 창밖에 흰 점이 흩어져 보인다. 정지 사진으로는 눈인지 별인지 구분되지 않는다.
+
+## 5단계: ebook 리더 (커밋 f9374dc)
+
+시험용 책은 직접 만든 한국어 TXT(6장, 100쪽)를 페이지 안에서 넣었다(저장소에는 넣지 않음).
+
+| 사진 | 내용 |
+|---|---|
+| ![](phase5/photos/1-open.png) | 책 펼침 (1~2쪽) |
+| ![](phase5/photos/3-highlight.png) | 밑줄: 노랑 형광, 연필 밑줄과 여백 메모, 파랑 형광, 책갈피 접힘 |
+| ![](phase5/photos/6-flip.png) | 장 넘기는 중간 |
+| ![](phase5/photos/4-old-book.png) | 헌 책 |
+| ![](phase5/photos/5-menu-type.png) | 옆 메뉴: 글자·종이 |
+| ![](phase5/photos/5-menu-lib.png) | 옆 메뉴: 서재 |
+| ![](phase5/photos/5-menu-toc.png) | 옆 메뉴: 목차 |
+
+- **글자 크기**: 1080p에서 본문 한 글자가 약 22픽셀로 읽을 만하다. 글자 가장자리는 조금 부드럽게(흐리게) 나온다.
+- **성능**: 책 없이 앉기만 하면 60.0 fps, GPU 60%. 책을 펼치면 60 fps는 유지되지만 GPU가 75~76%로 오른다. 10초 측정 세 번 중 두 번에서 83ms짜리 끊김이 한 번씩 있었다.
+- **종이 밝기**: 0.4초 간격 3장의 같은 영역 평균 밝기가 197.4, 197.4, 192.6(0~255)으로 약 2.5% 흔들린다. 불빛을 따라 은은하게 변하는 정도다.
