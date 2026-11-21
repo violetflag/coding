@@ -3,22 +3,14 @@
 // 그 캔버스는 방(three.js) 캔버스 아래에 깔리고, 방 쪽은 화구 입구에 알파 0의 "구멍"을 뚫어 불이 비쳐 보인다.
 // 카메라는 매 프레임 플레이어 시점과 맞춘다. 불의 좌표계는 장작 받침대 중심이 원점, +z가 방 쪽이다.
 import { initGPU } from './vendor/gpu.js';
+import * as THREE from 'three/webgpu';
 import { FireSim } from './vendor/sim.js';
 import { Renderer } from './vendor/renderer.js';
 import { Sparks } from './vendor/sparks.js';
 import { makeNoiseTexture, makeCurlTexture } from './vendor/noise.js';
 import { FIREPLACE as FP, ROOM } from '../scene/layout.js';
 
-// 격자 한 칸은 약 1.4cm. 계산 영역은 화구 안쪽(0.9 × 1.1 × 0.56 m)만 덮는다.
-export const FIRE_QUALITY = {
-  // test: 서버의 소프트웨어 렌더러로 스크린샷을 찍을 때만 쓰는 아주 낮은 단계 (화면 설정에는 내놓지 않는다)
-  test: { res: [48, 64, 32], dt: 1 / 45, vcycles: 1, scale: 0.5, volScale: 0.5, surfScale: 0.5, stepMul: 1.0, sparks: 2048 },
-  low: { res: [96, 120, 60], dt: 1 / 90, vcycles: 2, scale: 1.0, volScale: 0.6, surfScale: 0.75, stepMul: 0.7, sparks: 8192 },
-  medium: { res: [112, 144, 72], dt: 1 / 90, vcycles: 2, scale: 1.0, volScale: 0.75, surfScale: 0.85, stepMul: 0.65, sparks: 12288 },
-  high: { res: [128, 160, 80], dt: 1 / 120, vcycles: 2, scale: 1.0, volScale: 1.0, surfScale: 1.0, stepMul: 0.6, sparks: 16384 },
-  ultra: { res: [160, 200, 104], dt: 1 / 120, vcycles: 3, scale: 1.0, volScale: 1.0, surfScale: 1.0, stepMul: 0.5, sparks: 24576 },
-};
-export const FIRE_QUALITY_DEFAULT = 'medium';
+// 품질 값은 src/ui/fireConfig.js의 프리셋과 설정창에서 온다. 계산 영역은 화구 안쪽(0.9 × 1.1 × 0.56 m)만 덮는다.
 
 // 장작 받침대 위 가로 장작 3개 + 숯 속 토막 1개 (참고 이미지의 배치). a, b = 양 끝, r = 반지름, burn = 타는 정도.
 const LOGS = [
@@ -30,13 +22,10 @@ const LOGS = [
 const pack = (items, fn, max = 16) => { const f = new Float32Array(max * 8); items.slice(0, max).forEach((it, i) => f.set(fn(it), i * 8)); return f; };
 
 export class FireLayer {
-  static async create(canvas, { quality = FIRE_QUALITY_DEFAULT, grid = 0 } = {}) {
-    if (!FIRE_QUALITY[quality]) quality = FIRE_QUALITY_DEFAULT;
+  // q = toQuality(설정값) (src/ui/fireConfig.js), name = 표시용 이름
+  static async create(canvas, { q, name = '', debug = {} }) {
     const { device, features } = await initGPU();
-    let q = FIRE_QUALITY[quality];
-    // 측정용: ?grid=N 이면 가로 N칸(8의 배수)으로 격자만 바꾼다. 비율은 8:10:5.
-    if (grid >= 32) { const n = Math.round(grid / 8) * 8; q = { ...q, res: [n, Math.round(n * 1.25 / 8) * 8, Math.round(n * 0.625 / 4) * 4] }; }
-    return new FireLayer(canvas, device, features, q, quality);
+    const layer = new FireLayer(canvas, device, features, q, name); layer.debug = debug; return layer;
   }
 
   constructor(canvas, device, features, q, qualityName) {
@@ -48,6 +37,7 @@ export class FireLayer {
     const noiseTex = makeNoiseTexture(device, 128, 1), curlTex = makeCurlTexture(device, noiseTex, 128);
     const size = [0.9, 0.9 * q.res[1] / q.res[0], 0.9 * q.res[2] / q.res[0]];
     this.sim = new FireSim(device, { res: q.res, size, logs: logsF32, vcycles: q.vcycles, noiseTex, curlTex });
+    if (q.pre) this.sim.mgPre = q.pre; if (q.post) this.sim.mgPost = q.post; if (q.coarse) this.sim.mgCoarse = q.coarse; // 압력 풀이 반복 횟수
     const scene = { logs: LOGS, stones: [] };
     this.renderer = new Renderer(device, { sim: this.sim, scene, noiseTex, curlTex, logsF32, stonesF32: new Float32Array(16 * 8), format: this.format });
     Object.assign(this.renderer.params, {
@@ -55,6 +45,7 @@ export class FireLayer {
       // 화구 안쪽 치수 (불 좌표계): 반폭, 뒷벽 z, 입구 z, 높이
       fbX: FP.openW / 2, fbZB: -(ROOM.W - FP.fire.x), fbZF: FP.fire.x - FP.faceX, fbH: FP.openH,
     });
+    if (q.render) Object.assign(this.renderer.params, q.render);
     this.renderer.surfScale = q.surfScale;
     this.sparks = new Sparks(device, { count: q.sparks, sim: this.sim, renderer: this.renderer, curlTex });
     // 벽난로 크기의 불: 모닥불(60kW)보다 훨씬 작게. 2단계에서 화구 경계 조건과 함께 다시 맞춘다.
@@ -65,11 +56,44 @@ export class FireLayer {
     device.lost.then(() => { this.lost = true; });
   }
 
-  resize(cssW, cssH, dpr = 1) {
-    const w = Math.max(64, Math.round(cssW * dpr * this.q.scale)), h = Math.max(64, Math.round(cssH * dpr * this.q.scale));
-    if (w === this.w && h === this.h) return;
-    this.w = w; this.h = h; this.canvas.width = w; this.canvas.height = h;
-    this.renderer.resize(w, h, this.q.volScale);
+  // 화면(방 캔버스)의 CSS 크기와 픽셀 배율을 알려 준다. 실제 불 화면 크기는 매 프레임 구멍 영역에 맞춰 정한다.
+  resize(cssW, cssH, dpr = 1) { this.view = { w: cssW, h: cssH, dpr }; }
+
+  // 벽난로 구멍이 화면에서 차지하는 사각형을 구한다(NDC, 여유 포함). 보이지 않으면 null.
+  _holeRect(camera) {
+    const v = this._v || (this._v = new THREE.Vector3()), hw = FP.openW / 2 + 0.02;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, behind = 0;
+    for (let i = 0; i < 8; i++) {
+      // 구멍 입구 네 모서리와 화실 안쪽 네 모서리 (안쪽은 비스듬히 볼 때 필요)
+      v.set(i & 4 ? FP.faceX + FP.depth : FP.faceX, FP.hearthH + (i & 2 ? FP.openH + 0.02 : -0.02), FP.zc + (i & 1 ? hw : -hw));
+      v.applyMatrix4(camera.matrixWorldInverse);
+      if (v.z > -0.05) { behind++; continue; }
+      v.applyMatrix4(camera.projectionMatrix);
+      x0 = Math.min(x0, v.x); x1 = Math.max(x1, v.x); y0 = Math.min(y0, v.y); y1 = Math.max(y1, v.y);
+    }
+    if (behind === 8) return null;
+    if (behind) return { x0: -1, y0: -1, x1: 1, y1: 1 }; // 구멍에 바짝 붙었을 때는 화면 전체
+    x0 = Math.max(-1, x0); y0 = Math.max(-1, y0); x1 = Math.min(1, x1); y1 = Math.min(1, y1);
+    if (x1 - x0 < 0.004 || y1 - y0 < 0.004) return null;
+    return { x0, y0, x1, y1 };
+  }
+  // 구멍 사각형에 맞춰 불 캔버스의 위치와 해상도를 정한다. 해상도는 계단식으로만 바꿔 잦은 재할당을 피한다.
+  _fitCrop(rect) {
+    const V = this.view, cw = (rect.x1 - rect.x0) / 2 * V.w, ch = (rect.y1 - rect.y0) / 2 * V.h;
+    const st = this.canvas.style;
+    st.left = ((rect.x0 + 1) / 2 * V.w) + 'px'; st.top = ((1 - rect.y1) / 2 * V.h) + 'px'; st.width = cw + 'px'; st.height = ch + 'px';
+    const STEP = 64, budget = this.q.maxPixels || 1e6;
+    let k = V.dpr * this.q.scale;
+    if (cw * ch * k * k > budget) k = Math.sqrt(budget / (cw * ch)); // 가까이 다가가면 밀도를 낮춰 픽셀 수를 상한 안에 둔다
+    let w = Math.max(128, Math.ceil(cw * k / STEP) * STEP), h = Math.max(128, Math.ceil(ch * k / STEP) * STEP);
+    // 조금 줄어든 정도로는 다시 만들지 않는다(걸을 때 깜박임 방지)
+    if (this.w && w <= this.w && h <= this.h && w >= this.w - 2 * STEP && h >= this.h - 2 * STEP) { w = this.w; h = this.h; }
+    if (w !== this.w || h !== this.h) {
+      this.w = w; this.h = h; this.canvas.width = w; this.canvas.height = h;
+      this.renderer.resize(w, h, this.q.volScale);
+    }
+    // 화면에서의 위치(0..1, 위가 0): 개발용 캡처가 합성할 때 쓴다
+    this.crop = { u0: (rect.x0 + 1) / 2, v0: (1 - rect.y1) / 2, u1: (rect.x1 + 1) / 2, v1: (1 - rect.y0) / 2 };
   }
 
   // 방 좌표 → 불 좌표: (x, y, z)불 = (z - zc, y - 화로대 높이, -(x - 불 중심 x))
@@ -77,7 +101,17 @@ export class FireLayer {
   _cam(camera) {
     const e = camera.matrixWorld.elements, f = FP.fire;
     const P = (x, y, z) => [z - f.z, y - f.y, -(x - f.x)], D = (x, y, z) => [z, y, -x];
-    return { pos: P(e[12], e[13], e[14]), fwd: D(-e[8], -e[9], -e[10]), right: D(e[0], e[1], e[2]), up: D(e[4], e[5], e[6]), fovY: camera.fov * Math.PI / 180 };
+    // 구멍 영역만 그리는 비대칭 시야: 세로 시야는 영역 높이만큼, 중심은 shift만큼 옮긴다
+    const T = Math.tan(camera.fov * Math.PI / 360), A = camera.aspect, r = this.rect;
+    const hx = (r.x1 - r.x0) / 2, hy = (r.y1 - r.y0) / 2, cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+    return { pos: P(e[12], e[13], e[14]), fwd: D(-e[8], -e[9], -e[10]), right: D(e[0], e[1], e[2]), up: D(e[4], e[5], e[6]),
+      fovY: 2 * Math.atan(T * hy), tanFov: T * hy, aspect: (A * hx) / hy, shiftX: cx * T * A, shiftY: cy * T };
+  }
+
+  // 설정창에서 바로 바꿀 수 있는 값(다시 불러오지 않아도 되는 그리기 매개변수)
+  setLive(v) {
+    const p = this.renderer.params;
+    for (const k of ['cubic', 'flameSharp', 'detailAmt', 'sootEdge', 'stepMul']) if (v[k] != null) p[k] = v[k];
   }
 
   event(e) {
@@ -105,15 +139,22 @@ export class FireLayer {
     if (this.popClock <= 0 && !this.popsFromAudio) { this.popClock = 0.8 + Math.random() * 3; this.event({ type: 'pop', strength: 0.2 + Math.random() * 0.6 }); }
     this.acc += dtReal;
     let n = 0;
-    while (this.acc >= this.q.dt && n < 2) {
+    this._t0 = this._t0 || now; const simOff = this.debug?.nosim && now - this._t0 > 20000; if (simOff) this.acc = 0; // 측정용: 불이 붙은 뒤 시뮬레이션 정지
+    while (this.acc >= this.q.dt && n < (this.q.maxSteps || 2)) {
       const enc = d.createCommandEncoder();
       sim.step(enc, this.q.dt);
       this.sparks.rate = this.power; this.sparks.step(enc, this.q.dt);
       d.queue.submit([enc.finish()]);
       this.acc -= this.q.dt; n++;
     }
-    if (n === 2) this.acc = Math.min(this.acc, this.q.dt);
+    if (n === (this.q.maxSteps || 2)) this.acc = Math.min(this.acc, this.q.dt);
 
+    // 구멍이 화면에 없으면 불은 그리지 않고 시뮬레이션만 돌린다(불빛은 마지막 값 유지 → main이 대체 흔들림으로 잇는다)
+    this.rect = this.debug?.norender ? null : this._holeRect(camera);
+    this.canvas.style.visibility = this.rect ? 'visible' : 'hidden';
+    if (!this.rect) { this.frame++; this.hidden = true; return; }
+    this.hidden = false;
+    this._fitCrop(this.rect);
     r.setCamera(this._cam(camera));
     const j = (this.frame % 16) + 1, hal = (i, b) => { let f = 1, v = 0; while (i > 0) { f /= b; v += f * (i % b); i = Math.floor(i / b); } return v; };
     r.uploadParams(sim.time, this.frame++, [hal(j, 2) - 0.5, hal(j, 3) - 0.5]);

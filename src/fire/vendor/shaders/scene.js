@@ -828,7 +828,7 @@ export const SURFACE_PASS = (NLIGHTS) => /* wgsl */`
 fn camRay(px: vec2f) -> vec3f {
   let ndc = vec2f(px.x / R.width * 2.0 - 1.0, 1.0 - px.y / R.height * 2.0);
   let fwd = vec3f(R.fwdX, R.fwdY, R.fwdZ); let rgt = vec3f(R.rgtX, R.rgtY, R.rgtZ); let up = vec3f(R.upX, R.upY, R.upZ);
-  return normalize(fwd + rgt * ndc.x * R.tanFov * R.aspect + up * ndc.y * R.tanFov);
+  return normalize(fwd + rgt * (ndc.x * R.tanFov * R.aspect + R.shiftX) + up * (ndc.y * R.tanFov + R.shiftY)); // [nanro] shift
 }
 // Gas temperature (K) from the fire simulation near a surface point.
 fn gasTemp(p: vec3f) -> f32 {

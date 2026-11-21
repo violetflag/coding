@@ -7,6 +7,8 @@ import { Player } from './player/player.js';
 import { FireLayer } from './fire/fireLayer.js';
 import { Mixer } from './audio/mixer.js';
 import { FireSound } from './audio/fireSound.js';
+import { loadFireConfig, applyUrl, toQuality, FIRE_PRESETS } from './ui/fireConfig.js';
+import { Settings } from './ui/settings.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -37,9 +39,10 @@ async function main() {
   const moon = new THREE.DirectionalLight(0x8fa8d8, 0.25); moon.position.set(2.6, 4, -6); moon.target.position.set(2.8, 0, 2); scene.add(moon, moon.target);
 
   // ---- 불 레이어
+  const fireCfg = applyUrl(loadFireConfig(), Q);
   let fire = null, fireErr = '';
   if (!Q.has('nofire')) {
-    try { fire = await FireLayer.create(fireCanvas, { quality: Q.get('q') || undefined, grid: Number(Q.get('grid')) || 0 }); }
+    try { fire = await FireLayer.create(fireCanvas, { q: toQuality(fireCfg.values), name: fireCfg.custom || fireCfg.fromUrl ? '사용자 지정' : FIRE_PRESETS[fireCfg.preset].name, debug: { nosim: Q.has('nosim'), norender: Q.has('norender') } }); }
     catch (e) { fireErr = e.message || String(e); console.warn('[fire] 물리 불꽃을 쓸 수 없어 대체 표시로 전환:', e); }
   }
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }
@@ -64,7 +67,7 @@ async function main() {
   const fit = () => {
     renderer.setPixelRatio(scale); renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    fire?.resize(innerWidth, innerHeight, Math.min(scale, 1));
+    fire?.resize(innerWidth, innerHeight, Math.min(devicePixelRatio, 1.5)); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
   };
   addEventListener('resize', fit); fit();
 
@@ -84,6 +87,14 @@ async function main() {
     mixer.setVolume('master', mixer.volume('master') + (e.code === 'BracketRight' ? 0.1 : -0.1));
     toast('전체 볼륨 ' + Math.round(mixer.volume('master') * 100) + '%');
   });
+  // ---- 설정창 (O 키 또는 시작 화면의 버튼)
+  const settings = new Settings({
+    cfg: fireCfg, fire, mixer,
+    onOpen: () => { if (player.locked) document.exitPointerLock(); },
+    getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
+  });
+  $('openSettings').addEventListener('click', (e) => { e.stopPropagation(); settings.open(); });
+  addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat) settings.toggle(); });
   document.addEventListener('pointerlockchange', () => {
     const on = player.locked;
     start.style.display = on ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0;

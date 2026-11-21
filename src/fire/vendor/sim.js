@@ -585,7 +585,7 @@ fn pr(c: vec3i, me: f32) -> f32 {
     }
   }
 
-  vcycle(pass, pre = 2, post = 2, coarse = this.coarseIters) {
+  vcycle(pass, pre = this.mgPre ?? 2, post = this.mgPost ?? 2, coarse = this.mgCoarse ?? this.coarseIters) { // [nanro] sweeps configurable
     const n = this.levels.length;
     for (let i = 0; i < n - 1; i++) {
       this.smooth(pass, i, pre);

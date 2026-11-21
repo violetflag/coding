@@ -14,6 +14,7 @@ export const RP_FIELDS = [
   'grain', 'vignette', 'saturation', 'contrast', 'bedGlow', 'logGlow', 'lightK', 'accumN',
   'bbTmin', 'bbTmax', 'bbN', 'emberFlicker', 'sootEmitMin', 'flameSharp', 'moon', 'fogK',
   'shadowSoft', 'lift', 'emitTempLo', 'glowTemp', 'inset', 'knee', 'surfDetail', 'matA', 'matB', 'matC', 'sootScat', 'chroma', 'lensX', 'lensY', 'focus', 'lightDt', 'flickerK', 'cubic', 'aperture', 'sootEdge',
+  'shiftX', 'shiftY',             // [nanro] off-axis frustum (tangent-space offset of the view centre) for cropped rendering
   'fbX', 'fbZB', 'fbZF', 'fbH',   // [nanro] firebox interior (half width, back z, front z, height); fbX = 0 disables it
 ];
 
@@ -23,6 +24,7 @@ export const RP_DEFAULTS = {
   grain: 0.02, vignette: 0.6, saturation: 1.0, contrast: 1.0, bedGlow: 1.0, logGlow: 1.0, lightK: 1.0,
   emberFlicker: 1.0, sootEmitMin: 0.0, flameSharp: 0.0, moon: 1.0, fogK: 1.0, shadowSoft: 6.0, lift: 0.0,
   emitTempLo: 900, glowTemp: 1.0, tempScale: 1000, inset: 0.06, knee: 0.6, surfDetail: 1, matA: 0, matB: 0, matC: 0, sootScat: 0.015, chroma: 0.0025, lensX: 0, lensY: 0, focus: 0, lightDt: -1, flickerK: 0.35, cubic: 0, aperture: 0, sootEdge: 0,
+  shiftX: 0, shiftY: 0,
   fbX: 0, fbZB: -0.3, fbZF: 0.22, fbH: 0.72,
 };
 
@@ -209,7 +211,7 @@ var<workgroup> accC: array<vec4f, 256>;
 fn camRay(px: vec2f) -> vec3f {
   let ndc = vec2f(px.x / R.vw * 2.0 - 1.0, 1.0 - px.y / R.vh * 2.0);
   let fwd = vec3f(R.fwdX, R.fwdY, R.fwdZ); let rgt = vec3f(R.rgtX, R.rgtY, R.rgtZ); let up = vec3f(R.upX, R.upY, R.upZ);
-  return normalize(fwd + rgt * ndc.x * R.tanFov * R.aspect + up * ndc.y * R.tanFov);
+  return normalize(fwd + rgt * (ndc.x * R.tanFov * R.aspect + R.shiftX) + up * (ndc.y * R.tanFov + R.shiftY)); // [nanro] shift
 }
 fn hg(c: f32, g: f32) -> f32 { let g2 = g * g; return (1.0 - g2) / (4.0 * PI * pow(1.0 + g2 - 2.0 * g * c, 1.5)); }
 // Cubic B-spline reconstruction of the sim grid from 8 trilinear fetches (Sigg & Hadwiger 2005): removes the
@@ -598,7 +600,7 @@ fn camera(c: vec3f) -> vec3f {
       bw = Math.max(1, Math.ceil(bw / 2)); bh = Math.max(1, Math.ceil(bh / 2));
       this.blur.push({ down: tex2D(d, [bw, bh], 'rgba16float', `bd${i}`), up: tex2D(d, [bw, bh], 'rgba16float', `bu${i}`), w: bw, h: bh });
     }
-    this.targets = [this.surf, this.depth, this.vol, this.aux, this.hdr, this.hdrAvg, this.hist, this.acc, ...this.blur.flatMap(b => [b.down, b.up])];
+    this.targets = [this.surf, this.depth, this.vol, this.aux, this.hdr, this.hdrAvg, this.hist, this.acc, ...this.blur.flatMap(b => [b.down, b.up])].filter(Boolean); // [nanro] acc is optional
     this.makeBindGroups();
   }
 
@@ -645,7 +647,8 @@ fn camera(c: vec3f) -> vec3f {
       nLogs: this.nLogs, nStones: this.nStones, nLights: NLIGHTS,
       camX: c.pos[0], camY: c.pos[1], camZ: c.pos[2], fwdX: c.fwd[0], fwdY: c.fwd[1], fwdZ: c.fwd[2],
       rgtX: c.right[0], rgtY: c.right[1], rgtZ: c.right[2], upX: c.up[0], upY: c.up[1], upZ: c.up[2],
-      tanFov: Math.tan(c.fovY / 2), aspect: this.w / this.h, jitX: jitter[0], jitY: jitter[1],
+      // [nanro] the camera may give its own tanFov/aspect/shift (cropped off-axis view)
+      tanFov: c.tanFov ?? Math.tan(c.fovY / 2), aspect: c.aspect ?? this.w / this.h, shiftX: c.shiftX ?? 0, shiftY: c.shiftY ?? 0, jitX: jitter[0], jitY: jitter[1],
       ox: sim.origin[0], oy: sim.origin[1], oz: sim.origin[2], dx: sim.dx, sx: sim.size[0], sy: sim.size[1], sz: sim.size[2],
       nx: sim.res[0], ny: sim.res[1], nz: sim.res[2],
       bbTmin: this.bb.Tmin, bbTmax: this.bb.Tmax, bbN: this.bb.n,

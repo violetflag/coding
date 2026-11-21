@@ -165,6 +165,7 @@ fn toCam(p: vec3f) -> vec3f {
 fn toPx(c: vec3f) -> vec2f {
   var sx = c.x / c.z; var sy = c.y / c.z;
   if (R.focus > 0.0 && !analyticDof()) { sx += R.lensX / R.focus; sy += R.lensY / R.focus; }
+  sx -= R.shiftX; sy -= R.shiftY; // [nanro] off-axis crop
   let ndc = vec2f(sx / (R.tanFov * R.aspect), sy / R.tanFov);
   // the scene traces pixel id through id + 0.5 + jit, i.e. its image shifts by -jit: match it
   return vec2f((ndc.x * 0.5 + 0.5) * R.width, (0.5 - ndc.y * 0.5) * R.height) - vec2f(R.jitX, R.jitY);
