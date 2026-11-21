@@ -5,6 +5,7 @@ import * as THREE from 'three/webgpu';
 import { PAGE } from './typeset.js';
 
 export const PW = 0.14, PH = 0.21;
+export const SS = 1.5;
 const SEG = 24, TMAX = 0.016, TMIN = 0.0025;
 const ease = (t) => t * t * (3 - 2 * t);
 // 책등에서 d만큼 떨어진 곳의 종이 높이 (더미 두께 t): 책등 쪽으로 말려 들어간다
@@ -15,8 +16,8 @@ export class Book3D {
     const g = (this.group = new THREE.Group()); g.name = 'book'; g.visible = false;
     this.cv = {}; this.tex = {}; this.mat = {};
     for (const k of ['L', 'R', 'F', 'B']) {
-      const c = (this.cv[k] = document.createElement('canvas')); c.width = PAGE.w; c.height = PAGE.h;
-      const t = (this.tex[k] = new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
+      const c = (this.cv[k] = document.createElement('canvas')); c.width = PAGE.w * SS; c.height = PAGE.h * SS;      // 글자가 또렷하도록 1.5배로 그린다
+      const t = (this.tex[k] = new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 16; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
       this.mat[k] = new THREE.MeshStandardMaterial({ map: t, roughness: 0.93, metalness: 0, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0, side: k === 'B' ? THREE.BackSide : THREE.FrontSide });
     }
     // 책장 더미 윗면 (왼쪽, 오른쪽)

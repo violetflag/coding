@@ -79,7 +79,7 @@ async function main() {
 
   // ---- 플레이어와 상호작용
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
-  let lampOn = true;
+  let lampOn = true, fitSoon = () => {};
   const setLamp = (on) => { lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
@@ -96,7 +96,7 @@ async function main() {
       else if (it.id === 'shelf') reading.ui.open('lib');
       else if (it.frame !== undefined) arrange.pickFrame(it.frame);
     },
-    onState(s) { reading.onState(s); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
+    onState(s) { reading.onState(s); if (s === 'reading' || s === 'seated') fitSoon(); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
   });
   const applyPrefs = () => {
     player.sens = 0.0019 * prefs.sens; player.invertY = prefs.invertY; player.sway = prefs.sway;
@@ -126,11 +126,13 @@ async function main() {
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
   let scale = Math.min(1, 1600 / innerWidth) * Math.min(devicePixelRatio, 1.5);
   const fit = () => {
-    renderer.setPixelRatio(scale); renderer.setSize(innerWidth, innerHeight, false);
+    // 책을 읽는 동안은 글자가 또렷하도록 화면 해상도를 낮추지 않는다
+    const pr = player.state === 'reading' ? Math.max(1, Math.min(devicePixelRatio, 2)) : scale;
+    renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
     fire?.resize(innerWidth, innerHeight, Math.min(devicePixelRatio, 1.5)); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
   };
-  addEventListener('resize', fit); fit();
+  addEventListener('resize', fit); fit(); fitSoon = () => fit();
 
   // ---- 시작 화면과 포인터 잠금
   $('startMsg').textContent = '클릭해서 들어가기';
@@ -238,7 +240,7 @@ async function main() {
     if (acc > 1) {
       fpsMs = acc / frames * 1000; acc = 0; frames = 0;
       const now = performance.now();
-      if (!Q.has('fixed') && now - lastFit > 1500) {
+      if (!Q.has('fixed') && player.state !== 'reading' && now - lastFit > 1500) {
         if (fpsMs > 24 && scale > 0.5) { scale = Math.max(0.5, scale * 0.88); lastFit = now; fit(); }
         else if (fpsMs < 12.5 && scale < Math.min(devicePixelRatio, 1.5)) { scale = Math.min(Math.min(devicePixelRatio, 1.5), scale * 1.08); lastFit = now; fit(); }
       }
