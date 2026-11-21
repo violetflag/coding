@@ -48,9 +48,11 @@ export function buildRoom(ctx) {
   box(ww + 0.3, 0.045, wn.sill + 0.12, wx, wn.y0 - 0.0225, wn.sill / 2 - 0.06, M.wood);
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), new THREE.MeshStandardMaterial({ color: 0x9fb4c8, transparent: true, opacity: 0.07, roughness: 0.05, metalness: 0, depthWrite: false }));
   glass.position.set(wx, wy, gz - 0.005); glass.rotation.y = Math.PI; g.add(glass); ctx.glass = glass;
-  // 커튼과 봉
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, ww + 0.9, 8), M.brass); rod.rotation.z = Math.PI / 2; rod.position.set(wx, wn.y1 + 0.17, 0.06); g.add(rod);
-  for (const s of [-1, 1]) { const c = F.curtain(M, 0.42, wh + 0.42); c.position.set(wx + s * (ww / 2 + 0.2), wy - 0.06, 0.06); g.add(c); }
+  // 창 아래 징두리 판벽 (어두운 나무 판과 윗몰딩)
+  { const x0 = 1.97, x1 = W - 0.02, wy0 = 0.11, wy1 = wn.y0 - 0.06, n = Math.round((x1 - x0) / 0.42);
+    box(x1 - x0, wy1 - wy0, 0.02, (x0 + x1) / 2, (wy0 + wy1) / 2, 0.01, M.woodDark, { cast: false });
+    for (let i = 0; i <= n; i++) box(0.05, wy1 - wy0, 0.016, x0 + ((x1 - x0) * i) / n, (wy0 + wy1) / 2, 0.028, M.wood, { cast: false, vgrain: true });
+    box(x1 - x0, 0.05, 0.05, (x0 + x1) / 2, wy1 + 0.025, 0.025, M.wood, { cast: false }); }
 
   // ---- 벽난로: 자연석 굴뚝 벽, 화로대, 통나무 선반. 화구 입구는 뚫어 두고 "구멍" 재질로 덮는다.
   const fx = (FP.faceX + W) / 2, oz0 = FP.zc - FP.openW / 2, oz1 = FP.zc + FP.openW / 2, oyTop = FP.hearthH + FP.openH;
@@ -58,6 +60,9 @@ export function buildRoom(ctx) {
   box(FP.depth, H, FP.z1 - oz1, fx, H / 2, (oz1 + FP.z1) / 2, M.stone, { collide: true });
   box(FP.depth, H - oyTop, FP.openW, fx, (H + oyTop) / 2, FP.zc, M.stone);
   box(0.06, 0.13, FP.openW + 0.24, FP.faceX - 0.03, oyTop + 0.065, FP.zc, M.hearth);                 // 화구 위 상인방 돌
+  // 화구 테두리: 양옆 설주와 아래 낮은 턱 (안쪽 벽돌과 바깥 화강암 사이를 판석으로 두른다)
+  for (const z of [oz0 - 0.06, oz1 + 0.06]) box(0.06, FP.openH, 0.12, FP.faceX - 0.03, FP.hearthH + FP.openH / 2, z, M.hearth, { vgrain: true });
+  box(0.11, 0.045, FP.openW + 0.24, FP.faceX - 0.055, FP.hearthH + 0.0225, FP.zc, M.hearth);
   box(FP.depth + FP.hearthOut, FP.hearthH, FP.z1 - FP.z0 + 0.3, W - (FP.depth + FP.hearthOut) / 2, FP.hearthH / 2, FP.zc, M.hearth, { collide: true });
   box(0.3, 0.1, FP.z1 - FP.z0 + 0.24, FP.faceX - 0.11, FP.mantelY, FP.zc, M.wood);                    // 선반(통나무 판)
   for (const z of [FP.z0 + 0.15, FP.z1 - 0.15]) box(0.2, 0.2, 0.12, FP.faceX - 0.08, FP.mantelY - 0.14, z, M.woodDark); // 선반 받침
@@ -90,12 +95,17 @@ export function buildRoom(ctx) {
   ctx.interact.push({ id: 'kettle', label: '주전자', pos: [kettle.position.x, FP.hearthH + 0.12, kettle.position.z], radius: 0.22 });
   // 선반 위: 시계, 촛불, 책, 그림
   const mt = FP.mantelY + 0.05;
-  const clock = put(F.mantelClock(M), FP.faceX - 0.12, mt, FP.zc, -Math.PI / 2); ctx.clock = clock;
-  put(F.bookStack(BOOK_COLORS, 3, 4), FP.faceX - 0.12, mt, FP.z1 - 0.35, 0.3);
-  const pic = put(F.painting(M, 0.95, 0.6), FP.faceX - 0.012, 2.08, FP.zc, -Math.PI / 2);
+  const clock = put(F.mantelClock(M), FP.faceX - 0.12, mt, FP.zc + 0.12, -Math.PI / 2); ctx.clock = clock;
+  // 액자 3개: 큰 풍경화 하나는 벽에, 작은 둘은 선반에 기대어. 모두 내 이미지를 넣을 수 있다
+  ctx.frames = [];
+  const addFrame = (w, h, x, y, z, lean, seed) => { const p = put(F.painting(M, w, h, { seed, f: w > 0.5 ? 0.05 : 0.028, frame: w > 0.5 ? M.brass : M.woodDark }), x, y, z, -Math.PI / 2); p.rotation.order = 'YXZ'; p.rotation.x = -lean; const i = ctx.frames.push(p) - 1; ctx.interact.push({ id: 'frame:' + i, label: '액자에 내 그림 넣기', pos: [x - 0.03, y, z], radius: Math.max(0.16, h * 0.5), frame: i }); return p; };
+  addFrame(0.9, 0.58, FP.faceX - 0.014, 2.02, FP.zc - 0.1, 0, 77);
+  addFrame(0.3, 0.38, FP.faceX - 0.075, mt + 0.218, FP.z1 - 0.72, 0.13, 78);
+  addFrame(0.2, 0.15, FP.faceX - 0.1, mt + 0.1, FP.z1 - 0.3, 0.16, 79);
   ctx.candles = [];
   const addCandle = (x, y, z, name, opts) => { const c = put(F.candle(M, opts), x, y, z); c.name = name; ctx.candles.push(c); ctx.interact.push({ id: 'candle:' + (ctx.candles.length - 1), label: '촛불', pos: [x, y + 0.12, z], radius: 0.16, candle: c }); return c; };
-  addCandle(FP.faceX - 0.12, mt, FP.z0 + 0.4, '선반 촛불');
+  // 선반 왼쪽 끝의 황동 촛대 둘
+  for (const [dz, hh] of [[0.22, 0.24], [0.42, 0.15]]) { const cs = put(F.candlestick(M, hh), FP.faceX - 0.13, mt, FP.z0 + dz); addCandle(FP.faceX - 0.13, mt + cs.userData.top - 0.02, FP.z0 + dz, '선반 촛불', { h: 0.13, r: 0.011, bare: true }); }
 
   // ---- 책장: 왼쪽 벽 전체 + 창문 벽 왼쪽. 틀(옆판·선반판·칸막이)을 짜고 책은 인스턴스로 꽂는다.
   const books = [];
@@ -126,8 +136,8 @@ export function buildRoom(ctx) {
     }
   };
   shelf('z', 0.03, D - 0.03, 4, SH.library);
-  shelf('x', SH.depth, 1.7, 1, null);
-  ctx.colliders.push({ min: [0, 0, 0], max: [SH.depth, SH.top, D] }, { min: [0, 0, 0], max: [1.72, SH.top, SH.depth] });
+  shelf('x', SH.depth, 1.93, 1, null);
+  ctx.colliders.push({ min: [0, 0, 0], max: [SH.depth, SH.top, D] }, { min: [0, 0, 0], max: [1.95, SH.top, SH.depth] });
   // 책등 무늬(금박 띠)가 들어간 책 인스턴스
   const bandCv = document.createElement('canvas'); bandCv.width = 8; bandCv.height = 128; const bc = bandCv.getContext('2d');
   bc.fillStyle = '#fff'; bc.fillRect(0, 0, 8, 128); bc.fillStyle = '#e0b860'; for (const y of [14, 20, 96, 104]) bc.fillRect(0, y, 8, 3); bc.fillStyle = '#d9c9a0'; bc.fillRect(0, 34, 8, 22);
@@ -150,30 +160,47 @@ export function buildRoom(ctx) {
   // ---- 러그
   const rugMesh = new THREE.Mesh(new THREE.BoxGeometry(RUG.w, 0.012, RUG.d), M.rug); rugMesh.position.set(RUG.x, 0.006, RUG.z); rugMesh.receiveShadow = true; g.add(rugMesh);
 
-  // ---- 의자 2개
+  // ---- 옮길 수 있는 가구. 각 가구는 충돌 상자와 상호작용 위치를 스스로 다시 맞춘다 (src/scene/arrange.js가 옮긴다).
+  ctx.movables = [];
+  const wp = new THREE.Vector3();
+  const movable = (id, label, obj, r, h, its = [], extra) => {
+    const col = { min: [0, 0, 0], max: [0, h, 0] }; ctx.colliders.push(col);
+    const m = { id, label, obj, r, h, col, home: { x: obj.position.x, z: obj.position.z, yaw: obj.rotation.y },
+      sync() {
+        const p = obj.position; col.min[0] = p.x - r; col.min[2] = p.z - r; col.max[0] = p.x + r; col.max[2] = p.z + r; col.max[1] = h; obj.updateMatrixWorld(true);
+        for (const [it, src, dy] of its) { (src || obj).getWorldPosition(wp); it.pos[0] = wp.x; it.pos[1] = wp.y + dy; it.pos[2] = wp.z; }
+        extra?.(obj);
+      } };
+    ctx.movables.push(m); m.sync(); return m;
+  };
+  const inter = (o) => { ctx.interact.push(o); return o; };
+
+  // 가죽 의자 2개 (둘 다 앉을 수 있다)
   for (const c of CHAIRS) {
-    const ch = F.armchair(M, c.id === 'wing' ? { wing: true, leather: M.leatherGreen } : { pillow: M.cloth });
-    put(ch, c.pos[0], 0, c.pos[1], c.yaw); ch.name = 'chair-' + c.id;
-    ctx.colliders.push({ min: [c.pos[0] - 0.45, 0, c.pos[1] - 0.45], max: [c.pos[0] + 0.45, 1.1, c.pos[1] + 0.45] });
-    ctx.interact.push({ id: 'chair:' + c.id, label: '앉기', pos: [c.pos[0], 0.55, c.pos[1]], radius: 0.6, chair: c });
+    const ch = F.armchair(M, c.id === 'wing' ? { wing: true, pillow: M.cloth, throwMat: M.blanket } : {});
+    put(ch, c.pos[0], 0, c.pos[1], c.yaw); ch.name = 'chair-' + c.id; c.obj = ch;
+    const it = inter({ id: 'chair:' + c.id, label: '앉기', pos: [0, 0, 0], radius: 0.6, chair: c });
+    movable('chair:' + c.id, c.label, ch, 0.47, 1.1, [[it, null, 0.55]], (o) => { c.pos[0] = o.position.x; c.pos[1] = o.position.z; c.yaw = o.rotation.y; });
   }
-  // 읽기 의자 옆 탁자: 머그잔, 촛불, 책
+  // 읽기 의자 옆 탁자: 머그잔, 촛불, 책 (탁자와 함께 움직인다)
   const tb = put(F.sideTable(M), TABLE.x, 0, TABLE.z), top = tb.userData.top;
-  ctx.colliders.push({ min: [TABLE.x - 0.24, 0, TABLE.z - 0.24], max: [TABLE.x + 0.24, 0.7, TABLE.z + 0.24] });
-  const mug = put(F.mug(M), TABLE.x - 0.09, top, TABLE.z - 0.07, 0.8); ctx.mug = mug;
-  ctx.interact.push({ id: 'mug', label: '차', pos: [mug.position.x, top + 0.06, mug.position.z], radius: 0.14 });
-  addCandle(TABLE.x + 0.1, top, TABLE.z + 0.08, '탁자 촛불');
-  put(F.bookStack(BOOK_COLORS, 2, 9), TABLE.x - 0.02, top, TABLE.z + 0.12, 1.1);
-  addCandle(wn.x0 + 0.22, wn.y0, 0.08, '창가 촛불', { h: 0.14 });
+  const mug = F.mug(M); mug.position.set(-0.09, top, -0.07); mug.rotation.y = 0.8; tb.add(mug); ctx.mug = mug;
+  const tc = F.candle(M); tc.position.set(0.1, top, 0.08); tc.name = '탁자 촛불'; tb.add(tc); ctx.candles.push(tc);
+  const bs = F.bookStack(BOOK_COLORS, 2, 9); bs.position.set(-0.02, top, 0.12); bs.rotation.y = 1.1; tb.add(bs);
+  movable('table', '보조 탁자', tb, 0.25, 0.7, [
+    [inter({ id: 'mug', label: '차', pos: [0, 0, 0], radius: 0.14 }), mug, 0.06],
+    [inter({ id: 'candle:' + (ctx.candles.length - 1), label: '촛불', pos: [0, 0, 0], radius: 0.16, candle: tc }), tc, 0.12],
+  ]);
+  addCandle(wn.x0 + 0.5, wn.y0, 0.06, '창가 촛불', { h: 0.12, r: 0.03, bare: true });
 
-  // ---- 플로어 스탠드
+  // 플로어 스탠드 (불빛은 main이 ctx.lamp 위치를 따라 옮긴다)
   const lamp = put(F.floorLamp(M, LAMP.h), LAMP.x, 0, LAMP.z); ctx.lamp = lamp; ctx.lampShade = lamp.userData.shade;
-  ctx.colliders.push({ min: [LAMP.x - 0.15, 0, LAMP.z - 0.15], max: [LAMP.x + 0.15, 1.8, LAMP.z + 0.15] });
-  ctx.interact.push({ id: 'lamp', label: '스탠드 켜기/끄기', pos: [LAMP.x, LAMP.h, LAMP.z], radius: 0.35 });
+  movable('lamp', '스탠드', lamp, 0.16, 1.8, [[inter({ id: 'lamp', label: '스탠드 켜기/끄기', pos: [0, 0, 0], radius: 0.35 }), null, LAMP.h]], (o) => ctx.onLampMove?.(o));
 
-  // 담요 바구니 (창가 오른쪽)
-  put(F.basket(M), 3.95, 0, 0.42, 0.5);
-  ctx.colliders.push({ min: [3.7, 0, 0.17], max: [4.2, 0.5, 0.67] });
-  // 윙체어 팔걸이에 걸친 담요
+  // 고리버들 바구니 (윙체어 옆), 창 아래 철제 장작 선반과 기대 세운 책
+  movable('basket', '바구니', put(F.basket(M), 2.0, 0, 1.25, 0.5), 0.24, 0.5);
+  movable('rack', '장작 선반', put(F.logRack(M), 2.75, 0, 0.3), 0.3, 0.7, [], (o) => { const p = o.position, c = Math.abs(Math.cos(o.rotation.y)), s2 = Math.abs(Math.sin(o.rotation.y)), hx = 0.47 * c + 0.19 * s2, hz = 0.19 * c + 0.47 * s2, m = ctx.movables.find((v) => v.id === 'rack'); if (m) { m.col.min[0] = p.x - hx; m.col.max[0] = p.x + hx; m.col.min[2] = p.z - hz; m.col.max[2] = p.z + hz; } });
+  ctx.movables.find((v) => v.id === 'rack').sync();
+  { const lb = F.bookStack(BOOK_COLORS, 3, 21); lb.rotation.set(0, 0.2, Math.PI / 2 - 0.22); put(lb, 3.72, 0.1, 0.36, 0.2); lb.rotation.z = Math.PI / 2 - 0.22; }
   return g;
 }

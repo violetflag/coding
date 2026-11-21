@@ -16,6 +16,7 @@ import { Settings } from './ui/settings.js';
 import { buildSections, loadPrefs } from './ui/sections.js';
 import { setupReading } from './reading.js';
 import { setupCozy } from './cozy.js';
+import { setupArrange } from './scene/arrange.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -93,6 +94,7 @@ async function main() {
       else if (it.id === 'kettle') cozy.refill();
       else if (it.libBook) reading.setPicked(it.libBook), toast('책을 꺼냈습니다. 의자에 앉아 E로 펼치세요');
       else if (it.id === 'shelf') reading.ui.open('lib');
+      else if (it.frame !== undefined) arrange.pickFrame(it.frame);
     },
     onState(s) { reading.onState(s); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
   });
@@ -116,6 +118,8 @@ async function main() {
     onTts: (on) => { if (!cozy?.hearth.sleepT) mixer.setScale(on ? 0.45 : 1); music.duck = on ? 0.35 : 1; music.applyVolume(); },
     onQuote: (text, meta) => cozy.quoteCard(text, meta),
   });
+  ctx.onLampMove = (o) => lamp.position.set(o.position.x, LAMP.h + 0.05, o.position.z);
+  const arrange = setupArrange({ ctx, player, camera, canvas: roomCanvas, toast, sfx });
   cozy = setupCozy({ scene, camera, ctx, player, fire, reading, prefs, toast, sfx, mixer, music, setLamp, env });
   if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
 
@@ -141,7 +145,7 @@ async function main() {
   // ---- 설정창 (O 키 또는 시작 화면의 버튼)
   settings = new Settings({
     cfg: fireCfg, fire, mixer,
-    sections: buildSections({ env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth }),
+    sections: buildSections({ env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }),
     onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); },
     onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && mixer.ctx) player.lock(); },
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
@@ -176,8 +180,8 @@ async function main() {
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
-    env.update(dt, elapsed); ctx.clock.userData.tick(env.now());
-    cozy.update(dt);
+    env.update(dt, elapsed); ctx.clock.userData.tick(new Date());                // 선반 시계는 방의 시각 설정과 상관없이 항상 컴퓨터 시계를 따른다
+    cozy.update(dt); arrange.update(dt);
 
     // 불빛 신호 → 방 조명. 물리 불이 없으면 느린 잡음으로 대신한다(대체 표시).
     // 불빛 측정값이 아직 없거나 끊기면(읽어오기 지연) 같은 잡음으로 이어 간다.
@@ -224,9 +228,10 @@ async function main() {
     } else if (ctx.captureNext && HEADLESS) { const cb = ctx.captureNext; ctx.captureNext = null; window.NANRO.capture(1600, 900).then((u) => { const im = new Image(); im.onload = () => cb(im); im.src = u; }, () => cb(null)); }
 
     // 상호작용 힌트
-    const f = player.locked ? player.focus : null;
-    prompt.style.opacity = f ? 1 : 0;
-    if (f && prompt.dataset.label !== f.label) { prompt.dataset.label = f.label; prompt.innerHTML = `<kbd>E</kbd>${f.label}`; }
+    const f = player.locked && !arrange.held ? player.focus : null, mv = player.locked ? arrange.target : null;
+    const label = (f ? `<kbd>E</kbd>${f.label}` : '') + (mv ? `${f ? ' &nbsp; ' : ''}<kbd>G</kbd>${mv.label} 옮기기` : '');
+    prompt.style.opacity = label ? 1 : 0;
+    if (label && prompt.dataset.label !== label) { prompt.dataset.label = label; prompt.innerHTML = label; }
 
     // 해상도 자동 조절 + 성능 표시
     acc += dt; frames++;
@@ -254,7 +259,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire }, w, h); },
   };
 }
