@@ -69,3 +69,50 @@ Edge 창 모드 1920×1080, 기본 설정(프리셋 "균형", 격자 96×120×60
 ## 6·7단계 (커밋 ffc7e82, 일부만 촬영)
 
 `docs/phase6-7/photos/`에 설정 탭 5장(소리, 방, 난롯가, 조작·접근성, 불), 장작 넣기 전후, 촛불 2개 켜고 끄기, 차 마시기 전후, 주전자, 책장에 꽂힌 책, 꺼낸 책, 앉아서 손에 든 책, 펼친 책 사진이 있다. 인용구 카드와 잠들기 모드는 아직 찍지 못했다.
+
+## 화실 벽돌, 장작, 소품 텍스처 (커밋 498dade)
+
+화실 안쪽 벽돌이 사진 텍스처(Bricks097)로 바뀌고 장작 더미에 나무껍질과 나이테 사진이 들어간 뒤의 가까이 사진. 밤(`?time=22`), 낮(`?time=13`), 불 켜진 상태, 60 fps, 콘솔 오류 없음.
+
+| | 화실 가까이 | 벽난로 | 장작 더미 쪽 | 주전자와 바구니 | 앉은 시점 |
+|---|---|---|---|---|---|
+| 밤 | ![](textures/photos2/night-firebox.png) | ![](textures/photos2/night-fireplace.png) | ![](textures/photos2/night-woodpile.png) | ![](textures/photos2/night-kettle.png) | ![](textures/photos2/night-seated.png) |
+| 낮 | ![](textures/photos2/day-firebox.png) | ![](textures/photos2/day-fireplace.png) | ![](textures/photos2/day-woodpile.png) | ![](textures/photos2/day-kettle.png) | ![](textures/photos2/day-seated.png) |
+
+- **화실 벽돌**: 사진 벽돌로 바뀐 것이 보인다. 뒷벽은 가로로 벽돌 5~6장, 세로로 5~6줄이 들어가 벽돌 한 장이 실제보다 크게 보인다(약 12×10cm). 옆벽은 벽돌이 거의 정사각형 바둑판처럼 보여 늘어난 것 같다. 불빛을 받아 밝은 주황색으로 고르게 빛나고 그을음은 보이지 않는다. 바깥의 회색 돌과 만나는 모서리는 색과 밝기가 갑자기 바뀐다. 화실 바닥은 황록색으로 보인다.
+- **장작 더미**: 옆면에 세로 골이 있는 나무껍질, 끝면에 나이테 사진이 보인다. 껍질 색이 붉은 주황에 가깝다.
+- **주전자**: 붉은 구릿빛에 반사가 매끈하다. 무늬는 구분되지 않는다.
+- **바구니**: 고운 짜임 무늬가 보인다.
+- 앞서 올린 `textures/photos/day-shelf.png`, `day-seated.png`에는 시작 화면이 겹쳐 찍혀 있다(촬영 문제). 이 절의 사진에는 겹치지 않는다.
+
+## 6·7단계 (커밋 ffc7e82, 498dade에서 다시 촬영)
+
+| 사진 | 내용 |
+|---|---|
+| ![](phase6-7/photos/settings-sound.png) | 설정: 소리 |
+| ![](phase6-7/photos/settings-room.png) | 설정: 방 (시간·날씨) |
+| ![](phase6-7/photos/settings-hearth.png) | 설정: 난롯가 |
+| ![](phase6-7/photos/settings-access.png) | 설정: 조작·접근성 |
+| ![](phase6-7/photos/woodpile-after.png) | 장작 넣기 직후 (알림: 25분 타이머) |
+| ![](phase6-7/photos/fire-after-log.png) | 장작을 넣고 9초 뒤의 불 |
+| ![](phase6-7/photos/candle0-a.png) ![](phase6-7/photos/candle0-b.png) | 벽난로 선반 촛불 켜짐 → 꺼짐 |
+| ![](phase6-7/photos/candle1-a.png) ![](phase6-7/photos/candle1-b.png) | 협탁 촛불 켜짐 → 꺼짐 |
+| ![](phase6-7/photos/tea-before.png) ![](phase6-7/photos/tea-after.png) | 차 마시기 전 → 세 모금 뒤 |
+| ![](phase6-7/photos/kettle.png) | 주전자로 채우기 |
+| ![](phase6-7/photos/library-spines.png) | 책장에 꽂힌 내 책 3권 |
+| ![](phase6-7/photos/book-picked-standing.png) | 책을 꺼낸 뒤 |
+| ![](phase6-7/photos/book-in-hand-seated.png) | 앉아서 손에 든 책 |
+| ![](phase6-7/photos/book-open.png) | 펼친 책 |
+| ![](phase6-7/photos/quote-card.png) | 저장된 인용구 카드 |
+| ![](phase6-7/photos/sleep-0-before.png) ![](phase6-7/photos/sleep-1-half.png) ![](phase6-7/photos/sleep-2-done.png) ![](phase6-7/photos/sleep-3-cancelled.png) | 잠들기 모드(시험용 0.5분): 시작 전 → 15초 → 35초 → 끈 뒤 |
+
+## 성능 (498dade, 밤, 각 3회)
+
+| 조건 | fps (3회) | GPU 3D (3회) | 평균 GPU |
+|---|---|---|---|
+| 앉은 시점, 텍스처 켬 | 60.0 / 60.0 / 60.0 | 56% / 59% / 61% | 59% |
+| 앉은 시점, 텍스처 끔 | 58.8 / 60.0 / 60.0 | 69% / 58% / 57% | 61% |
+| 책 펼침, 읽는 동안 절전 켬 | 60.0 / 60.0 / 60.0 | 63% / 63% / 64% | 63% |
+| 책 펼침, 읽는 동안 절전 끔 | 60.0 / 59.4 / 60.0 | 74% / 69% / 69% | 71% |
+
+첫 화면은 텍스처 켬 1.4초(텍스처까지 1.9초), 끔 1.4초(1.7초).
