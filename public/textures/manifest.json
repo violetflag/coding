@@ -1,0 +1,248 @@
+{
+  "floor": {
+    "id": "WoodFloor043",
+    "url": "https://ambientcg.com/view?id=WoodFloor043",
+    "sizeM": 1.3,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "wall": {
+    "id": "Planks037A",
+    "url": "https://ambientcg.com/view?id=Planks037A",
+    "sizeM": 2,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "ceiling": {
+    "id": "Planks014",
+    "url": "https://ambientcg.com/view?id=Planks014",
+    "sizeM": 2,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "wood": {
+    "id": "Wood026",
+    "url": "https://ambientcg.com/view?id=Wood026",
+    "sizeM": 1,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "woodDark": {
+    "id": "Wood051",
+    "url": "https://ambientcg.com/view?id=Wood051",
+    "sizeM": 0.8,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "stone": {
+    "id": "Bricks076A",
+    "url": "https://ambientcg.com/view?id=Bricks076A",
+    "sizeM": 2,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "hearth": {
+    "id": "Tiles093",
+    "url": "https://ambientcg.com/view?id=Tiles093",
+    "sizeM": 2.45,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "firebrick": {
+    "id": "Bricks097",
+    "url": "https://ambientcg.com/view?id=Bricks097",
+    "sizeM": 1.6,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "ao"
+    ]
+  },
+  "leather": {
+    "id": "Leather033A",
+    "url": "https://ambientcg.com/view?id=Leather033A",
+    "sizeM": 0.3,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "cloth": {
+    "id": "Fabric066",
+    "url": "https://ambientcg.com/view?id=Fabric066",
+    "sizeM": 0.4,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "blanket": {
+    "id": "Fabric031",
+    "url": "https://ambientcg.com/view?id=Fabric031",
+    "sizeM": 0.4,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "curtain": {
+    "id": "Fabric026",
+    "url": "https://ambientcg.com/view?id=Fabric026",
+    "sizeM": 0.4,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "rug": {
+    "id": "Carpet012",
+    "url": "https://ambientcg.com/view?id=Carpet012",
+    "sizeM": 0.6,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "wicker": {
+    "id": "Wicker010A",
+    "url": "https://ambientcg.com/view?id=Wicker010A",
+    "sizeM": 0.3,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "opacity"
+    ]
+  },
+  "bark": {
+    "id": "Bark012",
+    "url": "https://ambientcg.com/view?id=Bark012",
+    "sizeM": 0.8,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "endGrain": {
+    "id": "TreeEnd002",
+    "url": "https://ambientcg.com/view?id=TreeEnd002",
+    "sizeM": 0.4,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "opacity"
+    ],
+    "tileable": false
+  },
+  "iron": {
+    "id": "Metal046B",
+    "url": "https://ambientcg.com/view?id=Metal046B",
+    "sizeM": 0.5,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "metalness"
+    ]
+  },
+  "brass": {
+    "id": "Metal048C",
+    "url": "https://ambientcg.com/view?id=Metal048C",
+    "sizeM": 0.5,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "metalness"
+    ]
+  },
+  "copper": {
+    "id": "Metal047A",
+    "url": "https://ambientcg.com/view?id=Metal047A",
+    "sizeM": 0.5,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness",
+      "metalness"
+    ]
+  },
+  "paper": {
+    "id": "Paper001",
+    "url": "https://ambientcg.com/view?id=Paper001",
+    "sizeM": 0.3,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "grass": {
+    "id": "Grass004",
+    "url": "https://ambientcg.com/view?id=Grass004",
+    "sizeM": 1.4,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  },
+  "snow": {
+    "id": "Snow006",
+    "url": "https://ambientcg.com/view?id=Snow006",
+    "sizeM": 2.5,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
+  }
+}

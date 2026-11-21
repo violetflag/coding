@@ -9,3 +9,32 @@
 | [Leonxlnx/earshot](https://github.com/Leonxlnx/earshot) | `7a7f7c5` (2026-11-20) | 6단계에서 효과음 파일을 만드는 개발 도구로 사용 (코드를 포함하지 않음) | - |
 
 그 밖의 의존성: [three.js](https://threejs.org) (MIT), [Vite](https://vitejs.dev) (MIT).
+
+## ambientCG 텍스처 (CC0 1.0)
+
+`public/textures/`의 재질 그림은 [ambientCG](https://ambientcg.com)에서 받은 것입니다(1K-JPG 묶음에서 Color, NormalGL, Roughness와 일부 AmbientOcclusion, Metalness, Opacity만 사용). 모두 CC0 1.0 Universal(퍼블릭 도메인)이며 출처 표시 의무는 없지만 여기에 적어 둡니다. 재질 ID와 실제 크기는 `public/textures/manifest.json`에도 있습니다.
+
+| 쓰는 곳(열쇠) | 재질 |
+|---|---|
+| `floor` | [WoodFloor043](https://ambientcg.com/view?id=WoodFloor043) |
+| `wall` | [Planks037A](https://ambientcg.com/view?id=Planks037A) |
+| `ceiling` | [Planks014](https://ambientcg.com/view?id=Planks014) |
+| `wood` | [Wood026](https://ambientcg.com/view?id=Wood026) |
+| `woodDark` | [Wood051](https://ambientcg.com/view?id=Wood051) |
+| `stone` | [Bricks076A](https://ambientcg.com/view?id=Bricks076A) |
+| `hearth` | [Tiles093](https://ambientcg.com/view?id=Tiles093) |
+| `firebrick` | [Bricks097](https://ambientcg.com/view?id=Bricks097) |
+| `leather` | [Leather033A](https://ambientcg.com/view?id=Leather033A) |
+| `cloth` | [Fabric066](https://ambientcg.com/view?id=Fabric066) |
+| `blanket` | [Fabric031](https://ambientcg.com/view?id=Fabric031) |
+| `curtain` | [Fabric026](https://ambientcg.com/view?id=Fabric026) |
+| `rug` | [Carpet012](https://ambientcg.com/view?id=Carpet012) |
+| `wicker` | [Wicker010A](https://ambientcg.com/view?id=Wicker010A) |
+| `bark` | [Bark012](https://ambientcg.com/view?id=Bark012) |
+| `endGrain` | [TreeEnd002](https://ambientcg.com/view?id=TreeEnd002) |
+| `iron` | [Metal046B](https://ambientcg.com/view?id=Metal046B) |
+| `brass` | [Metal048C](https://ambientcg.com/view?id=Metal048C) |
+| `copper` | [Metal047A](https://ambientcg.com/view?id=Metal047A) |
+| `paper` | [Paper001](https://ambientcg.com/view?id=Paper001) |
+| `grass` | [Grass004](https://ambientcg.com/view?id=Grass004) |
+| `snow` | [Snow006](https://ambientcg.com/view?id=Snow006) |
