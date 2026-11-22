@@ -439,3 +439,26 @@ Esc 키 자체는 자동 시험에서 마우스를 풀지 못해서(시험 도�
 ## 0.3.0 설치
 
 난로가 켜져 있지 않은 것을 확인하고 덮어 깔았다(종료 코드 0). `C:\NanroApp\nanro.exe` 0.3.0, 빌드한 파일과 해시 같음. `C:\Nanro`는 설치 전후로 맨 위 항목 3개, 가장 최근 수정 시각이 같다(안은 읽지 않았다). .epub, .pdf 의 기본 프로그램도 그대로다.
+# 0.3.1 확인: 처마 끝, 처마 밑 빛, 마당 끝 (커밋 259871f)
+
+빌드: `cargo build --release --locked` 2분 18초(종료 코드 0), ISCC 한 번에 됨. `release\NanroSetup-v0.3.1.exe` 85.2MB.
+
+| 항목 | 결과 |
+|---|---|
+| 창 위쪽의 처마 끝 (낮, 방 안) | **고쳐짐.** 창 맨 위에 걸쳐 보이던 슬레이트 톱니가 없다. |
+| 처마 밑의 밝은 띠 (밤, 집 밖) | **거의 고쳐짐.** 박공 아래의 긴 밝은 띠는 없어졌다. 창 쪽 벽 위 모서리에 짧은 밝은 조각 하나가 남아 있다. |
+| 마당 끝의 나무 | **나무 속으로 들어가지 않는다.** 남쪽(z -3), 남서쪽, 동쪽, 서쪽, 북쪽 끝에 서서 바깥을 본 사진에 화면을 덮는 나뭇잎이 없다. 동쪽과 북쪽 끝에서는 가지가 화면 가장자리 가까이까지 온다. |
+
+| 낮, 창 | 밤, 집 바깥 | 밤, 처마 밑 올려다봄 |
+|---|---|---|
+| ![](round4b-day-window.jpg) | ![](round4b-night-house.jpg) | ![](round4b-night-eave.jpg) |
+
+| 마당 남쪽 끝 | 동쪽 끝 | 서쪽 끝 | 북쪽 끝 |
+|---|---|---|---|
+| ![](round4b-yard-south.jpg) | ![](round4b-yard-east.jpg) | ![](round4b-yard-west.jpg) | ![](round4b-yard-north.jpg) |
+
+그 밖의 사진: `round4b-day-window-up.jpg`, `round4b-yard-southwest.jpg`.
+
+`tools/overlap-check.mjs`가 이 PC 에서 돌지 않는 까닭: 오류 첫 줄은 `browserType.launch: Executable doesn't exist at C:\Users\pc\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe`다. 이 PC 에는 시험 도구의 자체 브라우저를 깔지 않고 설치된 Edge 만 쓰기 때문이다(개발 서버는 켜져 있었다).
+
+설치: 난로가 켜져 있지 않은 것을 확인하고 0.3.1 을 덮어 깔았다. `C:\Nanro`는 설치 전후로 항목 수와 수정 시각이 같다(안은 읽지 않았다).
