@@ -102,7 +102,7 @@ function layers(nodes, edges) {
 }
 
 const FONT = 5; // Excalifont (한글은 Excalidraw 가 함께 주는 손글씨 글꼴로 나온다)
-const GAP_X = 56, GAP_Y = 104, PER_ROW = 6;
+const GAP_X = 48, GAP_Y = 104, PER_ROW = 9;
 
 // 자료 → Excalidraw 뼈대 배열. convertToExcalidrawElements 에 그대로 넘긴다.
 export function toSkeleton(diagram, meta = {}) {
@@ -121,7 +121,8 @@ export function toSkeleton(diagram, meta = {}) {
   }
   for (let l = 1; l < out.length; l++) sortBy(out[l], l - 1);
   const rows = [];
-  for (const ids of out) for (let i = 0; i < ids.length; i += PER_ROW) rows.push(ids.slice(i, i + PER_ROW));
+  // 한 층이 너무 길면 여러 줄로: 번갈아 나눠 각 줄이 층의 왼쪽부터 오른쪽까지 고르게 걸치게 한다(위 상자와 멀어지지 않게)
+  for (const ids of out) { const k = Math.ceil(ids.length / PER_ROW); for (let j = 0; j < k; j++) rows.push(ids.filter((_, i) => i % k === j)); }
 
   // 상자 크기
   const box = new Map();
@@ -131,20 +132,29 @@ export function toSkeleton(diagram, meta = {}) {
     const h = Math.max(64, lines.length * fs * 1.3 + 36);
     box.set(n.id, { w, h, fs, text: lines.join('\n') });
   }
-  // 줄마다 가운데 맞춤
-  const el = [], at = new Map(); let y = 0, maxW = 0;
+  // 가로 자리: 각 상자를 이미 놓인 이웃(위쪽 줄) 상자들의 가운데 아래에 두려 하고, 겹치지 않게 차례로 민 뒤 줄 전체를 평균만큼 되돌린다
+  const el = [], at = new Map(), cx = new Map(); let y = 0, x0 = 0, x1 = 0;
   for (const ids of rows) {
     const rowW = ids.reduce((s, id) => s + box.get(id).w, 0) + GAP_X * (ids.length - 1), rowH = Math.max(...ids.map((id) => box.get(id).h));
-    let x = -rowW / 2; maxW = Math.max(maxW, rowW);
+    let px = -rowW / 2;
+    const want = ids.map((id) => {
+      const ps = adj.get(id).filter((x) => cx.has(x)).map((x) => cx.get(x)), w = box.get(id).w, c = px + w / 2; px += w + GAP_X;
+      return ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : c;
+    });
+    const got = []; let right = -Infinity;
+    ids.forEach((id, i) => { const w = box.get(id).w, c = Math.max(want[i], right + GAP_X + w / 2); got.push(c); right = c + w / 2; });
+    const shift = got.reduce((s, c, i) => s + want[i] - c, 0) / ids.length;
+    ids.forEach((id, i) => cx.set(id, got[i] + shift));
     for (const id of ids) {
-      const b = box.get(id), n = byId.get(id), k = KINDS[n.kind], bx = Math.round(x), by = Math.round(y + (rowH - b.h) / 2);
-      at.set(id, { x: bx, y: by, w: b.w, h: b.h });
+      const b = box.get(id), n = byId.get(id), k = KINDS[n.kind], bx = Math.round(cx.get(id) - b.w / 2), by = Math.round(y + (rowH - b.h) / 2);
+      at.set(id, { x: bx, y: by, w: b.w, h: b.h }); x0 = Math.min(x0, bx); x1 = Math.max(x1, bx + b.w);
       el.push({ type: 'rectangle', id: 'n_' + id, x: bx, y: by, width: Math.round(b.w), height: Math.round(b.h), backgroundColor: k.bg, strokeColor: k.stroke, fillStyle: 'solid', strokeWidth: 2, roughness: 1, roundness: { type: 3 },
         label: { text: b.text, fontSize: b.fs, fontFamily: FONT, strokeColor: '#1e1e1e', textAlign: 'center', verticalAlign: 'middle' } });
-      x += b.w + GAP_X;
     }
     y += rowH + GAP_Y;
   }
+  const maxW = x1 - x0, mid = Math.round((x0 + x1) / 2);   // 제목과 요약이 가운데에 오게 상자들을 옮긴다
+  for (const e of el) e.x -= mid; for (const a of at.values()) a.x -= mid;
   // 화살표: 아래층이면 밑변 가운데에서 윗변 가운데로, 같은 높이면 옆으로
   for (const e of d.edges) {
     const a = at.get(e.from), b = at.get(e.to); if (!a || !b) continue;

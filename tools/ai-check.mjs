@@ -64,6 +64,8 @@ const held2 = await page.evaluate(() => window.NANRO.player.keys?.has?.('KeyW'))
 await page.keyboard.up('KeyW');
 ok(!held2, '초점이 창 밖에 있어도 방의 키 막힘');
 ok(!(await page.evaluate(() => !!document.pointerLockElement)), '마우스 잠금 없음');
+const fr = await page.evaluate(async () => { const a = window.__nanroFrames; await new Promise((r) => setTimeout(r, 500)); return window.__nanroFrames - a; });
+ok(fr === 0, `창이 열린 동안 방을 그리지 않음 (0.5초에 ${fr}프레임)`);
 
 // 3) PNG 내보내기(웹버전은 브라우저 내려받기)
 const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 20000 }).catch(() => null), page.click('#aiDiagram button:has-text("PNG로 내보내기")')]);
@@ -80,6 +82,7 @@ const warned = await page.evaluate(() => !!document.getElementById('aiDiagram') 
 ok(dirty && warned && /저장되지 않았/.test(warned), `고친 뒤 닫으면 한 번 경고 (${dirty ? warned : '변경이 안 됨'})`);
 if (dirty) await page.click('#aiDiagram button:has-text("저장하지 않고 닫기")');
 ok(await page.evaluate(() => !document.getElementById('aiDiagram') && !window.NANRO_AI.current), '닫기');
+ok(await page.evaluate(async () => { const a = window.__nanroFrames; await new Promise((r) => setTimeout(r, 1500)); return window.__nanroFrames > a; }), '닫으면 방을 다시 그림');
 
 // 5) 다시 열기: 저장된 그림을 읽는다(AI를 부르지 않음)
 r = await page.evaluate(async () => { const s = window.__saves; const h = await window.__open(); return { state: h.state, count: h.count(), saves: window.__saves - s, st: document.querySelector('#aiDiagram .st').textContent }; });
@@ -112,17 +115,26 @@ await page.screenshot({ path: 'shots/ai-settings.png' });
 await page.evaluate(() => window.NANRO.settings.close());
 
 // 9) 시험 모드를 끄고 키가 없을 때: 설정으로 안내
-await page.evaluate(() => { window.NANRO_AI.mock(false); localStorage.removeItem('nanro.ai.key'); });
+await page.evaluate(() => { window.NANRO_AI.mock(false); localStorage.removeItem('nanroSecret-aiKey'); });
 r = await page.evaluate(async () => { const h = await window.NANRO_AI.openDiagram({ markdown: '메모', meta: {}, noteFile: '새 메모.md', saveNoteFile: async () => {}, readNoteFile: async () => null }); return { state: h.state, text: document.querySelector('#aiDiagram .msg').textContent }; });
 ok(r.state === 'nokey' && /API 키/.test(r.text), `키 없음 안내: ${r.text.slice(0, 50)}`);
 await page.screenshot({ path: 'shots/ai-nokey.png' });
 await page.evaluate(() => window.NANRO_AI.current.close(true));
 
 // 10) 가짜 키로 실제 호출: 여기서는 인터넷이 막혀 있어 연결 실패(또는 키 오류)를 쉬운 말로 알려야 한다
-await page.evaluate(() => { localStorage.setItem('nanro.ai.key', 'sk-ant-test-not-a-real-key'); localStorage.setItem('nanro.ai', JSON.stringify({ model: 'test-model', level: 'easy' })); });
+await page.evaluate(() => { localStorage.setItem('nanroSecret-aiKey', 'sk-ant-test-not-a-real-key'); localStorage.setItem('nanro.ai', JSON.stringify({ model: 'test-model', level: 'easy' })); });
 r = await page.evaluate(async () => { const h = await window.NANRO_AI.openDiagram({ markdown: '메모', meta: {}, noteFile: '새 메모.md', saveNoteFile: async () => {}, readNoteFile: async () => null }); return { state: h.state, text: document.querySelector('#aiDiagram .msg').textContent }; });
 ok(r.state === 'error' && /연결|키|모델/.test(r.text), `연결 실패 안내: ${r.text.slice(0, 70)}`);
-await page.evaluate(() => { window.NANRO_AI.current?.close(true); localStorage.removeItem('nanro.ai.key'); localStorage.removeItem('nanro.ai'); });
+// 백업 내보내기는 'nanro.*' 칸을 모두 담는다: 키가 그 안에 없어야 한다
+const leak = await page.evaluate(() => { const out = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('nanro.') && /sk-ant-test/.test(localStorage.getItem(k))) out.push(k); } return out; });
+ok(!leak.length, `API 키가 백업에 담기는 칸에 없음 ${leak.join(', ')}`);
+await page.evaluate(() => { window.NANRO_AI.current?.close(true); localStorage.removeItem('nanroSecret-aiKey'); localStorage.removeItem('nanro.ai'); });
+
+// 11) 저장된 그림을 읽다가 실패하면 새로 만들지 않고(덮어쓰지 않고) 묻는다
+await page.evaluate(() => window.NANRO_AI.mock(true));
+r = await page.evaluate(async () => { let saves = 0; const h = await window.NANRO_AI.openDiagram({ markdown: '메모', meta: {}, noteFile: '읽기 실패.md', saveNoteFile: async () => { saves++; }, readNoteFile: async () => { throw new Error('잠김'); } }); return { state: h.state, saves, text: document.querySelector('#aiDiagram .msg').textContent }; });
+ok(r.state === 'readerror' && r.saves === 0 && /덮어/.test(r.text), `읽기 실패 때 묻기: ${r.text.slice(0, 50)}`);
+await page.evaluate(() => window.NANRO_AI.current?.close(true));
 
 await browser.close();
 console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');

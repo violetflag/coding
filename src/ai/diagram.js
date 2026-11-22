@@ -85,7 +85,7 @@ export async function openDiagram({ markdown = '', meta = {}, noteFile = '메모
     handle.close(true);
   };
   const askRemake = () => {
-    if (!armRemake) { armRemake = true; remake.textContent = '정말 다시 만들기'; status(isMock() ? '(시험) 새로 그립니다.' : 'AI에게 새로 그려 달라고 합니다(요금이 듭니다). 한 번 더 누르면 시작합니다.'); setTimeout(() => { armRemake = false; remake.textContent = '다시 만들기'; }, 5000); return; }
+    if (!armRemake) { armRemake = true; remake.textContent = '정말 다시 만들기'; status(isMock() ? '(시험) 새로 그립니다.' : 'AI에게 새로 그려 달라고 합니다(요금이 들고, 지금 그림은 새 그림으로 바뀝니다). 한 번 더 누르면 시작합니다.'); setTimeout(() => { armRemake = false; remake.textContent = '다시 만들기'; }, 5000); return; }
     armRemake = false; remake.textContent = '다시 만들기'; generate();
   };
   const openSettings = () => { handle.close(true); window.NANRO?.settings?.open('ai'); };
@@ -136,7 +136,12 @@ export async function openDiagram({ markdown = '', meta = {}, noteFile = '메모
   // 저장된 그림이 있으면 그것을, 없으면 AI로 새로
   showMsg('그림을 여는 중…', [], true);
   let text = null;
-  try { text = await readNoteFile?.(file); } catch (e) { console.warn('그림 읽기:', e?.message || e); }
+  try { text = await readNoteFile?.(file); } catch (e) {
+    // 읽기만 실패한 것일 수 있다: 저장된 그림을 덮어쓰거나 요금을 쓰지 않도록 묻는다
+    console.warn('그림 읽기:', e?.message || e);
+    showMsg(`저장된 그림("${file}")을 읽지 못했습니다. 새로 만들면 그 파일을 덮어씁니다.`, [['새로 만들기', () => generate(), true], ['닫기', () => handle.close(true)]]);
+    busy(false); handle.state = 'readerror'; return handle;
+  }
   if (text) {
     try {
       const v = await viewP, scene = v.sceneFromJSON(text);

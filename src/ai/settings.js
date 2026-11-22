@@ -7,7 +7,7 @@ const api = () => (isMock() ? import('./mock.js').then((m) => m.mockApi) : impor
 
 export function aiSection() {
   const p = aiPrefs();
-  let models = null;
+  let models = null, loading = null;
   return { key: 'ai', label: 'AI', build(el) {
     const key = E('input', { type: 'password', placeholder: 'sk-ant- 로 시작하는 키를 붙여 넣기', spellcheck: false, value: getKey() });
     key.style.cssText = 'flex:1;min-width:0;box-sizing:border-box;background:#0e0a07;color:inherit;border:1px solid #4a3a28;border-radius:4px;padding:6px 8px;font:inherit';
@@ -25,7 +25,8 @@ export function aiSection() {
       t.addEventListener('change', () => { p.model = t.value.trim(); p.modelName = ''; saveAiPrefs(p); });
       modelBox.replaceChildren(t); modelState.textContent = why;
     };
-    const loadModels = async () => {
+    const loadModels = () => (loading = loadModelsNow());
+    const loadModelsNow = async () => {
       if (!getKey() && !isMock()) { models = null; modelBox.replaceChildren(E('span', { className: 'rng', style: 'text-align:left', textContent: '키를 넣으면 고를 수 있습니다' })); modelState.textContent = ''; return; }
       modelState.textContent = '모델 목록을 받는 중…';
       try {
@@ -45,6 +46,7 @@ export function aiSection() {
     const clear = E('button', { type: 'button', textContent: '지우기', onclick: () => { setKey(''); key.value = ''; showKey(); testState.textContent = ''; loadModels(); } });
     test.addEventListener('click', async () => {
       testState.textContent = '확인하는 중…';
+      await loading;   // 키를 붙여 넣자마자 누르면 모델 목록을 받는 중일 수 있다
       try { const m = await (await api()).testConnection(p.model); testState.textContent = `연결됨 · ${m.display_name || m.id}`; }
       catch (e) { testState.textContent = e?.message || String(e); }
     });
@@ -58,7 +60,7 @@ export function aiSection() {
       E('div', { className: 'row wide' }, E('label', { textContent: '모델' }), modelBox, modelState),
       row('설명 수준', level),
       E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:6px' }, test, testState),
-      E('div', { className: 'note', textContent: '메모장에서 그림으로 보기를 누르면 메모와 책 정보를 Claude에 보내 그림을 받습니다. 만든 그림은 메모 옆에 "메모 이름.excalidraw"로 저장되어, 다음에 열 때는 요금 없이 바로 보입니다.' }),
+      E('div', { className: 'note', textContent: '메모장의 "AI 그림 설명" 단추를 누르면 메모와 책 정보를 Claude에 보내 그림을 받습니다. 만든 그림은 메모 옆에 "메모 이름.excalidraw"로 저장되어, 다음에 열 때는 요금 없이 바로 보입니다.' }),
       isMock() ? E('div', { className: 'note', textContent: '(시험 모드: 실제로 보내지 않고 미리 만든 그림을 씁니다)' }) : null);
     showKey();
     this._load = loadModels;

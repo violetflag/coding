@@ -1,5 +1,6 @@
-// AI 설정. API 키는 따로 된 칸('nanro.ai.key')에 이 컴퓨터에만 둔다. 화면에도, 기록(console)에도 내보내지 않는다.
-const KEY = 'nanro.ai.key', OPTS = 'nanro.ai';
+// AI 설정. API 키는 따로 된 칸에 이 컴퓨터에만 둔다. 화면에도, 기록(console)에도 내보내지 않는다.
+// 키 칸의 이름은 일부러 'nanro.' 로 시작하지 않는다: 'nanro.*' 는 '백업 내보내기' 파일에 함께 담기기 때문이다(reader/store.js).
+const KEY = 'nanroSecret-aiKey', OPTS = 'nanro.ai';
 export const AI_DEFAULTS = { model: '', modelName: '', level: 'easy' };
 
 export function getKey() { try { return localStorage.getItem(KEY) || ''; } catch { return ''; } }
