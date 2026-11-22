@@ -77,6 +77,16 @@ check('"이어서 읽기" 한 번으로 읽기 상태가 된다', again, await s
 const spread = await page.evaluate(() => window.NANRO.reading.reader.cur?.spread);
 check('읽던 쪽에서 이어진다', spread > 0, '펼침면 ' + spread);
 
+// 7. 처음 화면에 책 파일을 끌어다 놓아도 바로 읽기로 간다
+await page.goto(url);
+await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
+await waitFor(() => !document.getElementById('startActs').hidden);
+await page.evaluate(async () => { const f = new File([await (await fetch('/books/sample.epub')).blob()], 'sample.epub'), dt = new DataTransfer(); dt.items.add(f); dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); });
+const dropped = await waitFor(() => window.NANRO.player.state === 'reading' && window.NANRO.reading.reader.cur && !window.NANRO.reading.opening, null, 120000);
+check('시작 화면에 책을 끌어다 놓으면 읽기 상태가 된다', dropped, await state());
+await page.waitForTimeout(1000);   // 시작 카드는 0.7초에 걸쳐 흐려진다
+check('그때 시작 카드가 사라진다', !(await vis('#start')));
+
 check('오류가 없다', errors.length === 0, errors.slice(0, 3).join(' / '));
 await browser.close();
 console.log(fail ? `실패 ${fail}건` : '모두 통과');

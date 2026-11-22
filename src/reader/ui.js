@@ -75,6 +75,7 @@ export class ReaderUI {
     let last = null;
     for (const f of files) { try { this.host.toast(`"${f.name}" 읽는 중…`); last = await this.r.addFile(f); this.host.toast(`"${last.title}"을(를) 서재에 꽂았습니다`); } catch (e) { console.warn(e); this.host.toast(`${f.name}: ${e.message || '열 수 없습니다'}`); } }
     if (last) { this.host.onAdded?.(last); if (this.isOpen) this.renderPanel(); }
+    return last;
   }
 
   // 아래 막대
