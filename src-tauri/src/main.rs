@@ -402,7 +402,8 @@ fn note_name(raw: &str) -> Result<String, String> {
         Some(i) => (&name[..i], name[i + 1..].to_ascii_lowercase()),
         None => return bad(),
     };
-    let upper = stem.trim().to_ascii_uppercase();
+    // "NUL.tar.md" 처럼 첫 점 앞이 장치 이름이어도 윈도우는 쓰지 못한다
+    let upper = stem.split('.').next().unwrap_or("").trim().to_ascii_uppercase();
     let reserved = ["CON", "PRN", "AUX", "NUL"].contains(&upper.as_str())
         || ((upper.starts_with("COM") || upper.starts_with("LPT")) && upper.len() == 4 && upper.as_bytes()[3].is_ascii_digit());
     if stem.trim().is_empty() || reserved || !NOTE_EXT.contains(&ext.as_str()) {

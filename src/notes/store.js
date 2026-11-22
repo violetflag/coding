@@ -7,7 +7,8 @@ import { DESKTOP, saveFile } from '../desktop.js';
 
 const T = window.__TAURI__, KEY = 'note:';
 export const NOTE_EXT = ['md', 'markdown', 'txt', 'excalidraw', 'json', 'svg'];
-const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)$/i;
+// 윈도우가 장치 이름으로 쓰는 이름. "nul.tar" 처럼 첫 점 앞이 이 이름이어도 쓸 수 없다.
+const RESERVED = /^(con|prn|aux|nul|com\d|lpt\d)\s*(\..*)?$/i;
 
 // 책 제목 같은 글을 파일 이름의 앞부분으로 만든다: 윈도우가 못 쓰는 글자, 폴더 경로, 끝의 점은 뺀다.
 export function safeStem(raw) {
@@ -15,7 +16,7 @@ export function safeStem(raw) {
   s = s.replace(/^[.\s]+|[.\s]+$/g, '');
   if ([...s].length > 80) s = [...s].slice(0, 80).join('').trim().replace(/[.\s]+$/, '');
   if (!s) s = '메모';
-  if (RESERVED.test(s)) s += '_';
+  if (RESERVED.test(s)) s = s.replace(/^[a-z]+\d?/i, '$&_');
   return s;
 }
 // 메모 폴더에 둘 수 있는 이름인지 (src-tauri 의 note_name 과 같은 규칙)

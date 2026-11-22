@@ -88,8 +88,10 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
     el('div', { className: 'tags' }, el('span', { textContent: '태그' }), tags),
     editor.el, foot);
   document.body.append(P);
+  // 글 상자를 떠나면(끝내기 단추를 눌러도) 1초를 기다리지 않고 바로 저장한다
+  editor.ta.addEventListener('blur', () => { if (dirty) flush(); });
   // 창 안에서 친 키는 방(걷기, 쪽 넘기기, 앉기)으로 가지 않는다
-  for (const t of ['keydown', 'keyup', 'keypress']) P.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'keydown' && e.code === 'Escape' && !e.isComposing) { e.preventDefault(); api.close(); } });
+  for (const t of ['keydown', 'keypress']) P.addEventListener(t, (e) => { e.stopPropagation(); if (t === 'keydown' && e.code === 'Escape' && !e.isComposing) { e.preventDefault(); api.close(); } });
   for (const t of ['mousedown', 'wheel', 'click', 'dblclick', 'contextmenu']) P.addEventListener(t, (e) => e.stopPropagation());
 
   // 읽는 동안 늘 보이는 "메모" 단추 (오른쪽 위), 아래 진행 막대에도 하나
@@ -137,9 +139,11 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
     foot.textContent = DESKTOP ? `저장 위치: ${(await notesFolder().catch(() => '')) || '메모 폴더'}\\${cur?.file || ''}` : '메모는 이 브라우저에 저장됩니다. 파일로 갖고 싶으면 "내려받기"를 누르세요.';
   }
   async function load(book, name) {
-    const text = await readNoteFile(name).catch((e) => { console.warn(e); toast('메모를 읽지 못했습니다'); return null; });
+    let broken = false;
+    const text = await readNoteFile(name).catch((e) => { console.warn(e); broken = true; toast('메모를 읽지 못했습니다: ' + (e?.message || e)); return null; });
     const fresh = bookMeta(book);
-    if (text == null) cur = { book, file: name, meta: fresh, extra: [], isNew: true };
+    // 있는데 읽지 못한 파일은 빈 메모로 덮어쓰지 않는다
+    if (text == null) cur = { book, file: name, meta: fresh, extra: [], isNew: !broken, broken };
     else {
       const p = parseNote(text);
       // 머리말이 없거나 빠진 항목은 책에서 채운다(사용자가 고친 값은 그대로 둔다)
@@ -148,7 +152,7 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
       cur = { book, file: name, meta: p.meta, extra: p.extra, body: p.body };
     }
     editor.setValue(cur.body || ''); tags.value = (cur.meta.tags || []).join(', ');
-    dirty = false; setState(text == null ? '새 메모' : '저장됨'); showInfo(); await refreshFiles();
+    dirty = false; setState(broken ? '읽지 못함 (저장 안 함)' : text == null ? '새 메모' : '저장됨', broken); showInfo(); await refreshFiles();
   }
   // 책의 메모를 연다: 가장 최근에 고친 것, 없으면 "책 제목.md"
   async function openBook(book) {
@@ -177,6 +181,7 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
     clearTimeout(timer);
     return (line = line.then(async () => {
       if (!cur || !dirty) return;
+      if (cur.broken) { setState('읽지 못함 (저장 안 함)', true); return; }
       dirty = false; setState('저장 중…');
       const file = cur.file, text = fullText();
       try {
@@ -205,15 +210,23 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
       if (text.length > 400) text = text.slice(0, 400) + '…';
     }
     if (editor.previewing) editor.setPreview(false);
-    editor.insertBlock(where + (text ? '\n> ' + text.replace(/\n+/g, ' ') : ''));
+    // 글이 "1. ", "- ", "#" 로 시작하면 인용 안에서 목록이나 제목이 되므로 기호 앞에 \ 를 붙인다
+    text = text.replace(/\s+/g, ' ').trim().replace(/^(\d+)([.)])(?=\s)/, '$1\\$2').replace(/^([-+*#>])/, '\\$1');
+    editor.insertBlock(where + (text ? '\n> ' + text : ''));
   }
 
-  // 쪽의 첫 문장. 쪽이 문장 중간에서 시작하면 그 문장은 건너뛴다.
+  // 쪽의 첫 문장. 장 제목(h1~h3)과 그림은 건너뛰고, 쪽이 문장 중간에서 시작하면 그 문장도 건너뛴다.
   function firstSentence(c, pg) {
     if (!pg) return '';
-    let raw = textRange(c.book, pg.g0, Math.min(c.book.length, pg.g0 + 320)).replace(/\s+/g, ' ').trim();
-    const END = /[.!?。…]+["'”’」』)]*(\s|$)/g;
-    if (pg.g0 > 0 && textRange(c.book, pg.g0 - 1, pg.g0) !== '\n') { const m = END.exec(raw); if (m && m.index < 200) raw = raw.slice(m.index + m[0].length); }
+    const g0 = pg.g0, g1 = Math.min(c.book.length, g0 + 400); let raw = '';
+    for (const ch of c.book.chapters) {
+      if (ch.g1 <= g0 || ch.g0 >= g1) continue;
+      for (const b of ch.blocks) { const e = b.g0 + b.text.length + 1; if (e <= g0 || b.g0 >= g1 || /^h\d$/.test(b.type) || !b.text) continue; raw += (b.text + '\n').slice(Math.max(0, g0 - b.g0), g1 - b.g0); }
+    }
+    raw = raw.replace(/\s+/g, ' ').trim();
+    // "1." 같은 번호는 문장의 끝이 아니다
+    const END = /(?<![0-9])[.!?。…]+["'”’」』)]*(\s|$)/g;
+    if (g0 > 0 && textRange(c.book, g0 - 1, g0) !== '\n') { const m = END.exec(raw); if (m && m.index < 200) raw = raw.slice(m.index + m[0].length); }
     END.lastIndex = 0; const m = END.exec(raw);
     if (m && m.index > 4 && m.index < 180) return raw.slice(0, m.index + m[0].length).trim();
     return raw.slice(0, 100).trim() + (raw.length > 100 ? '…' : '');
@@ -233,8 +246,9 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
   // ---- 열고 닫기
   api.open = async () => {
     if (api.isOpen) { editor.focus(); return; }
-    if (ui.isOpen) ui.close();
-    api.isOpen = true; P.classList.add('open'); player.keys?.clear(); syncCorner();
+    // isOpen 을 먼저 세운다: 읽기 메뉴를 닫을 때 걷던 중이면 마우스를 다시 잡으려 하는데, 그러면 곧바로 메모장이 닫힌다
+    api.isOpen = true; if (ui.isOpen) ui.close();
+    P.classList.add('open'); player.keys?.clear(); syncCorner();
     onUiMode?.(true, P.getBoundingClientRect().width);
     const book = bookNow();
     if (!cur || (book?.id || '') !== (cur.book?.id || '')) { setState('여는 중…'); await openBook(book); }
@@ -244,7 +258,7 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
   };
   api.close = (quiet = false) => {
     if (!api.isOpen) return;
-    api.isOpen = false; P.classList.remove('open'); clearInterval(posTimer); flush(); syncCorner();
+    api.isOpen = false; P.classList.remove('open'); clearInterval(posTimer); flush(); syncCorner(); player.keys?.clear();
     if (P.contains(document.activeElement)) document.activeElement.blur();
     if (!quiet) onUiMode?.(false);
   };
@@ -257,7 +271,7 @@ export function setupNotes({ reading, player, toast, onUiMode }) {
   // M: 열기/닫기 (글을 치는 중이 아닐 때). Esc: 창 밖에 초점이 있어도 메모장부터 닫는다(책을 덮지 않게).
   const typing = (e) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || e.target?.isContentEditable;
   addEventListener('keydown', (e) => {
-    if (!api.isOpen || e.code !== 'Escape' || ui.isOpen || document.querySelector('#settings.open, #help.on')) return;
+    if (!api.isOpen || e.code !== 'Escape' || e.isComposing || ui.isOpen || document.querySelector('#settings.open, #help.on')) return;
     e.preventDefault(); e.stopImmediatePropagation(); api.close();
   }, true);
   // 걷는 중에 메모장을 열어 두었으면 걷기 키를 막는다(읽는 중에는 책을 눌러 둔 뒤 ← → 로 넘길 수 있게 둔다)

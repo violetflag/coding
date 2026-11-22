@@ -24,7 +24,7 @@ const fakeTauri = () => {
       invoke: async (cmd, args) => {
         calls.push(cmd + (args?.name ? ':' + args.name : ''));
         if (cmd === 'notes_list') return { dir: window.__FAKE__.dir, files: Object.keys(files).map((name) => ({ name, size: files[name].length, modified: 1700000000 })) };
-        if (cmd === 'note_read') return files[args.name] ?? null;
+        if (cmd === 'note_read') { if (args.name === window.__FAKE__.failRead) throw new Error('읽기 실패'); return files[args.name] ?? null; }
         if (cmd === 'note_write') { if (/[\\/]|\.\./.test(args.name)) throw new Error('메모 파일 이름을 쓸 수 없습니다'); files[args.name] = args.text; return null; }
         if (cmd === 'choose_notes_folder') { window.__FAKE__.dir = 'D:\\메모'; return window.__FAKE__.dir; }
         if (cmd === 'opened_books') return [];
@@ -139,7 +139,12 @@ const panelOpen = (page) => page.evaluate(() => document.getElementById('notes')
   check('표 넣기', (await value(page)).startsWith('| 제목 | 내용 |\n| --- | --- |') && (await page.$eval(ta, (t) => t.value.slice(t.selectionStart, t.selectionEnd))) === '제목', JSON.stringify(await value(page)));
   check('모든 단추에 한국어 설명이 붙어 있다', await page.evaluate(() => [...document.querySelectorAll('#notes .tb')].every((b) => /[가-힣]/.test(b.title) && b.getAttribute('aria-label'))));
 
-  // 지금 읽는 곳
+  // 지금 읽는 곳: 장 첫 쪽에서는 장 제목을 빼고 본문 첫 문장을 넣는다. "1. " 로 시작해도 인용 안에서 목록이 되지 않는다.
+  await page.evaluate(() => window.NANRO.reading.reader.gotoPage(0)); await page.waitForTimeout(1200);
+  await setText(page, ''); await tool(page, 'here');
+  const q0 = (await value(page)).split('\n')[1] || '', ch0 = await page.evaluate(() => window.NANRO.reading.reader.info().chapter);
+  check('장 첫 쪽: 인용에 장 제목이 섞이지 않고 첫 문장이 들어간다', q0.startsWith('> ') && !q0.slice(2).startsWith(ch0.replace(/^(\d+)\./, '$1\\.')) && !q0.slice(2).startsWith(ch0) && /[.!?]$/.test(q0), q0);
+  check('인용한 글이 목록(1. )으로 바뀌지 않는다', !/^> \d+[.)]\s/.test(q0), q0);
   await page.evaluate(() => window.NANRO.reading.reader.gotoPage(5)); await page.waitForTimeout(1200);
   await setText(page, '## 읽으며 적은 것\n\n- 불은 서두르지 않는다\n- [ ] 다시 읽기\n\n<img src=x onerror="window.__xss=1">');
   await tool(page, 'here');
@@ -225,12 +230,12 @@ const panelOpen = (page) => page.evaluate(() => document.getElementById('notes')
   // 외부 기능이 쓰는 저장 함수: 아무 이름이나(.excalidraw 도), 위험한 이름은 거절
   const api = await page.evaluate(async () => {
     const s = await import('/src/notes/store.js'); await s.saveNoteFile('겨울 난롯가에서.excalidraw', '{"type":"excalidraw"}');
-    const bad = []; for (const n of ['../x.md', 'a/b.md', 'C:\\x.md', 'CON.md', 'x.exe', '.hidden.md', 'x.md.']) { try { await s.saveNoteFile(n, 'x'); bad.push(n); } catch { /* 거절 */ } }
-    return { read: await s.readNoteFile('겨울 난롯가에서.excalidraw'), bad, stem: s.safeStem('a/b\\c:d*e?"f<g>h|i..md  '), con: s.safeStem('con') };
+    const bad = []; for (const n of ['../x.md', 'a/b.md', 'C:\\x.md', 'CON.md', 'nul.tar.md', 'x.exe', '.hidden.md', 'x.md.']) { try { await s.saveNoteFile(n, 'x'); bad.push(n); } catch { /* 거절 */ } }
+    return { read: await s.readNoteFile('겨울 난롯가에서.excalidraw'), bad, stem: s.safeStem('a/b\\c:d*e?"f<g>h|i..md  '), con: s.safeStem('con'), nul: s.safeStem('nul.tar') };
   });
   check('saveNoteFile / readNoteFile 이 .excalidraw 파일도 다룬다', api.read === '{"type":"excalidraw"}');
   check('폴더 밖을 가리키거나 위험한 이름은 거절한다', !api.bad.length, api.bad.join(', '));
-  check('책 제목은 윈도우에서 쓸 수 있는 이름으로 바뀐다', api.stem === 'a b c d e f g h i.md' && api.con === 'con_', `${api.stem} / ${api.con}`);
+  check('책 제목은 윈도우에서 쓸 수 있는 이름으로 바뀐다', api.stem === 'a b c d e f g h i.md' && api.con === 'con_' && api.nul === 'nul_.tar', `${api.stem} / ${api.con} / ${api.nul}`);
   await page.keyboard.press('Escape');
 
   // 걷는 중에도 M 으로 열 수 있고, 치는 동안 걷지 않는다
@@ -247,6 +252,7 @@ const panelOpen = (page) => page.evaluate(() => document.getElementById('notes')
   check('메모장이 열려 있으면 W, S 를 눌러도 걷지 않는다', Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) < 1e-6, JSON.stringify([p0, p1]));
   await page.keyboard.press('Escape');
   check('걷는 중에도 Esc 로 닫힌다', !(await panelOpen(page)));
+  check('닫은 뒤 눌린 채 남은 키가 없다', await page.evaluate(() => window.NANRO.player.keys.size === 0));
   await ctx.close();
 }
 
@@ -266,6 +272,13 @@ const panelOpen = (page) => page.evaluate(() => document.getElementById('notes')
   await page.click('#notes .files button:has-text("폴더 열기")');
   check('[프로그램] "폴더 열기"가 프로그램에 전달된다', await page.evaluate(() => window.__FAKE__.calls.includes('open_notes_folder')));
   await page.screenshot({ path: 'shots/notes/3-desktop.png' });
+  // 있는데 읽지 못한 메모는 빈 메모로 덮어쓰지 않는다
+  await page.evaluate(() => { window.__FAKE__.files['겨울 난롯가에서 (2).md'] = 'ORIGINAL'; window.__FAKE__.failRead = '겨울 난롯가에서 (2).md'; });
+  await page.click('#notes .bt'); await page.keyboard.press('Escape'); await page.keyboard.press('KeyM');
+  await waitFor(page, () => [...document.querySelectorAll('#notes select option')].some((o) => o.value === '겨울 난롯가에서 (2).md'), null, 5000);
+  await page.selectOption('#notes select', '겨울 난롯가에서 (2).md'); await page.waitForTimeout(400);
+  await page.click(ta); await page.keyboard.type('덮어쓰면 안 되는 글'); await page.waitForTimeout(1800);
+  check('[프로그램] 읽지 못한 메모 파일은 덮어쓰지 않는다', await page.evaluate(() => window.__FAKE__.files['겨울 난롯가에서 (2).md'] === 'ORIGINAL'), await page.$eval('#notes .st', (e) => e.textContent));
   await page.keyboard.press('Escape');
   // 설정창의 메모 탭
   await page.evaluate(() => window.NANRO.settings.open('notes'));
