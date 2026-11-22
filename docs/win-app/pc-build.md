@@ -118,3 +118,18 @@
 - 켠 직후 끊김의 원인.
 
 시험 창이 떠 있던 시간은 합쳐서 약 9분으로, 정해 준 6분을 넘겼다. GPU 측정과 끊김 원인을 가리는 추가 실행 때문이다.
+
+## 4. 설치
+
+설치 명령을 담은 `.cmd`를 `explorer.exe`로 열어 실제 셸에서 `NanroSetup-v0.1.0.exe /SILENT /TASKS=desktopicon`을 실행했다. 설치 기록에 "Installation process succeeded"가 남았다.
+
+| 확인 | 결과 |
+|---|---|
+| `C:\NanroApp\nanro.exe` | 있음 (84.0MB). 제거 프로그램 `unins000.exe`, `THIRD_PARTY_NOTICES.md`도 있음 |
+| 시작 메뉴 "난로" | 있음 (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\난로.lnk`) |
+| 바탕화면 "난로" | 있음 (`C:\Users\pc\Desktop\난로.lnk`) |
+| 제어판 제거 항목 | 있음 ("난로" 0.1.0, 설치 위치 `C:\NanroApp\`) |
+| 설치 뒤 자동 실행 | 없음 (실행 중인 nanro 0개) |
+| `C:\Nanro` | 만들어지지 않음. 처음 켤 때 깨끗하다 |
+
+설치된 프로그램은 켜지 않았다. 시작 메뉴 바로가기는 설치 기록의 경로와 이 세션에서 본 경로가 같지만, 시작 메뉴에 실제로 보이는지는 눈으로 확인하지 못했다.
