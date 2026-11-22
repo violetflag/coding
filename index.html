@@ -39,7 +39,8 @@
       background: rgba(12, 8, 5, .72); border: 1px solid rgba(92, 74, 51, .8); opacity: 0; transition: opacity .4s; pointer-events: none; white-space: nowrap; }
     #pause.on { opacity: .92; }
     #help { position: fixed; inset: 0; z-index: 8; display: none; place-items: center; background: rgba(5, 3, 2, .7); }
-    #help.on { display: grid; }
+    #help.on { display: grid; animation: fadeIn .2s ease-out; } @keyframes fadeIn { from { opacity: 0; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
     #help .box { background: #17110c; border: 1px solid #4a3a28; border-radius: 10px; padding: 20px 28px; font-size: 13.5px; line-height: 2; max-width: 92vw; }
     #help h3 { margin: 10px 0 2px; font-size: 14px; color: #f0c98a; font-weight: 600; } #help h3:first-child { margin-top: 0; }
     #help kbd, #hint kbd { font: inherit; border: 1px solid rgba(233, 220, 198, .45); border-radius: 4px; padding: 0 6px; margin: 0 2px; }

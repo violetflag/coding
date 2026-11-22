@@ -293,7 +293,7 @@ async function main() {
     // 가만히 있는 동안은 절전: 시선과 몸이 멈춰 있으면 방을 한 프레임 걸러 그린다(불은 따로 그려지므로 그대로 부드럽다).
     // 둘러보거나 걷거나 장을 넘기거나 가구를 옮기는 동안, 화면을 찍을 때는 매 프레임 그린다.
     const sig = player.yaw * 7 + player.pitch * 13 + player.pos.x * 17 + player.pos.z * 19 + player.eye * 23 + player.fov;
-    if (sig !== viewSig || player.tween || arrange.held || reading.reader.book3d.flipping) { viewSig = sig; stillT = 0; } else stillT += dt;
+    if (sig !== viewSig || player.tween || arrange.held || reading.moving || reading.reader.book3d.flipping) { viewSig = sig; stillT = 0; } else stillT += dt;
     skip = prefs.readSave && !Q.has('noidle') && stillT > 0.25 && !ctx.captureNext && !skip;
     // 환경 맵: 예약된 때, 또는 낮밤이 눈에 띄게 달라졌을 때 다시 찍는다
     envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }

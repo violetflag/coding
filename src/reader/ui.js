@@ -17,7 +17,8 @@ const CSS = `
 .rd button { background: #2a1f15; color: inherit; border: 1px solid #5c4a33; border-radius: 5px; padding: 5px 11px; font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
 .rd button:hover { filter: brightness(1.25); } .rd button.act { background: #a8621f; border-color: #d98a3a; color: #fff; }
 #rpanel { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); z-index: 6; background: rgba(20,14,9,.96); border-left: 1px solid #4a3a28; display: none; flex-direction: column; font-size: 13.5px; }
-#rpanel.open { display: flex; }
+#rpanel.open { display: flex; animation: rdIn .22s ease-out; } @keyframes rdIn { from { transform: translateX(26px); opacity: 0; } }
+#rpop.open, #rdict.open { animation: rdPop .16s ease-out; } @keyframes rdPop { from { opacity: 0; } }
 #rpanel .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 12px 8px; border-bottom: 1px solid #3a2c1e; } #rpanel .tabs button { padding: 5px 8px; }
 #rpanel .tabs button.x { margin-left: auto; }
 #rpanel .body { flex: 1; overflow: auto; padding: 12px 16px 20px; }

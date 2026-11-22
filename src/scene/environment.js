@@ -3,10 +3,10 @@
 // 창은 남쪽(-Z)을 본다: 북 = +Z, 동 = -X.
 // 기획서의 "광원별 분리 굽기" 대신 실시간 조명(그림자 있는 해/달빛 + 하늘 주변광 + 창가 보조광)으로 단순화했다.
 import * as THREE from 'three/webgpu';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { ROOM, WINDOW } from './layout.js';
 import { sunPosition, moonPosition, moonPhase, seasonOf } from './astro.js';
 import { rng } from './textures.js';
+import { buildForest } from './trees.js';
 
 const KEY = 'nanro.env', DEG = Math.PI / 180;
 export const SEOUL = { lat: 37.5665, lon: 126.978 };
@@ -79,7 +79,7 @@ export class Environment {
     this.moon = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), this.moonMat); this.moon.renderOrder = -1; g.add(this.moon);
 
     // ---- 땅, 먼 능선, 숲
-    this.groundMat = new THREE.MeshStandardMaterial({ roughness: 1 });
+    this.groundMat = new THREE.MeshStandardMaterial({ roughness: 1, envMapIntensity: 0 });   // 방 안을 찍은 반사 그림은 바깥 땅에 비치면 안 된다(풀밭이 반짝이는 점무늬로 보인다)
     const gg = new THREE.PlaneGeometry(160, 90, 96, 54); { const uv = gg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 160, uv.getY(i) * 90); }  // 미터 단위 UV
     // 완만한 굴곡과 눈 둔덕 (집 가까이는 평평하게). 평면의 +y가 집 쪽이고, 눕히면 z가 높이가 된다.
     { const p = gg.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = -p.getY(i), far = sstep(40, 34, y); p.setZ(i, far * (0.22 * Math.sin(x * 0.31 + y * 0.17) * Math.sin(y * 0.23 + 1.3) + 0.12 * Math.sin(x * 0.83 + 2.1) * Math.sin(y * 0.71) + 0.02 * (45 - y) * 0.6 * sstep(20, -30, y))); } gg.computeVertexNormals(); }
@@ -91,30 +91,9 @@ export class Environment {
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.setIndex(idx); geo.computeVertexNormals();
       const m = new THREE.Mesh(geo, this.hillMat); m.position.set(wx, 0, z); g.add(m);
     }
-    const cone = (rad, h, y) => { const c = new THREE.ConeGeometry(rad, h, 7); c.translate(0, y + h / 2, 0); return c; };
-    // 전나무: 아래로 처진 가지 층을 여러 겹 쌓는다. 층마다 가장자리가 들쭉날쭉하고, 겨울에는 층 위에 눈이 얹힌다.
-    const tier = (rad, hgt, y, ph, jag) => { const c = new THREE.ConeGeometry(rad, hgt, 16, 3, true), p = c.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), z = p.getZ(i), d = Math.hypot(x, z); if (d < 1e-4) continue; const a = Math.atan2(z, x), k = 1 + jag * (0.6 * Math.sin(a * 5 + ph) + 0.4 * Math.sin(a * 9 + ph * 2.3)); p.setX(i, x * k); p.setZ(i, z * k); p.setY(i, p.getY(i) - 0.12 * hgt * (d / rad) * (1 + 0.5 * Math.sin(a * 5 + ph))); } c.translate(0, y + hgt / 2, 0); c.computeVertexNormals(); return c; };
-    const TIERS = 9, green = [], white = [];
-    for (let k = 0; k < TIERS; k++) { const t = k / (TIERS - 1), rad = 0.3 * Math.pow(1 - t, 0.8) + 0.035, hgt = 0.24 - 0.09 * t, y = 0.05 + 0.79 * t; green.push(tier(rad, hgt, y, k * 1.7, k < 2 ? 0.08 : 0.2)); { const w2 = tier(rad * 0.9, hgt * 0.66, y + hgt * 0.4, k * 1.7, 0.14), p = w2.attributes.position, cols = new Float32Array(p.count * 3); for (let i = 0; i < p.count; i++) { const d = Math.hypot(p.getX(i), p.getZ(i)) / rad, a = Math.atan2(p.getZ(i), p.getX(i)), v = (1 - 0.5 * d) * (0.82 + 0.18 * Math.sin(a * 3 + k)) * (0.75 + 0.25 * Math.cos(a - 0.8)); cols.set([v, v, v], i * 3); } w2.setAttribute('color', new THREE.BufferAttribute(cols, 3)); white.push(w2); } }
-    const conGeo = mergeGeometries(green), conSnowGeo = mergeGeometries(white);
-    const trunkGeo = new THREE.CylinderGeometry(0.035, 0.05, 0.4, 5); trunkGeo.translate(0, 0.2, 0);
-    const blob = (x, y, z, s) => { const b = new THREE.IcosahedronGeometry(s, 1); b.translate(x, y, z); return b; };
-    const crownGeo = mergeGeometries([blob(0, 0.72, 0, 0.3), blob(0.18, 0.6, 0.05, 0.22), blob(-0.17, 0.62, -0.04, 0.23), blob(0.02, 0.9, 0.02, 0.2)]);
-    const br = (ang, tilt, len, y) => { const c = new THREE.CylinderGeometry(0.008, 0.018, len, 4); c.translate(0, len / 2, 0); c.rotateZ(tilt); c.rotateY(ang); c.translate(0, y, 0); return c; };
-    const dTrunk = new THREE.CylinderGeometry(0.03, 0.05, 0.6, 5); dTrunk.translate(0, 0.3, 0);
-    const bareGeo = mergeGeometries([dTrunk, br(0, 0.7, 0.4, 0.5), br(2.1, 0.8, 0.36, 0.45), br(4.2, 0.6, 0.42, 0.52), br(1, 0.3, 0.4, 0.58), br(3.3, 0.45, 0.34, 0.56), br(5.2, 1.0, 0.3, 0.4)]);
-    const nC = 230, nD = 70, std = () => new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true });
-    this.conMat = new THREE.MeshStandardMaterial({ roughness: 1, side: THREE.DoubleSide }); this.conSnowMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });   // 눈은 빛 계산 없이 꼭짓점 음영으로 그린다(밤에도 형태가 남는다)
-    this.conSnow = new THREE.InstancedMesh(conSnowGeo, this.conSnowMat, nC);
-    this.conifers = new THREE.InstancedMesh(conGeo, this.conMat, nC); this.conTrunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x2a1d14, roughness: 1 }), nC);
-    this.crowns = new THREE.InstancedMesh(crownGeo, std(), nD); this.bare = new THREE.InstancedMesh(bareGeo, new THREE.MeshStandardMaterial({ color: 0x2c221b, roughness: 1 }), nD);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+    // 숲: 그림으로 그린 전나무와 넓은잎나무 (src/scene/trees.js)
     const spot = () => { for (;;) { const z = -4.5 - Math.pow(r(), 0.8) * 32, x = wx + (r() - 0.5) * (14 + -z * 1.3); if (z > -16 && Math.abs(x - wx) < 3.2 + (z + 16) * 0.12) continue; return [x, z]; } };
-    this.treeTone = [];
-    for (let i = 0; i < nC; i++) { const [x, z] = spot(), s = 3.5 + r() * 4; q.setFromAxisAngle(up, r() * 7); m4.compose(new THREE.Vector3(x, -0.45, z), q, new THREE.Vector3(s * (0.8 + r() * 0.4), s, s * (0.8 + r() * 0.4))); this.conifers.setMatrixAt(i, m4); this.conSnow.setMatrixAt(i, m4); this.conTrunks.setMatrixAt(i, m4); this.treeTone.push(0.7 + r() * 0.6); }
-    this.crownPick = [];
-    for (let i = 0; i < nD; i++) { const [x, z] = spot(), s = 4 + r() * 3.5; q.setFromAxisAngle(up, r() * 7); m4.compose(new THREE.Vector3(x, -0.45, z), q, new THREE.Vector3(s, s, s)); this.crowns.setMatrixAt(i, m4); this.bare.setMatrixAt(i, m4); this.crownPick.push([r(), 0.75 + r() * 0.5]); }
-    g.add(this.conifers, this.conSnow, this.conTrunks, this.crowns, this.bare);
+    this.forest = buildForest({ spot }); g.add(this.forest.group);
     // 먼 숲의 윤곽: 전나무 숲 그림자를 그린 띠를 두 겹 세운다 (깊이감)
     { const fc2 = document.createElement('canvas'); fc2.width = 2048; fc2.height = 256; const f = fc2.getContext('2d'); f.fillStyle = '#fff';
       for (let i = 0; i < 520; i++) { const x = r() * 2048, hh = 70 + r() * 150, w2 = hh * (0.2 + r() * 0.1); for (let k = 0; k < 6; k++) { const t = k / 6, yy = 256 - hh * (1 - t), hw = w2 * (0.15 + 0.85 * t); f.beginPath(); f.moveTo(x, yy - hh * 0.22); f.lineTo(x + hw, yy + hh * 0.05); f.lineTo(x - hw, yy + hh * 0.05); f.fill(); } }
@@ -215,21 +194,19 @@ export class Environment {
     const P = PALETTE[season], col = new THREE.Color(), snowC = C(0xdfe6ee);
     // 사진 텍스처가 있으면 풀밭/눈 사진을 깔고, 계절 색은 옅게 곱한다
     const gt = this.groundTex && (snowy ? this.groundTex.snow : this.groundTex.grass);
-    if (gt?.map) { const gm = this.groundMat; if (gm.map !== gt.map) { gm.map = gt.map; gm.normalMap = gt.normalMap || null; gm.roughnessMap = gt.roughnessMap || null; gm.needsUpdate = true; } gm.color.set(snowy ? 0xf2f5f8 : P.ground).lerp(C(0xffffff), snowy ? 0 : 0.35).multiplyScalar(snowy ? 1 : 1.15); }
+    if (gt?.map) { const gm = this.groundMat; if (gm.map !== gt.map) { gm.map = gt.map; gm.normalMap = gt.normalMap || null; gm.roughnessMap = null; gm.normalScale.setScalar(snowy ? 0.8 : 0.45); gm.needsUpdate = true; } gm.color.set(snowy ? 0xf2f5f8 : P.ground).lerp(C(0xffffff), snowy ? 0 : 0.35).multiplyScalar(snowy ? 1 : 1.15); }
     else this.groundMat.color.set(snowy ? 0xdfe6ee : P.ground);
     this.hillMat.color.set(snowy ? PALETTE.winter.hill : P.hill).multiplyScalar(0.05 + 0.6 * day).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.55);   // 먼 산은 지평선 색에 물든다
-    for (let i = 0; i < this.conifers.count; i++) { col.set(P.conifer).multiplyScalar(this.treeTone[i]); if (snowy) col.lerp(snowC, 0.08); this.conifers.setColorAt(i, col); }
     // 밤의 바깥: 달빛과 하늘빛에 눈이 푸르스름하게 떠오른다 (실내 조명과 섞이지 않게 바깥 재질의 자체 밝기로 준다)
     const glow = (1 - day) * (0.28 + 0.5 * ph.fraction * sstep(0, 12, S.moonAlt) * (1 - oc) + 0.3 * oc);
-    this.conSnow.visible = snowy; this.sillSnow.visible = snowy; this.frostMat.opacity = season === 'winter' ? 0.42 : 0.12;
+    this.sillSnow.visible = snowy; this.frostMat.opacity = season === 'winter' ? 0.42 : 0.12;
     this.groundMat.emissive.set(snowy ? 0x3a517c : 0x0c1a14).multiplyScalar(glow * (snowy ? 0.5 : 0.25));
-    this.conSnowMat.color.set(0x4a6696).multiplyScalar(glow * 0.62).lerp(C(0xffffff).multiplyScalar(1.5 - 0.5 * oc), day); this.sillSnowMat.emissive.set(0x3a517c).multiplyScalar(glow * 0.3);
-    this.conMat.emissive.set(0x0b1a1c).multiplyScalar(glow * 0.5);
+    this.sillSnowMat.emissive.set(0x3a517c).multiplyScalar(glow * 0.3);
+    // 나무 그림의 밝기와 색: 밤에는 달빛의 푸른 기운만 남고, 낮에는 햇빛 색을 조금 띤다. 흐린 날은 가라앉는다.
+    const treeLight = C(0x4a6696).multiplyScalar(glow * 0.62).lerp(C(0xffffff).lerp(L.color, 0.35 * (sunI > 0.01 ? 1 : 0)).multiplyScalar(1.55 - 0.5 * oc), day);
+    this.forest.set({ snowy, crownColors: P.crown, light: treeLight });
     const lc = (snowy ? C(0x2a3a44) : C(P.conifer)).multiplyScalar(0.25 + 1.1 * day + 0.5 * glow);
     this.lineMats[0].color.copy(lc).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.3); this.lineMats[1].color.copy(lc).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.55);
-    this.conifers.instanceColor.needsUpdate = true;
-    const leafy = !!P.crown; this.crowns.visible = leafy; this.bare.visible = !leafy;
-    if (leafy) { for (let i = 0; i < this.crowns.count; i++) { const [k, tone] = this.crownPick[i]; col.set(P.crown[Math.floor(k * P.crown.length)]).multiplyScalar(tone); if (oc > 0) col.lerp(snowC, 0.4); this.crowns.setColorAt(i, col); } this.crowns.instanceColor.needsUpdate = true; }
     // 눈
     this.snow.count = weather === 'heavy' ? this.snowMax : weather === 'snow' ? 1300 : 0; this.snow.visible = this.snow.count > 0;
     this.snowMat.color.setScalar(0.4 + 1.5 * day); this.wind = weather === 'heavy' ? 1.6 : 0.25; this.fall = weather === 'heavy' ? 1.7 : 1;

@@ -67,7 +67,7 @@ export class Book3D {
 
   // 펼친 정도: 양쪽 면이 평평한 상태에서 각각 deg도씩 읽는 사람 쪽으로 접힌다 (0 = 완전히 펼쳐 눕힘)
   setOpen(deg) {
-    const th = (Math.max(0, Math.min(40, deg)) * Math.PI) / 180; if (th === this.theta && this._opened) return; this._opened = true;
+    const th = (Math.max(0, Math.min(85, deg)) * Math.PI) / 180; if (th === this.theta && this._opened) return; this._opened = true;
     this.theta = th; this.side.R.rotation.y = -th; this.side.L.rotation.y = th; if (this.flip) this._bend(this._e ?? 0);
   }
   // 면 좌표(책등에서의 거리 d, 판에서의 높이 h) → 책 좌표 [x, z]
