@@ -462,3 +462,16 @@ Esc 키 자체는 자동 시험에서 마우스를 풀지 못해서(시험 도�
 `tools/overlap-check.mjs`가 이 PC 에서 돌지 않는 까닭: 오류 첫 줄은 `browserType.launch: Executable doesn't exist at C:\Users\pc\AppData\Local\ms-playwright\chromium_headless_shell-1255\chrome-headless-shell-win64\chrome-headless-shell.exe`다. 이 PC 에는 시험 도구의 자체 브라우저를 깔지 않고 설치된 Edge 만 쓰기 때문이다(개발 서버는 켜져 있었다).
 
 설치: 난로가 켜져 있지 않은 것을 확인하고 0.3.1 을 덮어 깔았다. `C:\Nanro`는 설치 전후로 항목 수와 수정 시각이 같다(안은 읽지 않았다).
+# 0.3.2 확인: 책장 책의 질감 (커밋 33221fa)
+
+빌드: `cargo build --release --locked` 2분 28초(종료 코드 0), ISCC 한 번에 됨. `release\NanroSetup-v0.3.2.exe` 85.2MB.
+
+| 내 서재 칸 (가운데 단) | 왼쪽 벽 책장 |
+|---|---|
+| ![](round4d-shelf-library.jpg) | ![](round4d-shelf-wall.jpg) |
+
+- 내 서재 칸의 책이 옆 책들과 같아 보인다. 책등에 천의 올 무늬와 띠, 줄무늬가 있고, 0.3.1 묶음에서 보이던 돌판 같은 책은 없다.
+- 책 윗면은 여전히 책등과 같은 재질이다(종이 단면처럼 보이지 않는다).
+- 앞선 묶음(e6efb30)의 사진은 `round4c-shelf-wall.jpg`, `round4c-shelf-library.jpg`다.
+
+설치: 난로가 켜져 있지 않은 것을 확인하고 0.3.2 를 덮어 깔았다. `C:\Nanro`는 설치 전후로 항목 수와 수정 시각이 같다(안은 읽지 않았다).
