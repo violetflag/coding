@@ -195,8 +195,10 @@ export class Sky {
     const li = sstep(1.0, 3.6, lim) * Math.pow(clear, 1.2);
     U.line0.value.setRGB(0.032, 0.043, 0.066).multiplyScalar(li); U.line1.value.setRGB(0.032, 0.043, 0.066).multiplyScalar(li * (zodiac ? 1.9 : 1)); U.line2.value.setRGB(0.09, 0.07, 0.04).multiplyScalar(zodiac ? li : 0);
     if (this.lines) this.lines.visible = mode !== 'off' && li > 0.01;
-    U.label0.value.setRGB(0.26, 0.31, 0.4).multiplyScalar(li); U.label1.value.setRGB(0.26, 0.31, 0.4).multiplyScalar(li * (zodiac ? 1.5 : 1));
-    if (this.labels) this.labels.visible = mode === 'names' && li > 0.01;
+    // 이름은 보라고 켠 안내 글자라 달빛·구름에 별처럼 묻히지 않게 한다(어두워지기만 하면 읽힌다)
+    const ln = sstep(0.5, 2.5, lim) * (0.45 + 0.55 * clear);
+    U.label0.value.setRGB(0.5, 0.57, 0.7).multiplyScalar(ln); U.label1.value.setRGB(0.5, 0.57, 0.7).multiplyScalar(ln * (zodiac ? 1.3 : 1));
+    if (this.labels) this.labels.visible = mode === 'names' && ln > 0.01;
     // 해
     const a = s.sunAlt, low = 1 - sstep(0, 12, a);
     U.sunDir.value.copy(s.sunDir); U.sunScale.value = 1 + 0.35 * low;

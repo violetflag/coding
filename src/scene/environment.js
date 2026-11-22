@@ -58,10 +58,17 @@ export class Environment {
   }
   save() { if (!this.fromUrl) try { localStorage.setItem(KEY, JSON.stringify(this.opts)); } catch { /* 무시 */ } }
   set(patch) { Object.assign(this.opts, patch); this.dirty = true; this.save(); if (patch.weather === 'real' || 'lat' in patch) this.weather.tick(); }
-  // 브라우저 위치를 한 번 묻는다. 실패하면 서울(기본값)을 그대로 쓴다.
-  locate() {
-    if (this.opts.located || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((p) => this.set({ lat: +p.coords.latitude.toFixed(2), lon: +p.coords.longitude.toFixed(2), located: true }), () => {}, { timeout: 8000, maximumAge: 864e5 });
+  // 위치를 묻는다. 실패하면 서울(기본값)을 그대로 쓰고, 까닭을 locStatus 에 남긴 뒤 1분, 3분, 10분 뒤에 다시 묻는다.
+  // 윈도우는 켤 때 위치 서비스가 늦게 답하는 일이 많아 기다리는 시간을 넉넉히 둔다. 돌려주는 것: 끝나면 풀리는 약속
+  locate(again = 0) {
+    clearTimeout(this._locT);
+    if (this.opts.located) { this.locStatus = 'ok'; return Promise.resolve(true); }
+    if (!navigator.geolocation) { this.locStatus = 'none'; return Promise.resolve(false); }
+    this.locStatus = 'asking';
+    return new Promise((done) => navigator.geolocation.getCurrentPosition(
+      (p) => { this.locStatus = 'ok'; this.set({ lat: +p.coords.latitude.toFixed(2), lon: +p.coords.longitude.toFixed(2), located: true }); done(true); },
+      (e) => { this.locStatus = e?.code === 1 ? 'denied' : e?.code === 3 ? 'timeout' : 'unavailable'; this.locError = e?.message || ''; if (e?.code !== 1 && again < 3) this._locT = setTimeout(() => this.locate(again + 1), [60, 180, 600][again] * 1000); done(false); },
+      { timeout: 30000, maximumAge: 864e5, enableHighAccuracy: false }));
   }
   now() {
     const d = this.dateOverride ? new Date(this.dateOverride) : new Date();

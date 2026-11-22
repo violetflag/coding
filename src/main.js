@@ -268,6 +268,7 @@ async function main() {
 
   // ---- 루프
   const clock = new THREE.Timer();
+  let goodN = 0, raisedAt = -1e9, ceil = 1, ceilT = 0, settledAt = 0;
   let acc = 0, frames = 0, lastFit = 0, fpsMs = 16.7, fbT = 0, prevCam = new THREE.Vector3(), level = 1, stepPhase = 0, skip = false, elapsed = 0;
   const clockPos = new THREE.Vector3(ctx.clock.position.x, ctx.clock.position.y, ctx.clock.position.z), kettlePos = ctx.kettle.position;
   const shot = document.createElement('canvas');
@@ -324,7 +325,7 @@ async function main() {
     if (prefs.fpsCap > 0) { const t = performance.now(), ms = 1000 / prefs.fpsCap; if (t - capT < ms - 2) return; capT = Math.max(capT + ms, t - ms); }
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     const now = performance.now(), gap = now - lastNow; lastNow = now;
-    if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; mark('settled'); settled(); } }
+    if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; settledAt = performance.now(); mark('settled'); settled(); } }
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
@@ -417,9 +418,13 @@ async function main() {
     if (acc > 1) {
       fpsMs = acc / frames * 1000; acc = 0; frames = 0;
       const now = performance.now();
-      if (!Q.has('fixed') && !Q.has('rs') && prefs.autoRes !== false && player.state !== 'reading' && now - lastFit > 1500) {
-        if (fpsMs > 24 && scale > 0.5) { scale = Math.max(0.5, scale * 0.88); lastFit = now; fit(); }
-        else if (fpsMs < 12.5 && scale < cap()) { scale = Math.min(cap(), scale * 1.08); lastFit = now; fit(); }
+      // 목표는 화면 주사율(또는 프레임 제한). 60Hz에서는 한 장이 16.7ms보다 빨리 나오지 않으므로, 목표에 붙어 5초 버티면 한 단계 올린다.
+      // 켜는 동안의 멈춤으로 낮추지 않게 화면이 자리 잡은 뒤 3초부터 본다. 올렸다가 곧 다시 느려지면 그 위로는 2분 동안 올리지 않는다.
+      const goal = 1000 / (prefs.fpsCap > 0 ? Math.min(prefs.fpsCap, 60) : 60);
+      if (!Q.has('fixed') && !Q.has('rs') && prefs.autoRes !== false && player.state !== 'reading' && settleN < 0 && now - settledAt > 3000 && now - lastFit > 1500) {
+        if (fpsMs > goal * 1.45 && scale > 0.5) { if (now - raisedAt < 10000) { ceil = scale; ceilT = now + 120000; } scale = Math.max(0.5, scale * 0.88); lastFit = now; goodN = 0; fit(); }
+        else if (fpsMs < goal * 1.12) { const top = now < ceilT ? Math.min(cap(), ceil) : cap(); if (scale < top - 1e-3 && ++goodN >= 5) { scale = Math.min(top, scale * 1.08); lastFit = raisedAt = now; goodN = 0; fit(); } }
+        else goodN = 0;
       }
       if (showStats) {
         const be = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';

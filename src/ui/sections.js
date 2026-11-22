@@ -51,14 +51,18 @@ export function buildSections(d) {
       const setLoc = () => env.set({ lat: Math.max(-89, Math.min(89, +lat.value || 0)), lon: Math.max(-180, Math.min(180, +lon.value || 0)), located: true });
       lat.addEventListener('change', setLoc); lon.addEventListener('change', setLoc);
       // 실제 날씨: 지금 받아 둔 날씨 한 줄과 새로 받기 단추
+      const locLine = note(''),
+        LOC = { ok: '내 위치를 받아 쓰고 있습니다.', asking: '위치를 묻는 중입니다…', none: '이 화면은 위치를 줄 수 없어 서울을 씁니다.', denied: '위치 권한이 꺼져 있어 서울을 씁니다. 위도와 경도를 직접 넣어도 됩니다.', timeout: '위치 서비스가 답하지 않아 지금은 서울을 씁니다. 조금 뒤 다시 묻습니다.', unavailable: '위치를 받지 못해 지금은 서울을 씁니다. 윈도우 설정 > 개인 정보 및 보안 > 위치에서 "위치 서비스"와 "데스크톱 앱이 위치에 액세스하도록 허용"을 켜 주세요. 위도와 경도를 직접 넣어도 됩니다.' };
       const wxLine = note(''), wxBtn = E('button', { textContent: '지금 새로 받기', onclick: () => { env.weather.refresh().then(() => { env.dirty = true; this._tick(); }); this._tick(); } });
       const wxRow = E('div', { className: 'row' }, E('label', { textContent: '지금 바깥 날씨' }), wxLine, E('span'), wxBtn);
       el.append(H('시간'), info, mode, hour, H('날씨와 계절'), select('창밖 날씨', () => env.opts.weather, (v) => { env.set({ weather: v }); this._tick(); }, WEATHERS, '실제 날씨는 지금 있는 곳의 날씨(구름, 안개, 비, 눈, 바람, 지난 며칠 동안 쌓인 눈)를 20분마다 받아 와 창밖에 보여 줍니다. 받지 못하면 계절에 맞춘 날씨를 씁니다.'), wxRow, select('계절', () => env.opts.season, (v) => env.set({ season: v }), SEASONS, '자동은 오늘 날짜의 계절을 따릅니다(남반구는 반대).'),
-        H('위치 (해와 달, 실제 날씨)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; env.locate(); setTimeout(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; }, 2500); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
+        H('위치 (해와 달, 실제 날씨)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; const p = env.locate(); this._tick(); p.then(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; this._tick(); }); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
+        locLine,
         note('위치는 이 컴퓨터에 저장됩니다. "실제 날씨"를 쓰는 동안에만 약 1km로 반올림한 위치를 날씨 서비스(Open-Meteo)에 보내 날씨를 받아 오고, 다른 곳으로는 보내지 않습니다. 날씨를 직접 고르면 보내지 않습니다. 브라우저가 위치를 주지 않으면 서울을 씁니다.'),
         H('가구와 액자'), note('걸어 다니다가 의자, 탁자, 스탠드, 바구니를 보고 G를 누르면 옮길 수 있습니다(휠로 돌리기). 액자를 보고 E를 누르면 내 그림을 넣습니다.'),
         E('div', { className: 'row wide' }, E('label', { textContent: '되돌리기' }), E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:0' }, E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() }))));
       this._info = info; this._tick = () => { const S = env.state, real = env.opts.weather === 'real';
+        locLine.textContent = env.opts.located ? (env.locStatus === 'ok' ? LOC.ok : '저장해 둔 위치를 씁니다.') : (LOC[env.locStatus] || '기본 위치(서울)를 씁니다.');
         info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${KIND_NAMES[S.weather] || S.weather}${S.snowDepth >= 0.5 ? ` · 쌓인 눈 ${Math.round(S.snowDepth)}cm` : ''}`;
         wxLine.textContent = real ? env.weather.summary(S.wx) + (S.source === 'season' ? ' · 지금은 계절 날씨' : '') : '날씨를 직접 골랐습니다 (위치를 보내지 않습니다)'; wxBtn.disabled = !real || env.weather.busy; };
     }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
