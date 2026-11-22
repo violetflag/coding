@@ -18,7 +18,7 @@ const CSS = `
 .rd button:hover { filter: brightness(1.25); } .rd button.act { background: #a8621f; border-color: #d98a3a; color: #fff; }
 #rpanel { position: fixed; top: 0; right: 0; bottom: 0; width: min(420px, 92vw); z-index: 6; background: rgba(20,14,9,.96); border-left: 1px solid #4a3a28; display: none; flex-direction: column; font-size: 13.5px; }
 #rpanel.open { display: flex; }
-#rpanel .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 12px 8px; border-bottom: 1px solid #3a2c1e; }
+#rpanel .tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 12px 12px 8px; border-bottom: 1px solid #3a2c1e; } #rpanel .tabs button { padding: 5px 8px; }
 #rpanel .tabs button.x { margin-left: auto; }
 #rpanel .body { flex: 1; overflow: auto; padding: 12px 16px 20px; }
 #rpanel h3 { font-size: 14px; color: #f0c98a; margin: 16px 0 8px; font-weight: 600; } #rpanel h3:first-child { margin-top: 2px; }
@@ -90,7 +90,7 @@ export class ReaderUI {
   renderPanel() {
     const P = this.panel; P.innerHTML = '';
     const tabs = [...TABS, ...(this.host.extraTabs || []).map((t) => [t[0], t[1]])];
-    P.append(el('div', { className: 'tabs' }, tabs.map(([k, n]) => el('button', { textContent: n, className: k === this.tab ? 'act' : '', onclick: () => { this.tab = k; this.renderPanel(); } })), el('button', { className: 'x', textContent: '닫기', onclick: () => this.close() })));
+    P.append(el('div', { className: 'tabs' }, tabs.map(([k, n]) => el('button', { textContent: n, className: k === this.tab ? 'act' : '', onclick: () => { this.tab = k; this.renderPanel(); } })), el('button', { className: 'x', textContent: '✕', title: '닫기 (Esc)', onclick: () => this.close() })));
     const body = el('div', { className: 'body' }); P.append(body);
     const extra = (this.host.extraTabs || []).find((t) => t[0] === this.tab);
     if (extra) return extra[2](body, this);

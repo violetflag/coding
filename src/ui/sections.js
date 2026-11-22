@@ -37,7 +37,7 @@ export function buildSections(d) {
         H('위치 (해와 달 계산용)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; env.locate(); setTimeout(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; }, 2500); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
         note('위치는 이 컴퓨터에만 저장되고 어디로도 보내지 않습니다. 브라우저가 위치를 주지 않으면 서울을 씁니다.'),
         H('가구와 액자'), note('걸어 다니다가 의자, 탁자, 스탠드, 바구니를 보고 G를 누르면 옮길 수 있습니다(휠로 돌리기). 액자를 보고 E를 누르면 내 그림을 넣습니다.'),
-        E('div', { className: 'row' }, E('label', { textContent: '되돌리기' }), E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() })));
+        E('div', { className: 'row wide' }, E('label', { textContent: '되돌리기' }), E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:0' }, E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() }))));
       this._info = info; this._tick = () => { const S = env.state; info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${WEATHERS[S.weather]}`; };
     }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
     { key: 'sound', label: '소리', build(el) {
