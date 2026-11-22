@@ -26,7 +26,8 @@ export class Book3D {
     for (const k of ['L', 'R', 'F', 'B']) {
       const c = (this.cv[k] = document.createElement('canvas')); c.width = PAGE.w * SS; c.height = PAGE.h * SS;      // 글자가 또렷하도록 1.5배로 그린다
       const t = (this.tex[k] = new THREE.CanvasTexture(c)); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 16; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
-      this.mat[k] = new THREE.MeshStandardMaterial({ map: t, roughness: 0.96, metalness: 0, bumpMap: fibre, bumpScale: 0.35, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0, side: k === 'B' ? THREE.BackSide : THREE.FrontSide });
+      this.mat[k] = new THREE.MeshStandardMaterial({ map: t, roughness: 0.96, metalness: 0, bumpMap: fibre, bumpScale: 0.35, emissive: 0xffffff, emissiveMap: t, emissiveIntensity: 0, side: k === 'B' ? THREE.BackSide : THREE.FrontSide,
+        polygonOffset: k === 'F' || k === 'B', polygonOffsetFactor: -2, polygonOffsetUnits: -8 });   // 넘어가는 장은 아래 쪽과 거의 붙어 있어도 항상 위에 그려진다
     }
     // 양쪽 면은 책등을 축으로 조금 접힌다(펼친 각도). 각 면의 좌표: 책등에서 바깥으로 ±X, 표지 판에서 종이 쪽으로 +Z.
     this.side = { L: new THREE.Group(), R: new THREE.Group() }; g.add(this.side.L, this.side.R);
@@ -106,7 +107,7 @@ export class Book3D {
   startFlip(dir, dur, onDone) { this.flip = { dir, t: 0, dur, onDone }; this.flipF.visible = this.flipB.visible = true; this._bend(dir > 0 ? 0 : 1); }
   _bend(e) {
     this._e = e;
-    const pos = this.flipF.geometry.attributes.position, tA = this.tR, tB = this.tL, th = this.theta, EPS = 0.0007;
+    const pos = this.flipF.geometry.attributes.position, tA = this.tR, tB = this.tL, th = this.theta, EPS = 0.0014;
     const g0 = (prof(0, tA) * (1 - e) + prof(0, tB) * e) * Math.cos(th) + EPS;
     let x = 0, z = g0, prevD = 0;
     const lift = Math.sin(Math.PI * e), w = Math.min(1, lift * 3.2);                          // w: 더미에서 떨어져 나온 정도
@@ -119,7 +120,7 @@ export class Book3D {
       // 내려앉은 쪽에서는 더미의 윤곽을 그대로 따른다
       const [rx, rz] = this._w(sR, d, prof(d, tRest) + EPS);
       let fx = rx + (x - rx) * w, fz = rz + (z - rz) * w;
-      fz = Math.max(fz, this._restZ(fx, fx >= 0 ? tA : tB) + EPS * 0.5);
+      fz = Math.max(fz, this._restZ(fx, fx >= 0 ? tA : tB) + EPS);
       pos.setXYZ(i, fx, 0.5 * PH, fz); pos.setXYZ(SEG + 1 + i, fx, -0.5 * PH, fz); prevD = d;
     }
     pos.needsUpdate = true; this.flipF.geometry.computeVertexNormals(); this.flipF.geometry.computeBoundingSphere();

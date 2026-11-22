@@ -94,19 +94,20 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
       for (let y = 0; y < 128; y += 2) for (let x = 0; x < 128; x += 2) { c.globalAlpha = 0.1 + r() * 0.22; c.fillStyle = ((x + y) / 2) % 4 < 2 ? a : b2; c.fillRect(x, y, 2, 2); }
       c.globalAlpha = 1; const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); t.anisotropy = 8; return t;
     };
-    const trouser = new THREE.MeshStandardMaterial({ map: weave('#363d4d', '#434b5e', '#2b3140', [14, 40]), roughness: 0.95 });
+    const trouser = new THREE.MeshStandardMaterial({ map: weave('#3a4254', '#4a5368', '#2b3140', [14, 40]), roughness: 0.95 }); trouser.bumpMap = trouser.map; trouser.bumpScale = 0.5;
     const knit = new THREE.MeshStandardMaterial({ map: weave('#cfc4ad', '#e6dcc6', '#a89c84', [16, 10]), roughness: 1 });
     const sock = new THREE.MeshStandardMaterial({ map: weave('#8c8478', '#b3aa9a', '#5e584e', [8, 10]), roughness: 1 });
     api.bodyMats = [trouser, knit, sock];
     // pts: [x, y, z, 반지름] 의 줄. 사이를 부드럽게 이어 관을 만든다. flat = 단면의 납작한 정도(앉으면 허벅지가 눌린다)
-    const limb = (pts, mat, flat = 1, RING = 20, STEP = 8) => {
+    // fold(t, a): 옷 주름. 길이 방향 위치 t(0…1)와 둘레 각 a에서 반지름에 곱할 값
+    const limb = (pts, mat, flat = 1, RING = 20, STEP = 8, fold = null) => {
       const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])), false, 'centripetal'), n = (pts.length - 1) * STEP;
       const rad = (t) => { const f = t * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)), k = f - i, e = k * k * (3 - 2 * k); return pts[i][3] * (1 - e) + pts[i + 1][3] * e; };
       const P = [], U = [], I = [], T = new THREE.Vector3(), N = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), side = new THREE.Vector3(1, 0, 0);
       for (let i = 0; i <= n; i++) {
         const t = i / n; curve.getPoint(t, C); curve.getTangent(t, T); B.crossVectors(T, side).normalize(); N.crossVectors(B, T).normalize();   // N = 옆, B = 위아래
-        const r = rad(t);
-        for (let j = 0; j <= RING; j++) { const a = (j / RING) * Math.PI * 2, cx = Math.cos(a) * r, cy = Math.sin(a) * r * flat; P.push(C.x + N.x * cx + B.x * cy, C.y + N.y * cx + B.y * cy, C.z + N.z * cx + B.z * cy); U.push(j / RING, t); }
+        const r0 = rad(t);
+        for (let j = 0; j <= RING; j++) { const a = (j / RING) * Math.PI * 2, r = r0 * (fold ? fold(t, a) : 1), cx = Math.cos(a) * r, cy = Math.sin(a) * r * flat; P.push(C.x + N.x * cx + B.x * cy, C.y + N.y * cx + B.y * cy, C.z + N.z * cx + B.z * cy); U.push(j / RING, t); }
       }
       for (let i = 0; i < n; i++) for (let j = 0; j < RING; j++) { const a = i * (RING + 1) + j, b3 = a + RING + 1; I.push(a, a + 1, b3, a + 1, b3 + 1, b3); }
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); geo.setIndex(I); geo.computeVertexNormals();
@@ -119,7 +120,9 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     for (const s of [-1, 1]) {
       const f = s > 0 ? 0.05 : 0, kx = s * 0.125;
       limb([[s * 0.1, 0.55, 0.2, 0.1], [s * 0.105, 0.55, 0.02, 0.097], [s * 0.115, 0.555, -0.2, 0.084], [kx, 0.555, -0.38, 0.068], [kx, 0.53, -0.47 - f * 0.3, 0.06],
-        [kx, 0.44, -0.52 - f * 0.6, 0.057], [kx, 0.3, -0.55 - f, 0.054], [kx, 0.16, -0.565 - f * 1.2, 0.046], [kx, 0.085, -0.57 - f * 1.3, 0.043]], trouser, 0.86);
+        [kx, 0.44, -0.52 - f * 0.6, 0.057], [kx, 0.3, -0.55 - f, 0.054], [kx, 0.16, -0.565 - f * 1.2, 0.046], [kx, 0.085, -0.57 - f * 1.3, 0.043]], trouser, 0.86, 28, 14,
+        // 주름: 무릎에서 접힌 가로 주름, 허벅지를 따라 흐르는 완만한 세로 주름, 발목에 고인 바지 끝단
+        (t, a) => { const g = (c, w) => Math.exp(-(((t - c) / w) ** 2)); return 1 + 0.05 * g(0.47, 0.07) * Math.sin(t * 150 + 1.6 * Math.sin(a + s)) + 0.022 * g(0.22, 0.2) * Math.sin(3 * a + t * 16 + s) + 0.06 * g(0.93, 0.06) * Math.sin(t * 170 + 2 * Math.sin(2 * a)) + 0.04 * g(0.99, 0.03); });
       // 양말: 발목에서 발등을 지나 발끝까지
       limb([[kx, 0.13, -0.57 - f * 1.3, 0.04], [kx, 0.07, -0.58 - f * 1.3, 0.041], [kx * 1.02, 0.047, -0.65 - f * 1.3, 0.043], [kx * 1.06, 0.04, -0.74 - f * 1.3, 0.04], [kx * 1.08, 0.036, -0.79 - f * 1.3, 0.026]], sock, 0.8, 16, 6);
       blob(sock, kx * 1.08, 0.036, -0.79 - f * 1.3, 0.027, 0.022, 0.03); blob(sock, kx, 0.05, -0.565 - f * 1.3, 0.042, 0.04, 0.05);
