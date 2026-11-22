@@ -3,7 +3,7 @@
 // 집(지붕 처마까지) 안에 든 입자는 그리지 않는다: 비와 눈은 바깥에만 온다.
 // 비 = 바람에 기운 가는 줄기, 눈 = 흔들리며 내려오는 부드러운 점. 그리기 호출은 둘을 합쳐 2.
 import * as THREE from 'three/webgpu';
-import { Fn, attribute, uniform, vec2, vec3, vec4, float, varying, cameraProjectionMatrix, cameraViewMatrix, cameraPosition, time, mod, sin, cos, length, smoothstep, max, dot, exp, select, abs } from 'three/tsl';
+import { Fn, attribute, uniform, vec2, vec3, vec4, float, varying, cameraProjectionMatrix, cameraViewMatrix, cameraPosition, mod, sin, cos, length, smoothstep, max, dot, exp, select, abs } from 'three/tsl';
 import { rng } from './textures.js';
 
 // 상자 안 위치(0..1)와 위상, 네 귀퉁이를 가진 사각형 n개
@@ -20,8 +20,9 @@ export class Precip {
     this.u = {
       center: uniform(new THREE.Vector3()), size: uniform(new THREE.Vector3(22, 9, 16)), wind: uniform(new THREE.Vector3()),
       rainFall: uniform(7), rainCol: uniform(new THREE.Color(0.6, 0.65, 0.7)), rainA: uniform(0.3), snowFall: uniform(1), snowCol: uniform(new THREE.Color(1, 1, 1)), snowA: uniform(0.9), gust: uniform(0),
+      t: uniform(0),            // 시간(초). 오래 켜 두어도 GPU의 실수 정밀도가 모자라지 않게 30분마다 0으로 돌린다
     };
-    const U = this.u, seed = attribute('aSeed', 'vec4'), corner = attribute('aCorner', 'vec2');
+    const U = this.u, seed = attribute('aSeed', 'vec4'), corner = attribute('aCorner', 'vec2'), time = U.t;
     const H = house;
     // 상자 안에서 돌고 도는 위치
     const wrap = (p) => U.center.add(mod(p.sub(U.center), U.size).sub(U.size.mul(0.5)));
@@ -75,6 +76,7 @@ export class Precip {
     U.snowFall.value = sn > 2 ? 1.3 : 0.9; U.gust.value = Math.min(1.5, w / 6);
     U.rainA.value = 0.32 + 0.18 * Math.min(1, rn / 6);
   }
+  update(dt) { const t = this.u.t; t.value += dt; if (t.value > 1800) t.value -= 1800; }
   // 방 안: 창 앞의 상자, 밖: 나를 둘러싼 상자. groundY = 땅 높이
   place(outdoor, cam, wx, groundY) {
     const U = this.u;

@@ -52,15 +52,18 @@ export function interpret(data) {
   let vis = num(cur.visibility, num(at('visibility', i0), 24000)); if (c[1] === 'fog') vis = Math.min(vis, 400);
   const temp = num(cur.temperature_2m, num(at('temperature_2m', i0), 5));
   // 비와 눈의 세기: 지금 값 → 시간별 값 → 날씨 코드
+  // 비(mm) = rain + showers. 그 칸이 없으면 전체 강수에서 눈의 물 양(눈 cm ÷ 0.7 = mm, 7cm 눈 ≈ 10mm 물)을 뺀다
+  const rainOf = (rn, sh, pr, sf) => (typeof rn === 'number' || typeof sh === 'number' ? num(rn) + num(sh) : Math.max(0, num(pr) - num(sf) / 0.7));
   const hasCur = typeof cur.snowfall === 'number' || typeof cur.precipitation === 'number';
-  const snowH = hasCur ? num(cur.snowfall) * 4 : num(at('snowfall', i0));             // current 값은 앞선 15분 합이다
+  const per = 3600 / Math.max(300, num(cur.interval, 900));                         // current 값은 앞선 interval(보통 15분) 동안의 합이다
+  const snowH = hasCur ? num(cur.snowfall) * per : num(at('snowfall', i0));
   const snow = snowH > 0.01 ? snowH : (c[3] || 0);
-  const rainH = hasCur ? Math.max(num(cur.rain) + num(cur.showers), num(cur.precipitation) - num(cur.snowfall) * 0.7) * 4 : Math.max(0, num(at('precipitation', i0)) - num(at('snowfall', i0)) * 0.7);
+  const rainH = hasCur ? rainOf(cur.rain, cur.showers, cur.precipitation, cur.snowfall) * per : rainOf(at('rain', i0), at('showers', i0), at('precipitation', i0), at('snowfall', i0));
   const rain = rainH > 0.05 ? rainH : (c[2] || 0);
   // 쌓인 눈: API의 snow_depth(m)가 있으면 그것, 없으면 지난 기록으로 쌓고 다지고 녹여서 계산한다
   let model = 0, lastSnow = -1, wetAcc = 0;
   for (let i = 0; i <= i0; i++) {
-    const T = num(at('temperature_2m', i), temp), sf = num(at('snowfall', i)), pr = num(at('precipitation', i)), rn = Math.max(0, pr - sf * 0.7);
+    const T = num(at('temperature_2m', i), temp), sf = num(at('snowfall', i)), rn = rainOf(at('rain', i), at('showers', i), at('precipitation', i), sf);
     model += sf; if (sf > 0.05) lastSnow = i;
     model -= model * 0.003;                                                           // 다져진다(하루에 7%쯤)
     if (T > 0) model -= 0.06 * T + 0.08 * rn;                                         // 영상이면 녹는다(비가 오면 더)
@@ -113,7 +116,7 @@ export class Weather {
       else {
         const L = this.getLoc(); loc = { lat: round2(L.lat), lon: round2(L.lon) };
         const q = `latitude=${loc.lat}&longitude=${loc.lon}&current=temperature_2m,precipitation,rain,showers,snowfall,weather_code,cloud_cover,cloud_cover_low,cloud_cover_mid,cloud_cover_high,visibility,wind_speed_10m,wind_direction_10m,is_day`
-          + '&hourly=temperature_2m,snowfall,snow_depth,precipitation,weather_code,cloud_cover,visibility&past_days=7&forecast_days=1&wind_speed_unit=ms&timezone=auto';
+          + '&hourly=temperature_2m,snowfall,snow_depth,precipitation,rain,showers,weather_code,cloud_cover,visibility&past_days=7&forecast_days=1&wind_speed_unit=ms&timezone=auto';
         const ac = new AbortController(), to = setTimeout(() => ac.abort(), 15000);
         try { const r = await fetch('https://api.open-meteo.com/v1/forecast?' + q, { signal: ac.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); data = await r.json(); } finally { clearTimeout(to); }
         if (!data?.current) throw new Error('응답에 지금 날씨가 없음');

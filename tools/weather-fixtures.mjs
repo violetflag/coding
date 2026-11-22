@@ -28,19 +28,19 @@ const S = {
 
 mkdirSync('public/weather-mock', { recursive: true });
 for (const [name, f] of Object.entries(S)) {
-  seed = 7; const H = { time: [], temperature_2m: [], snowfall: [], snow_depth: [], precipitation: [], weather_code: [], cloud_cover: [], visibility: [] };
+  seed = 7; const H = { time: [], temperature_2m: [], snowfall: [], snow_depth: [], precipitation: [], rain: [], showers: [], weather_code: [], cloud_cover: [], visibility: [] };
   let depth = 0;
   for (let i = 0; i < DAYS * 24; i++) {
-    const a = NOW - i, w = f(i, a), sf = +(w.sf || 0).toFixed(2), pr = +((w.pr || 0) + sf * 0.7).toFixed(2);
+    const a = NOW - i, w = f(i, a), sf = +(w.sf || 0).toFixed(2), pr = +((w.pr || 0) + sf / 0.7).toFixed(2);   // 강수 = 비 + 눈의 물 양(눈 cm ÷ 0.7)
     depth = Math.max(0, depth + sf - depth * 0.003 - (w.t > 0 ? 0.06 * w.t : 0));
-    H.time.push(iso(i)); H.temperature_2m.push(+(w.t + (rnd() - 0.5) * 0.6).toFixed(1)); H.snowfall.push(sf); H.precipitation.push(pr);
+    H.time.push(iso(i)); H.temperature_2m.push(+(w.t + (rnd() - 0.5) * 0.6).toFixed(1)); H.snowfall.push(sf); H.precipitation.push(pr); H.rain.push(w.code >= 80 ? 0 : +(w.pr || 0).toFixed(2)); H.showers.push(w.code >= 80 ? +(w.pr || 0).toFixed(2) : 0);
     H.snow_depth.push(w.api ? +(depth / 100).toFixed(3) : null); H.weather_code.push(w.code); H.cloud_cover.push(w.cloud); H.visibility.push(w.vis);
   }
   const w = f(NOW, 0), sf = (w.sf || 0) / 4, pr = (w.pr || 0) / 4;
   const out = {
     latitude: 37.56, longitude: 126.98, timezone: 'Asia/Seoul', utc_offset_seconds: 32400, mock: name,
     current_units: { temperature_2m: '°C', snowfall: 'cm', precipitation: 'mm', visibility: 'm', wind_speed_10m: 'm/s' },
-    current: { time: iso(NOW), interval: 900, temperature_2m: H.temperature_2m[NOW], precipitation: +(pr + sf * 0.7).toFixed(2), rain: w.code >= 95 ? 0 : +pr.toFixed(2), showers: w.code >= 95 ? +pr.toFixed(2) : 0, snowfall: +sf.toFixed(2),
+    current: { time: iso(NOW), interval: 900, temperature_2m: H.temperature_2m[NOW], precipitation: +(pr + sf / 0.7).toFixed(2), rain: w.code >= 95 ? 0 : +pr.toFixed(2), showers: w.code >= 95 ? +pr.toFixed(2) : 0, snowfall: +sf.toFixed(2),
       weather_code: w.code, cloud_cover: w.cloud, cloud_cover_low: w.low, cloud_cover_mid: w.mid, cloud_cover_high: w.high, visibility: w.vis, wind_speed_10m: w.wind, wind_direction_10m: w.dir, is_day: 1 },
     hourly_units: { snowfall: 'cm', snow_depth: 'm', precipitation: 'mm', visibility: 'm' },
     hourly: H,

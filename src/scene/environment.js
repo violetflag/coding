@@ -153,7 +153,11 @@ export class Environment {
     { const F = this.scene.fog, U = (this.fogU = { near: uniform(9), far: uniform(70), vis: uniform(30000) });
       const d = length(positionView), base = smoothstep(U.near, U.far, d), vf = float(1).sub(exp(d.mul(exp(d.div(12))).mul(-3.912).div(U.vis)));
       const inRoom = (p, e) => p.x.greaterThan(-e).and(p.x.lessThan(ROOM.W + e)).and(p.z.greaterThan(-e)).and(p.z.lessThan(ROOM.D + e)).and(p.y.lessThan(ROOF.base + 2.2));
-      const inside = inRoom(positionWorld, 0.02).and(inRoom(cameraPosition, 0.3));   // 방 안에서 본 방(벽 안쪽 면과 천장)
+      const box = (p, x0, x1, z0, z1) => p.x.greaterThan(x0).and(p.x.lessThan(x1)).and(p.z.greaterThan(z0)).and(p.z.lessThan(z1));
+      // 집 껍데기: 벽 두께(창틀·창살·유리 포함)와, 천장 높이 위로는 처마까지의 지붕(방 안에서 천장 너머로 비치는 지붕 밑면)
+      const shell = (p) => p.y.lessThan(ROOF.base + 2.2).and(box(p, FOOT.x0 - 0.02, FOOT.x1 + 0.02, FOOT.z0 - 0.02, FOOT.z1 + 0.02)
+        .or(p.y.greaterThan(ROOM.H - 0.1).and(box(p, -ROOF.side - 0.2, ROOM.W + ROOF.side + 0.2, FOOT.z0 - ROOF.over - 0.1, FOOT.z1 + ROOF.over + 0.1))));
+      const inside = shell(positionWorld).and(inRoom(cameraPosition, 0.3));   // 방 안에서 본 방과 집(벽 안쪽 면, 천장, 창)
       this.fogCol = uniform(new THREE.Color()); this.scene.fogNode = fog(this.fogCol, select(inside, float(0), max(base, vf))); }
   }
 
@@ -312,6 +316,6 @@ export class Environment {
     if (this.dirty || this.acc > 5) { this.acc = 0; this.recompute(); }
     this.clouds.update(dt);
     if (this.state.thunder || this.flashT >= 0) this._lightning(dt);
-    if (this.precip.rain.visible || this.precip.snow.visible) this.precip.place(this.outdoorView, cam || this.scene.position, (WINDOW.x0 + WINDOW.x1) / 2, -0.45);
+    if (this.precip.rain.visible || this.precip.snow.visible) { this.precip.update(dt); this.precip.place(this.outdoorView, cam || this.scene.position, (WINDOW.x0 + WINDOW.x1) / 2, -0.45); }
   }
 }
