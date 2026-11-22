@@ -65,23 +65,21 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   reader.ready.then(() => rebuildShelf(reader.library));
 
   // ================= 2. 장작 타이머 =================
-  // 화실의 장작 세 개는 타는 만큼 줄어들고(fuel 1 → 0), 불 세기는 남은 장작에서 나온다. 더미에서 하나씩 꺼내 넣고, 더미는 창 아래 선반에서 채운다.
-  const HEARTH = 'nanro.hearth', PILE_MAX = ctx.woodPile.userData.max, RACK_MAX = ctx.woodRack.userData.max;
+  // 화실의 장작 세 개는 타는 만큼 줄어들고(fuel 1 → 0), 불 세기는 남은 장작에서 나온다. 더미에서 하나씩 꺼내 넣고, 더미가 비면 밖에서 해 와 채운다.
+  const HEARTH = 'nanro.hearth', PILE_MAX = ctx.woodPile.userData.max;
   const hs = load(HEARTH, {});
-  const hearth = (api.hearth = { log: null, sleepT: null, dim: 0, fuel: Array.isArray(hs.fuel) && hs.fuel.length === 3 ? hs.fuel : [0.85, 0.65, 0.45], pile: hs.pile ?? PILE_MAX, rack: hs.rack ?? RACK_MAX, power: 0.62, out: false });
+  const hearth = (api.hearth = { log: null, sleepT: null, dim: 0, fuel: Array.isArray(hs.fuel) && hs.fuel.length === 3 ? hs.fuel : [0.85, 0.65, 0.45], pile: hs.pile ?? PILE_MAX, power: 0.62, out: false });
   const setFire = (v) => { if (fire) fire.target = v; api.firePower = v; };
   api.firePower = 0.62;
   const fuelPower = () => hearth.fuel.reduce((p, f) => p + 0.16 * Math.min(1, Math.max(0, f) / 0.3), 0.2);
-  const syncWood = () => { ctx.woodPile.userData.setCount(hearth.pile); ctx.woodRack.userData.setCount(hearth.rack); fire?.setFuel(hearth.fuel); save(HEARTH, { fuel: hearth.fuel.map((f) => +f.toFixed(4)), pile: hearth.pile, rack: hearth.rack }); };
+  const syncWood = () => { ctx.woodPile.userData.setCount(hearth.pile); fire?.setFuel(hearth.fuel); save(HEARTH, { fuel: hearth.fuel.map((f) => +f.toFixed(4)), pile: hearth.pile }); };
   syncWood();
   hearth.refill = () => {
-    const n = Math.min(PILE_MAX - hearth.pile, hearth.rack);
-    if (n > 0) { hearth.pile += n; hearth.rack -= n; sfx('log'); toast(`선반에서 장작 ${n}개를 벽난로 옆으로 옮겼습니다 · 선반에 ${hearth.rack}개 남음`); }
-    else if (hearth.rack <= 0 || hearth.rack < RACK_MAX && hearth.pile >= PILE_MAX) { hearth.rack = RACK_MAX; sfx('log'); toast('밖에서 장작을 해 와 선반을 채웠습니다'); }
-    else toast('벽난로 옆 장작 더미가 가득합니다');
+    if (hearth.pile >= PILE_MAX) toast('벽난로 옆 장작 더미가 가득합니다');
+    else { hearth.pile = PILE_MAX; sfx('log'); toast('밖에서 장작을 해 와 더미를 채웠습니다'); }
     syncWood();
   };
-  hearth.reset = () => { hearth.fuel = [0.85, 0.65, 0.45]; hearth.pile = PILE_MAX; hearth.rack = RACK_MAX; hearth.out = false; syncWood(); };
+  hearth.reset = () => { hearth.fuel = [0.85, 0.65, 0.45]; hearth.pile = PILE_MAX; hearth.out = false; syncWood(); };
   hearth.startLog = () => {
     if (hearth.pile <= 0) { hearth.refill(); return false; }
     let i = 0; for (let j = 1; j < 3; j++) if (hearth.fuel[j] < hearth.fuel[i]) i = j;
@@ -95,7 +93,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   hearth.status = () => {
     const f = (s) => `${Math.floor(s / 60)}분 ${String(Math.floor(s % 60)).padStart(2, '0')}초`;
     const left = Math.max(...hearth.fuel) * prefs.logMinutes * 60;
-    return (left > 0 ? `장작이 타는 중: 마지막 장작이 ${f(left)} 뒤에 다 탑니다` : '장작이 다 탔습니다') + ` · 더미 ${hearth.pile}개 · 선반 ${hearth.rack}개` + (hearth.sleepT != null ? ` · 잠들기까지 ${f(hearth.sleepT.left)}` : '');
+    return (left > 0 ? `장작이 타는 중: 마지막 장작이 ${f(left)} 뒤에 다 탑니다` : '장작이 다 탔습니다') + ` · 더미 ${hearth.pile}개` + (hearth.sleepT != null ? ` · 잠들기까지 ${f(hearth.sleepT.left)}` : '');
   };
   // ================= 5. 잠들기 모드 =================
   const veil = document.createElement('div'); veil.style.cssText = 'position:fixed;inset:0;z-index:2;background:#000;opacity:0;pointer-events:none;transition:opacity 1s'; document.body.appendChild(veil);
@@ -139,7 +137,6 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
       else if (it.id === 'mug') it.label = tea.level <= 0.05 ? '빈 잔' : `차 마시기 (${tea.temp > 0.55 ? '따뜻함' : tea.temp > 0.2 ? '미지근함' : '식음'})`;
       else if (it.id === 'kettle') it.label = '차 채우기';
       else if (it.id === 'woodpile') it.label = hearth.pile > 0 ? `장작 넣기 (${hearth.pile}개 남음)` : '장작 채우기 (더미가 비었음)';
-      else if (it.id === 'rack') it.label = hearth.rack > 0 ? `장작을 벽난로 옆으로 옮기기 (선반 ${hearth.rack}개)` : '장작 해 오기';
     }
   };
 

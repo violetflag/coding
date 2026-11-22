@@ -36,7 +36,7 @@ export function buildSections(d) {
       el.append(H('시간'), info, mode, hour, H('날씨와 계절'), select('창밖 날씨', () => env.opts.weather, (v) => env.set({ weather: v }), WEATHERS, '자동은 겨울에 눈, 다른 계절에는 맑음입니다.'), select('계절', () => env.opts.season, (v) => env.set({ season: v }), SEASONS, '자동은 오늘 날짜의 계절을 따릅니다(남반구는 반대).'),
         H('위치 (해와 달 계산용)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; env.locate(); setTimeout(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; }, 2500); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
         note('위치는 이 컴퓨터에만 저장되고 어디로도 보내지 않습니다. 브라우저가 위치를 주지 않으면 서울을 씁니다.'),
-        H('가구와 액자'), note('걸어 다니다가 의자, 탁자, 스탠드, 바구니, 장작 선반을 보고 G를 누르면 옮길 수 있습니다(휠로 돌리기). 액자를 보고 E를 누르면 내 그림을 넣습니다.'),
+        H('가구와 액자'), note('걸어 다니다가 의자, 탁자, 스탠드, 바구니를 보고 G를 누르면 옮길 수 있습니다(휠로 돌리기). 액자를 보고 E를 누르면 내 그림을 넣습니다.'),
         E('div', { className: 'row' }, E('label', { textContent: '되돌리기' }), E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() })));
       this._info = info; this._tick = () => { const S = env.state; info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${WEATHERS[S.weather]}`; };
     }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
@@ -50,7 +50,7 @@ export function buildSections(d) {
     }, onShow() { requestAnimationFrame(() => music.dock(this._slot)); }, onHide() { music.dock(null); } },
     { key: 'hearth', label: '난롯가', build(el) {
       const st = note('');
-      el.append(H('장작'), st, slider('장작 하나가 타는 시간', () => prefs.logMinutes, (v) => { prefs.logMinutes = v; sp(); }, 5, 60, 5, (v) => v + '분', '화실의 장작은 타면서 검게 변하고 줄어듭니다. 다 타면 숯불만 남으니 벽난로 옆 더미에서 장작을 넣어 주세요. 더미는 창 아래 선반에서 채웁니다.'),
+      el.append(H('장작'), st, slider('장작 하나가 타는 시간', () => prefs.logMinutes, (v) => { prefs.logMinutes = v; sp(); }, 5, 60, 5, (v) => v + '분', '화실의 장작은 타면서 검게 변하고 줄어듭니다. 다 타면 숯불만 남으니 벽난로 옆 더미에서 장작을 넣어 주세요. 더미가 비면 더미를 보고 E를 누르거나 아래의 장작 채우기로 채웁니다.'),
         E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:6px' }, E('button', { className: 'primary', textContent: '장작 넣기', onclick: () => d.hearth.startLog() }), E('button', { textContent: '장작 채우기', onclick: () => d.hearth.refill() }), E('button', { textContent: '처음 상태로', onclick: () => d.hearth.reset() })),
         H('잠들기 모드'), slider('잠들기까지', () => prefs.sleepMinutes, (v) => { prefs.sleepMinutes = v; sp(); }, 5, 120, 5, (v) => v + '분', '정한 시간 동안 불이 서서히 숯불이 되고 화면과 소리가 천천히 어두워집니다.'),
         E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:6px' }, E('button', { className: 'primary', textContent: '잠들기 시작', onclick: () => d.hearth.sleep(prefs.sleepMinutes) }), E('button', { textContent: '취소 (불 다시 살리기)', onclick: () => d.hearth.sleep(0) })));

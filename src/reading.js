@@ -36,7 +36,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   const ui = (api.ui = new ReaderUI(host));
 
   // ---- 책을 드는 자리: 무릎 위에 얹고 두 손으로 잡은 책. 눈에서 앞으로 FWD, 아래로 DROP 떨어진 곳에 TILT만큼 세워 둔다.
-  const DROP = 0.42, DEG = Math.PI / 180;                           // 눈에서 무릎 위 책까지의 기본 높이 차(m)
+  const DROP = 0.37, DEG = Math.PI / 180;                           // 눈에서 무릎 위 책까지의 기본 높이 차(m)
   const target = new THREE.Vector3(), tq = new THREE.Quaternion(), eul = new THREE.Euler(), dir = new THREE.Vector3(), right = new THREE.Vector3(), eyeP = new THREE.Vector3();
   let rise = 0; const hands = [];
   // 시선: 읽는 동안의 눈길(위아래·좌우)과 시야각. 설정이나 오른쪽 끌기로 바꾸면 바로 따라간다.
@@ -47,7 +47,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     for (const h of hands) h.visible = !!S.hands;
   }
   function place(snap = false) {
-    applyView();
+    applyView(); book.setOpen(reader.set.bOpen ?? 16);
     const c = player.chair; if (!c) return;
     const yaw = c.yaw, S = reader.set, single = S.single;
     right.set(Math.cos(yaw), 0, -Math.sin(yaw)); eyeP.set(player.pos.x, c.eye, player.pos.z);
@@ -83,23 +83,49 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
       book.group.add(h); hands.push(h); h.visible = !!reader.set.hands;
     }
   }
-  // ---- 무릎과 담요 (앉아 있는 동안 보인다): 체크 담요를 덮은 두 다리
+  // ---- 앉은 사람의 몸 (앉아 있는 동안 보인다): 스웨터를 입은 배, 편한 바지를 입은 두 다리, 털양말을 신은 발.
+  // 다리는 엉덩이에서 무릎을 지나 발목까지 굵기가 변하는 하나의 관으로 만든다.
   const lap = new THREE.Group(); lap.visible = false; scene.add(lap);
   {
-    const cv = document.createElement('canvas'); cv.width = cv.height = 256; const c = cv.getContext('2d');
-    c.fillStyle = '#6d6a60'; c.fillRect(0, 0, 256, 256);
-    const band = (pos, w, col, a) => { c.globalAlpha = a; c.fillStyle = col; for (const o of [0, 128]) { c.fillRect(o + pos, 0, w, 256); c.fillRect(0, o + pos, 256, w); } };
-    band(0, 44, '#2f4a48', 0.6); band(64, 28, '#8a2f28', 0.6); band(22, 5, '#e0d6bc', 0.7); band(100, 4, '#1c2424', 0.7); band(76, 3, '#e0d6bc', 0.55);
-    c.globalAlpha = 0.16; for (let i = 0; i < 256; i += 2) { c.fillStyle = i % 4 ? '#000' : '#fff'; c.fillRect(i, 0, 1, 256); c.fillRect(0, i, 256, 1); } c.globalAlpha = 1;
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.wrapS = tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(3.2, 3.2); tex.anisotropy = 8;
-    const plaid = new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }); api.plaid = plaid;
-    const part = (geo, x, y, z, rx = 0, sx = 1, sy = 1, sz = 1) => { const m = new THREE.Mesh(geo, plaid); m.position.set(x, y, z); m.rotation.x = rx; m.scale.set(sx, sy, sz); m.castShadow = true; m.receiveShadow = true; lap.add(m); return m; };
-    // 좌표: 의자 기준. -Z가 앞, 원점은 바닥의 의자 중심.
-    const thigh = new THREE.CapsuleGeometry(0.095, 0.4, 8, 16);
-    for (const s of [-1, 1]) { part(thigh, s * 0.115, 0.56, -0.22, Math.PI / 2 - 0.06, 1.05, 1, 0.9); part(new THREE.CapsuleGeometry(0.075, 0.34, 8, 14), s * 0.12, 0.32, -0.5, 0.1); part(new THREE.SphereGeometry(0.1, 16, 12), s * 0.118, 0.555, -0.46, 0, 1.05, 0.95, 1.05); }
-    part(new THREE.SphereGeometry(0.2, 20, 14), 0, 0.535, -0.18, 0, 1.25, 0.42, 1.5);        // 다리 사이로 처진 담요
-    part(new THREE.SphereGeometry(0.2, 20, 14), 0, 0.5, 0.06, 0, 1.45, 0.5, 1.0);            // 허리 쪽에 뭉친 담요
-    part(new THREE.SphereGeometry(0.2, 18, 12), 0, 0.34, -0.5, 0, 1.3, 1.25, 0.5);           // 무릎 아래로 늘어진 자락
+    // 천: 가는 능직 결. tint로 옷마다 색을 준다
+    const weave = (base, a, b2, rep) => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d'); c.fillStyle = base; c.fillRect(0, 0, 128, 128);
+      let sd = 7; const r = () => ((sd = (sd * 16807) % 2147483647) / 2147483647);
+      for (let y = 0; y < 128; y += 2) for (let x = 0; x < 128; x += 2) { c.globalAlpha = 0.1 + r() * 0.22; c.fillStyle = ((x + y) / 2) % 4 < 2 ? a : b2; c.fillRect(x, y, 2, 2); }
+      c.globalAlpha = 1; const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); t.anisotropy = 8; return t;
+    };
+    const trouser = new THREE.MeshStandardMaterial({ map: weave('#363d4d', '#434b5e', '#2b3140', [14, 40]), roughness: 0.95 });
+    const knit = new THREE.MeshStandardMaterial({ map: weave('#cfc4ad', '#e6dcc6', '#a89c84', [16, 10]), roughness: 1 });
+    const sock = new THREE.MeshStandardMaterial({ map: weave('#8c8478', '#b3aa9a', '#5e584e', [8, 10]), roughness: 1 });
+    api.bodyMats = [trouser, knit, sock];
+    // pts: [x, y, z, 반지름] 의 줄. 사이를 부드럽게 이어 관을 만든다. flat = 단면의 납작한 정도(앉으면 허벅지가 눌린다)
+    const limb = (pts, mat, flat = 1, RING = 20, STEP = 8) => {
+      const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(p[0], p[1], p[2])), false, 'centripetal'), n = (pts.length - 1) * STEP;
+      const rad = (t) => { const f = t * (pts.length - 1), i = Math.min(pts.length - 2, Math.floor(f)), k = f - i, e = k * k * (3 - 2 * k); return pts[i][3] * (1 - e) + pts[i + 1][3] * e; };
+      const P = [], U = [], I = [], T = new THREE.Vector3(), N = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), side = new THREE.Vector3(1, 0, 0);
+      for (let i = 0; i <= n; i++) {
+        const t = i / n; curve.getPoint(t, C); curve.getTangent(t, T); B.crossVectors(T, side).normalize(); N.crossVectors(B, T).normalize();   // N = 옆, B = 위아래
+        const r = rad(t);
+        for (let j = 0; j <= RING; j++) { const a = (j / RING) * Math.PI * 2, cx = Math.cos(a) * r, cy = Math.sin(a) * r * flat; P.push(C.x + N.x * cx + B.x * cy, C.y + N.y * cx + B.y * cy, C.z + N.z * cx + B.z * cy); U.push(j / RING, t); }
+      }
+      for (let i = 0; i < n; i++) for (let j = 0; j < RING; j++) { const a = i * (RING + 1) + j, b3 = a + RING + 1; I.push(a, a + 1, b3, a + 1, b3 + 1, b3); }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('uv', new THREE.Float32BufferAttribute(U, 2)); geo.setIndex(I); geo.computeVertexNormals();
+      // 이음매(j = 0과 RING)의 법선을 맞춘다
+      const nor = geo.attributes.normal; for (let i = 0; i <= n; i++) { const a = i * (RING + 1), b3 = a + RING, x = nor.getX(a) + nor.getX(b3), y = nor.getY(a) + nor.getY(b3), z = nor.getZ(a) + nor.getZ(b3), l = Math.hypot(x, y, z) || 1; nor.setXYZ(a, x / l, y / l, z / l); nor.setXYZ(b3, x / l, y / l, z / l); }
+      const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; lap.add(m); return m;
+    };
+    const blob = (mat, x, y, z, sx, sy, sz, rx = 0) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat); m.position.set(x, y, z); m.scale.set(sx, sy, sz); m.rotation.x = rx; m.castShadow = true; m.receiveShadow = true; lap.add(m); return m; };
+    // 좌표: 의자 기준. -Z가 앞, 원점은 바닥의 의자 중심. 오른발을 조금 더 내밀어 좌우가 똑같지 않게 한다.
+    for (const s of [-1, 1]) {
+      const f = s > 0 ? 0.05 : 0, kx = s * 0.125;
+      limb([[s * 0.1, 0.55, 0.2, 0.1], [s * 0.105, 0.55, 0.02, 0.097], [s * 0.115, 0.555, -0.2, 0.084], [kx, 0.555, -0.38, 0.068], [kx, 0.53, -0.47 - f * 0.3, 0.06],
+        [kx, 0.44, -0.52 - f * 0.6, 0.057], [kx, 0.3, -0.55 - f, 0.054], [kx, 0.16, -0.565 - f * 1.2, 0.046], [kx, 0.085, -0.57 - f * 1.3, 0.043]], trouser, 0.86);
+      // 양말: 발목에서 발등을 지나 발끝까지
+      limb([[kx, 0.13, -0.57 - f * 1.3, 0.04], [kx, 0.07, -0.58 - f * 1.3, 0.041], [kx * 1.02, 0.047, -0.65 - f * 1.3, 0.043], [kx * 1.06, 0.04, -0.74 - f * 1.3, 0.04], [kx * 1.08, 0.036, -0.79 - f * 1.3, 0.026]], sock, 0.8, 16, 6);
+      blob(sock, kx * 1.08, 0.036, -0.79 - f * 1.3, 0.027, 0.022, 0.03); blob(sock, kx, 0.05, -0.565 - f * 1.3, 0.042, 0.04, 0.05);
+    }
+    blob(knit, 0, 0.82, 0.17, 0.19, 0.3, 0.125, -0.12);                                      // 배와 가슴
+    blob(knit, 0, 0.6, 0.14, 0.2, 0.09, 0.15);                                              // 스웨터 밑단
   }
   async function openPicked() {
     await reader.ready;
@@ -202,7 +228,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     const reading = player.state === 'reading';
     // 무릎과 담요는 앉아 있는 의자를 따라간다
     const ch = player.chair; lap.visible = !!ch && (player.state === 'seated' || reading || (player.state === 'sitting' && player.tween?.t > 0.7));
-    if (lap.visible) { lap.position.set(ch.pos[0], ch.eye - 1.08 - 0.075, ch.pos[1]); lap.rotation.y = ch.yaw; }
+    if (lap.visible) { lap.position.set(ch.pos[0], ch.eye - 1.08, ch.pos[1]); lap.rotation.y = ch.yaw; }
     reader.tick(dt, reading && book.group.visible);
     if (!book.group.visible) { bookLight.intensity = 0; return; }
     rise = Math.min(1, rise + dt * 2.2);
@@ -212,7 +238,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 밤에는 종이가 방보다 지나치게 희지 않게 낮추고(불빛 색을 띤 크림색), 낮에는 창빛만큼 밝힌다
     bookLight.intensity = steady ? 0.5 : 0.07 + 0.3 * light.fire + 0.1 * light.day;
     // 낮에는 누운 책이 하늘빛과 창빛을 그대로 받아 종이가 하얗게 날아간다: 낮일수록 종이를 어둡게 받고, 방의 반사광은 받지 않게 한다. '종이 밝기'로 직접 맞출 수도 있다.
-    const pk = (reader.set.bright ?? 1) * (1 - 0.72 * light.day);
+    const pk = (reader.set.bright ?? 1) * (1 - 0.66 * light.day);
     for (const m of Object.values(book.mat)) { m.color.setScalar(pk); m.envMapIntensity = 0; }
     bookLight.color.setRGB(1, 0.69 + 0.31 * light.day, 0.44 + 0.56 * light.day);
   };

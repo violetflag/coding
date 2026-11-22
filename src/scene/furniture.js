@@ -9,52 +9,54 @@ const rbox = (w, h, d, r, m) => shadow(new THREE.Mesh(new RoundedBoxGeometry(w, 
 const cyl = (r0, r1, h, m, seg = 16) => shadow(new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), m));
 const at = (mesh, x, y, z, rx = 0, ry = 0, rz = 0) => { mesh.position.set(x, y, z); mesh.rotation.set(rx, ry, rz); return mesh; };
 
-// ---- 가죽 안락의자 (클럽 체어). -Z를 바라본다. wing = 귀가 달린 높은 등받이.
-// 둥글게 말린 팔걸이, 두툼한 좌판 쿠션, 단추로 누빈 등, 앞면을 따라 박은 황동 징.
-export function armchair(M, { wing = false, leather = M.leather, pillow = null, throwMat = null } = {}) {
-  const g = new THREE.Group();
-  for (const [x, z] of [[-0.36, -0.34], [0.36, -0.34], [-0.36, 0.36], [0.36, 0.36]]) g.add(at(cyl(0.035, 0.026, 0.09, M.woodDark, 10), x, 0.045, z));
-  g.add(at(rbox(0.9, 0.22, 0.86, 0.06, leather), 0, 0.2, 0.01));                      // 몸통 아래
-  g.add(at(rbox(0.6, 0.17, 0.66, 0.075, leather), 0, 0.4, -0.08));                    // 좌판 쿠션
-  const bh = wing ? 0.9 : 0.66, tilt = 0.17;
-  g.add(at(rbox(0.88, bh, 0.2, 0.09, leather), 0, 0.3 + bh / 2, 0.36, tilt));         // 등받이
-  g.add(at(rbox(0.6, bh - 0.2, 0.13, 0.06, leather), 0, 0.44 + (bh - 0.2) / 2, 0.245, tilt)); // 등 쿠션
-  const studs = [], stud = (x, y, z) => studs.push([x, y, z]);
-  for (const s of [-1, 1]) {
-    g.add(at(rbox(0.17, 0.34, 0.8, 0.06, leather), s * 0.39, 0.44, 0.0));              // 팔걸이 몸통
-    g.add(at(cyl(0.105, 0.105, 0.78, leather, 18), s * 0.4, 0.6, 0.0, Math.PI / 2));   // 말린 윗부분
-    const cap = shadow(new THREE.Mesh(new THREE.SphereGeometry(0.105, 18, 12), leather)); cap.scale.z = 0.3; g.add(at(cap, s * 0.4, 0.6, -0.39));
-    for (let k = 0; k < 14; k++) { const a = (k / 14) * Math.PI * 2; stud(s * 0.4 + Math.cos(a) * 0.088, 0.6 + Math.sin(a) * 0.088, -0.417); }   // 팔걸이 앞 소용돌이의 징
-    for (let k = 0; k < 6; k++) stud(s * (0.325 + 0.0), 0.3 + k * 0.035, -0.405);
-    if (wing) { g.add(at(rbox(0.1, 0.52, 0.3, 0.045, leather), s * 0.4, 0.98, 0.2, tilt, 0, s * -0.05)); for (let k = 0; k < 9; k++) stud(s * 0.4, 0.76 + k * 0.05, 0.045 + (0.76 + k * 0.05 - 0.98) * tilt - 0.0); }
+// ---- 푹신한 쿠션 조각: 모서리가 둥근 상자를 한쪽으로 부풀린다. puff = [축('x'|'y'|'z'), 부호, 부푸는 높이], 여러 개를 줄 수 있다.
+// 상자 면이 만나는 곳의 법선을 합쳐 이음매가 보이지 않게 한다.
+function cushion(w, h, d, r, m, ...puffs) {
+  // 고르게 나눈 상자의 모서리를 둥글린다(면 한가운데에도 정점이 있어야 부풀릴 수 있다)
+  r = Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3);
+  const seg = (len) => Math.max(4, Math.round(len / Math.min(0.045, r / 2.5)));
+  const geo = new THREE.BoxGeometry(w, h, d, seg(w), seg(h), seg(d)), pos = geo.attributes.position, half = { x: w / 2, y: h / 2, z: d / 2 };
+  // UV는 미터 단위로 편다(사진 텍스처가 쿠션 크기와 상관없이 같은 크기로 입혀진다)
+  { const uv = geo.attributes.uv, n0 = geo.attributes.normal; for (let i = 0; i < pos.count; i++) { const ax = Math.abs(n0.getX(i)) > 0.5 ? 0 : Math.abs(n0.getY(i)) > 0.5 ? 1 : 2, x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i); uv.setXY(i, ax === 0 ? z : x, ax === 1 ? z : y); } }
+  { const q = new THREE.Vector3(), p = new THREE.Vector3(); for (let i = 0; i < pos.count; i++) { p.fromBufferAttribute(pos, i); q.set(Math.max(-(w / 2 - r), Math.min(w / 2 - r, p.x)), Math.max(-(h / 2 - r), Math.min(h / 2 - r, p.y)), Math.max(-(d / 2 - r), Math.min(d / 2 - r, p.z))); p.sub(q).setLength(r).add(q); pos.setXYZ(i, p.x, p.y, p.z); } }
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    for (const [ax, sign, amt] of puffs) {
+      const [a, b] = ax === 'x' ? ['y', 'z'] : ax === 'y' ? ['x', 'z'] : ['x', 'y'];
+      const side = Math.max(0, (v[ax] * sign) / half[ax]);                                        // 부푸는 면에 가까울수록 1
+      const fa = 1 - (v[a] / half[a]) ** 2, fb = 1 - (v[b] / half[b]) ** 2;
+      v[ax] += sign * amt * side * Math.sqrt(Math.max(0, fa * fb));
+    }
+    pos.setXYZ(i, v.x, v.y, v.z);
   }
-  for (let k = 0; k < 19; k++) stud(-0.405 + k * 0.045, 0.12, -0.425);                 // 앞치마를 따라 박은 징
-  const sg = new THREE.SphereGeometry(0.0085, 8, 6), si = new THREE.InstancedMesh(sg, M.brass, studs.length), m4 = new THREE.Matrix4();
-  studs.forEach((p, i) => si.setMatrixAt(i, m4.makeTranslation(p[0], p[1], p[2]))); g.add(si);
-  // 등받이 단추(터프팅)
-  const btn = new THREE.SphereGeometry(0.013, 8, 6);
-  for (let j = 0; j < (wing ? 4 : 2); j++) for (let i = -1; i <= (j % 2 ? 0 : 1); i++) {
-    const y = 0.6 + j * 0.17, b = new THREE.Mesh(btn, leather); b.position.set(i * 0.17 + (j % 2 ? 0.085 : 0), y, 0.185 + (y - 0.44) * tilt); g.add(b);
-  }
-  if (pillow) g.add(at(rbox(0.4, 0.34, 0.12, 0.055, pillow), 0.03, 0.66, 0.14, 0.32, 0, 0.07));
-  if (throwMat) { g.add(at(rbox(0.5, 0.05, 0.34, 0.022, throwMat), -0.22, 0.3 + bh + 0.0, 0.4, tilt, 0, 0.03)); g.add(at(rbox(0.5, 0.42, 0.045, 0.02, throwMat), -0.22, 0.3 + bh - 0.2, 0.49, tilt)); }
-  g.userData.seatH = 0.49;
-  return g;
+  geo.computeVertexNormals();
+  const nor = geo.attributes.normal, acc = new Map(), key = (i) => `${Math.round(pos.getX(i) * 2e3)},${Math.round(pos.getY(i) * 2e3)},${Math.round(pos.getZ(i) * 2e3)}`;
+  for (let i = 0; i < pos.count; i++) { const k = key(i), n = acc.get(k) || acc.set(k, new THREE.Vector3()).get(k); n.x += nor.getX(i); n.y += nor.getY(i); n.z += nor.getZ(i); }
+  for (let i = 0; i < pos.count; i++) { const n = acc.get(key(i)); v.copy(n).normalize(); nor.setXYZ(i, v.x, v.y, v.z); }
+  return shadow(new THREE.Mesh(geo, m));
 }
 
-// ---- 격자 철제 장작 선반 (창 아래). 쪼갠 장작을 눕혀 쌓는다
-export function logRack(M, w = 0.9, h = 0.62, d = 0.34) {
-  const g = new THREE.Group(), r = rng(91), bar = (len, x, y, z, rx = 0, rz = 0) => g.add(at(cyl(0.007, 0.007, len, M.iron, 6), x, y, z, rx, 0, rz));
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) bar(h, sx * w / 2, h / 2, sz * d / 2);
-  for (const y of [0.06, h]) { for (const sz of [-1, 1]) bar(w, 0, y, sz * d / 2, 0, Math.PI / 2); for (const sx of [-1, 1]) bar(d, sx * w / 2, y, 0, Math.PI / 2); }
-  for (const sx of [-1, 1]) for (let k = 1; k < 4; k++) { const z = -d / 2 + (d * k) / 4; bar(Math.hypot(h, d / 4), sx * w / 2, h / 2, z, 0.14 * (k % 2 ? 1 : -1)); }   // 옆면 격자
-  for (let k = 0; k < 7; k++) bar(h * 1.02, -w / 2 + (w * (k + 0.5)) / 7, h / 2 + 0.03, d / 2, 0, (k % 2 ? 1 : -1) * 0.2);                                   // 앞면 격자
-  const logs = [];
-  for (let row = 0; row < 3; row++) for (let i = 0; i < 6; i++) {
-    const rad = 0.05 + r() * 0.014, log = cyl(rad, rad * 0.95, d * 0.92, [M.bark, M.endGrain, M.endGrain], 10);
-    g.add(at(log, -w / 2 + 0.085 + i * 0.146 + (row % 2) * 0.04 + (r() - 0.5) * 0.02, 0.12 + row * 0.105, (r() - 0.5) * 0.02, Math.PI / 2, 0, (r() - 0.5) * 0.1)); logs.push(log);
+// ---- 푹신한 안락의자. -Z를 바라본다. wing = 등받이가 높은 쪽(머리까지 기대는 의자).
+// 장식 없이 두툼한 쿠션만으로 이루어진다: 낮은 몸통, 불룩한 좌판 쿠션, 몸을 감싸는 둥근 팔걸이, 기대면 꺼질 듯한 등 쿠션.
+export function armchair(M, { wing = false, leather = M.leather, pillow = null, throwMat = null } = {}) {
+  const g = new THREE.Group();
+  for (const [x, z] of [[-0.37, -0.33], [0.37, -0.33], [-0.37, 0.37], [0.37, 0.37]]) g.add(at(cyl(0.04, 0.03, 0.07, M.woodDark, 12), x, 0.035, z));
+  g.add(at(cushion(0.96, 0.25, 0.9, 0.1, leather, ['z', -1, 0.025]), 0, 0.19, 0.02));                         // 몸통 아래
+  g.add(at(cushion(0.62, 0.2, 0.68, 0.095, leather, ['y', 1, 0.035], ['z', -1, 0.035]), 0, 0.39, -0.085));       // 좌판 쿠션
+  const bh = wing ? 0.92 : 0.7, tilt = 0.2;
+  g.add(at(cushion(0.94, bh, 0.24, 0.115, leather, ['z', 1, 0.03], ['y', 1, 0.03]), 0, 0.28 + bh / 2, 0.4, tilt));   // 등받이 틀
+  // 등 쿠션: 아래는 허리를 받치고, 높은 의자는 위에 머리 쿠션이 하나 더 있다
+  const lh = wing ? 0.46 : bh - 0.2;
+  g.add(at(cushion(0.62, lh, 0.2, 0.095, leather, ['z', -1, 0.06], ['y', 1, 0.02]), 0, 0.47 + lh / 2, 0.275 + (lh / 2) * tilt, tilt));
+  if (wing) g.add(at(cushion(0.6, 0.36, 0.17, 0.085, leather, ['z', -1, 0.055], ['y', -1, 0.015]), 0, 1.07, 0.275 + 0.6 * tilt, tilt));
+  for (const s of [-1, 1]) {
+    // 팔걸이: 바깥과 위와 앞으로 불룩한 두꺼운 쿠션. 등받이 쪽으로 가며 조금 높아진다
+    g.add(at(cushion(0.23, 0.46, 0.84, 0.112, leather, ['y', 1, 0.035], ['x', s, 0.03], ['z', -1, 0.03]), s * 0.385, 0.43, -0.005, -0.045));
   }
-  g.userData.max = logs.length; g.userData.setCount = (n) => logs.forEach((l, i) => { l.visible = i < n; });   // 위에서부터 줄어든다
+  if (pillow) g.add(at(cushion(0.4, 0.36, 0.13, 0.06, pillow, ['z', -1, 0.045], ['z', 1, 0.03]), 0.04, 0.68, 0.15, 0.3, 0.1, 0.09));
+  if (throwMat) { g.add(at(cushion(0.5, 0.07, 0.36, 0.03, throwMat, ['y', 1, 0.012]), -0.2, 0.3 + bh, 0.47, tilt, 0, 0.03)); g.add(at(cushion(0.5, 0.42, 0.05, 0.022, throwMat, ['z', 1, 0.012]), -0.2, 0.3 + bh - 0.2, 0.585, tilt)); }
+  g.userData.seatH = 0.5;
   return g;
 }
 
@@ -247,8 +249,7 @@ export function curtain(M, w, h) {
 export function basket(M) {
   const g = new THREE.Group();
   g.add(at(cyl(0.22, 0.18, 0.3, M.wicker, 18), 0, 0.15, 0));
-  g.add(at(rbox(0.3, 0.14, 0.26, 0.06, M.blanket), 0, 0.31, 0, 0.1, 0.4));
-  g.add(at(rbox(0.24, 0.1, 0.2, 0.05, M.cloth), 0.03, 0.37, 0.02, -0.1, -0.3));
+  g.add(at(cushion(0.36, 0.14, 0.32, 0.065, M.cloth, ['y', 1, 0.04]), 0, 0.27, 0, 0.05, 0.4));     // 개어 넣은 담요
   return g;
 }
 

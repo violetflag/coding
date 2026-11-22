@@ -185,7 +185,7 @@ export function buildRoom(ctx) {
 
   // 가죽 의자 2개 (둘 다 앉을 수 있다)
   for (const c of CHAIRS) {
-    const ch = F.armchair(M, c.id === 'wing' ? { wing: true, pillow: M.cloth, throwMat: M.blanket } : {});
+    const ch = F.armchair(M, c.id === 'wing' ? { wing: true, pillow: M.cloth } : {});
     put(ch, c.pos[0], 0, c.pos[1], c.yaw); ch.name = 'chair-' + c.id; c.obj = ch;
     const it = inter({ id: 'chair:' + c.id, label: '앉기', pos: [0, 0, 0], radius: 0.6, chair: c });
     movable('chair:' + c.id, c.label, ch, 0.47, 1.1, [[it, null, 0.55]], (o) => { c.pos[0] = o.position.x; c.pos[1] = o.position.z; c.yaw = o.rotation.y; });
@@ -205,11 +205,7 @@ export function buildRoom(ctx) {
   const lamp = put(F.floorLamp(M, LAMP.h), LAMP.x, 0, LAMP.z); ctx.lamp = lamp; ctx.lampShade = lamp.userData.shade;
   movable('lamp', '스탠드', lamp, 0.16, 1.8, [[inter({ id: 'lamp', label: '스탠드 켜기/끄기', pos: [0, 0, 0], radius: 0.35 }), null, LAMP.h]], (o) => ctx.onLampMove?.(o));
 
-  // 고리버들 바구니 (윙체어 옆), 창 아래 철제 장작 선반과 기대 세운 책
+  // 고리버들 바구니 (윙체어 옆)
   movable('basket', '바구니', put(F.basket(M), 2.0, 0, 1.25, 0.5), 0.24, 0.5);
-  ctx.woodRack = put(F.logRack(M), 2.75, 0, 0.3);
-  movable('rack', '장작 선반', ctx.woodRack, 0.3, 0.7, [[inter({ id: 'rack', label: '장작 채우기', pos: [0, 0, 0], radius: 0.5 }), null, 0.4]], (o) => { const p = o.position, c = Math.abs(Math.cos(o.rotation.y)), s2 = Math.abs(Math.sin(o.rotation.y)), hx = 0.47 * c + 0.19 * s2, hz = 0.19 * c + 0.47 * s2, m = ctx.movables.find((v) => v.id === 'rack'); if (m) { m.col.min[0] = p.x - hx; m.col.max[0] = p.x + hx; m.col.min[2] = p.z - hz; m.col.max[2] = p.z + hz; } });
-  ctx.movables.find((v) => v.id === 'rack').sync();
-  { const lb = F.bookStack(BOOK_COLORS, 3, 21); lb.rotation.set(0, 0.2, Math.PI / 2 - 0.22); put(lb, 3.72, 0.1, 0.36, 0.2); lb.rotation.z = Math.PI / 2 - 0.22; }
   return g;
 }

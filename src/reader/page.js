@@ -53,7 +53,7 @@ export function drawPage(cv, o) {
     for (const y of [0, H]) { const s = 30 + r() * 40; c.beginPath(); c.moveTo(outer, y); c.lineTo(outer + (o.side === 'L' ? s : -s), y); c.quadraticCurveTo(outer + (o.side === 'L' ? s * 0.3 : -s * 0.3), y + (y ? -s * 0.3 : s * 0.3), outer, y + (y ? -s : s)); c.fill(); }
   }
   // 책등 쪽 그늘
-  const gx = o.side === 'L' ? W : 0, gg = c.createLinearGradient(gx, 0, gx + (o.side === 'L' ? -110 : 110), 0); gg.addColorStop(0, 'rgba(40,25,10,.3)'); gg.addColorStop(0.35, 'rgba(40,25,10,.09)'); gg.addColorStop(1, 'rgba(40,25,10,0)'); c.fillStyle = gg; c.fillRect(o.side === 'L' ? W - 110 : 0, 0, 110, H);
+  const gx = o.side === 'L' ? W : 0, gg = c.createLinearGradient(gx, 0, gx + (o.side === 'L' ? -150 : 150), 0); gg.addColorStop(0, 'rgba(40,25,10,.62)'); gg.addColorStop(0.14, 'rgba(40,25,10,.3)'); gg.addColorStop(0.45, 'rgba(40,25,10,.08)'); gg.addColorStop(1, 'rgba(40,25,10,0)'); c.fillStyle = gg; c.fillRect(o.side === 'L' ? W - 110 : 0, 0, 110, H);
   if (!page) return;
 
   if (o.pdfImage) {                                                        // PDF: 쪽 그림을 종이 위에 맞춰 놓는다

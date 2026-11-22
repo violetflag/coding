@@ -97,7 +97,6 @@ async function main() {
     onInteract(it) {
       if (it.id === 'lamp') { setLamp(!lampOn); sfx('click'); }
       else if (it.id === 'woodpile') { if (cozy.hearth.startLog()) fireSound?.trigger('log-shift', 0.6); }
-      else if (it.id === 'rack') cozy.hearth.refill();
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
       else if (it.candle) cozy.toggleCandle(it.candle);
       else if (it.id === 'mug') cozy.sip();
@@ -134,15 +133,17 @@ async function main() {
   if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
-  let scale = Math.min(1, 1600 / innerWidth) * Math.min(devicePixelRatio, 1.5);
+  // 방은 가로 1920픽셀까지만 그린다: 4K 화면에서도 1080p와 같은 부하가 되게 한다(나머지는 화면이 늘려 보여 준다)
+  const cap = () => Math.min(devicePixelRatio, 1.5, 1920 / innerWidth);
+  let scale = cap();
   if (Q.has('rs')) scale = +Q.get('rs') || scale;
   if (Q.has('nocandle')) scene.traverse((o) => { if (o.isPointLight && o.distance === 2.6) o.visible = false; });
   const fit = () => {
     // 책을 읽는 동안은 글자가 또렷하도록 화면 해상도를 낮추지 않는다
-    const pr = player.state === 'reading' ? Math.max(scale, Math.min(devicePixelRatio, 2, 2240 / innerWidth)) : scale;   // 읽는 동안은 또렷하게, 다만 가로 2240픽셀을 넘기지 않는다
+    const pr = player.state === 'reading' ? Math.max(Math.min(scale, cap()), Math.min(devicePixelRatio, 2, 2240 / innerWidth)) : Q.has('rs') ? scale : Math.min(scale, cap());   // 읽는 동안은 또렷하게, 다만 가로 2240픽셀을 넘기지 않는다
     renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    fire?.resize(innerWidth, innerHeight, Math.min(devicePixelRatio, 1.5)); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
+    fire?.resize(innerWidth, innerHeight, cap()); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
   };
   addEventListener('resize', fit); fit(); fitSoon = () => fit();
 
@@ -281,7 +282,7 @@ async function main() {
       const now = performance.now();
       if (!Q.has('fixed') && !Q.has('rs') && player.state !== 'reading' && now - lastFit > 1500) {
         if (fpsMs > 24 && scale > 0.5) { scale = Math.max(0.5, scale * 0.88); lastFit = now; fit(); }
-        else if (fpsMs < 12.5 && scale < Math.min(devicePixelRatio, 1.5)) { scale = Math.min(Math.min(devicePixelRatio, 1.5), scale * 1.08); lastFit = now; fit(); }
+        else if (fpsMs < 12.5 && scale < cap()) { scale = Math.min(cap(), scale * 1.08); lastFit = now; fit(); }
       }
       if (showStats) {
         const be = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';

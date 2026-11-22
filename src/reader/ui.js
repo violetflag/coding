@@ -157,7 +157,7 @@ export class ReaderUI {
       el('h3', { textContent: '읽기 자세' }),
       ...(() => { const pv = () => { this.r.saveSettings(); this.host.onView?.(); }, deg = (v) => Math.round(v) + '°', cm = (v) => Math.round(v * 100) + 'cm';
         return [slider('시선 위아래', S, 'vPitch', [-75, 30, 1], pv, deg), slider('시선 좌우', S, 'vYaw', [-70, 70, 1], pv, deg), slider('시야각', S, 'vFov', [24, 75, 1], pv, deg),
-          slider('책 높이', S, 'bH', [-0.15, 0.45, 0.01], pv, cm), slider('책 거리', S, 'bDist', [0.25, 0.7, 0.01], pv, cm), slider('책 좌우', S, 'bSide', [-0.3, 0.3, 0.01], pv, cm), slider('책 기울기', S, 'bTilt', [0, 90, 1], pv, deg),
+          slider('책 높이', S, 'bH', [-0.15, 0.45, 0.01], pv, cm), slider('책 거리', S, 'bDist', [0.25, 0.7, 0.01], pv, cm), slider('책 좌우', S, 'bSide', [-0.3, 0.3, 0.01], pv, cm), slider('책 기울기', S, 'bTilt', [0, 90, 1], pv, deg), slider('책 펼침(접힌 각도)', S, 'bOpen', [0, 35, 1], pv, deg),
           check('책을 잡은 손 보이기', S, 'hands', pv),
           el('div', { className: 'btns' }, el('button', { textContent: '자세 처음대로', onclick: () => { Object.assign(S, POSE_DEFAULTS); pv(); this.renderPanel(); } })),
           el('p', { className: 'sub', textContent: '읽는 중에 마우스 오른쪽 단추로 끌면 시선이 움직입니다. Shift+휠은 책 기울기, Alt+휠은 책 높이, Ctrl+휠은 확대입니다.' })]; })(),

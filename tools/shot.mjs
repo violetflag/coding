@@ -19,6 +19,8 @@ const VIEWS = {
   window: { pos: [2.8, 2.3], yaw: [2.8, 0], pitch: 0.0 },
   room1: { pos: [2.9, 4.4], yaw: [3.3, 0.5], pitch: -0.12 },
   room2: { pos: [4.6, 4.2], yaw: [1.0, 1.2], pitch: -0.1 },
+  chair1: { pos: [2.0, 2.3], yaw: [3.05, 3.75], pitch: -0.42 },
+  chair2: { pos: [2.75, 3.0], yaw: [1.2, 2.05], pitch: -0.4 },
   hearthclose: { pos: [4.0, 1.0], yaw: [5.0, 2.2], pitch: -0.75 },
   spines: { pos: [1.1, 3.0], yaw: [0.2, 3.0], pitch: 0.0 },
 };
