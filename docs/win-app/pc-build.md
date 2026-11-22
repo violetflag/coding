@@ -347,3 +347,33 @@ ISCC 는 처음 한 번 "Resource update error: EndUpdateResource failed (110)"�
 | 기본 프로그램 | **바뀌지 않음.** `UserChoice`의 ProgId 가 설치 전후로 같다(.epub 은 기존 앱, .pdf 는 `MSEdgePDF`). |
 
 탐색기에서 책 파일을 오른쪽 단추로 눌러 "연결 프로그램"에 난로가 보이는지는 눈으로 확인하지 않았다(레지스트리 값만 확인).
+## 켜는 시간 조사 마지막 (0.2.0, 창 합계 88초)
+
+| 실행 | textures | envCompiled | 사이 | settled |
+|---|---|---|---|---|
+| Playwright 없이 켠 Edge, 새 프로필 | 3282 | 16849 | 13.6초 | 19093 |
+| Playwright 없이 켠 Edge, 두 번째 | 2776 | 9493 | 6.7초 | 11605 |
+| 프로그램, 켤 때 | 2579 | 9435 | 6.9초 | 11644 |
+| 프로그램, 같은 창에서 다시 읽기 | 9422 | 23341 | 13.9초 | 25009 |
+| Playwright 로 켠 Edge, 켤 때 | 2337 | 3227 | 0.9초 | 4823 |
+| Playwright 로 켠 Edge, 같은 창에서 다시 읽기 | 2449 | 9190 | 6.7초 | 10926 |
+
+Playwright 없이 켠 Edge 는 `msedge.exe --remote-debugging-port=9337 --user-data-dir=<시험용 프로필> --start-fullscreen --no-first-run http://127.0.0.1:5320/` 로 켰다.
+
+`textures` → `envCompiled` 구간의 자기 시간(CPU 프로파일, 다시 읽기 때):
+
+| | 프로그램 (13.9초) | Edge (6.7초) |
+|---|---|---|
+| (idle) | 12990ms | 5687ms |
+| copyExternalImageToTexture | 571ms | 665ms |
+| (program) | 48ms | 44ms |
+| (garbage collector) | 39ms | 29ms |
+| build | 27ms | 45ms |
+| getDataFromNode | 16ms | 17ms |
+| 그 밖의 함수 | 각각 15ms 아래 | 각각 11ms 아래 |
+
+읽은 것:
+
+- **프로그램이 Edge 보다 느린 것이 아니다.** 보통 방식으로 켠 Edge 도 처음 13.6초, 두 번째 6.7초로 프로그램(13.6초 / 6.8초)과 같다. 지금까지 견준 0.9초는 Playwright 로 켠 Edge 를 처음 읽을 때만 나오는 값이고, 그 Edge 도 같은 창에서 다시 읽으면 6.7초다.
+- **그 구간에 화면 쪽 코드는 거의 돌지 않는다.** 시간의 85~93%가 (idle)이다. 화면 쪽은 컴파일이 끝나기를 기다리고 있을 뿐이고, 자바스크립트가 쓰는 시간은 텍스처 올리기 0.6초를 빼면 0.2초 아래다.
+- Playwright 로 켠 Edge 의 첫 읽기만 왜 0.9초인지는 가리지 못했다.
