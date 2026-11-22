@@ -34,7 +34,7 @@ export class Sky {
       lim: uniform(6), gain: uniform(1), tw: uniform(1), mw: uniform(0),
       line0: uniform(new THREE.Color()), line1: uniform(new THREE.Color()), line2: uniform(new THREE.Color()), label0: uniform(new THREE.Color()), label1: uniform(new THREE.Color()),
       sunDir: uniform(new THREE.Vector3(0, 1, 0)), sunCol: uniform(new THREE.Color()), sunDisc: uniform(0), sunGlow: uniform(0), sunScale: uniform(1),
-      moonDir: uniform(new THREE.Vector3(0, 1, 0)), moonCol: uniform(new THREE.Color()), moonI: uniform(0), earth: uniform(0), moonHalo: uniform(0),
+      moonDir: uniform(new THREE.Vector3(0, 1, 0)), pole: uniform(new THREE.Vector3(0, 1, 0)), moonCol: uniform(new THREE.Color()), moonI: uniform(0), earth: uniform(0), moonHalo: uniform(0),
     };
     this._m4 = new THREE.Matrix4(); this._white = new THREE.Color(); this.ready = false;
     this._buildSun(); this._buildMoon();
@@ -76,7 +76,7 @@ export class Sky {
     this.stars = this._mesh(g, mat, -2.2);
   }
 
-  // ---- 은하수: 등장방형 밝기 그림을 같은 회전 구에 입힌다. 궁수자리(은하 중심) 쪽이 더 밝고 따뜻하다.
+  // ---- 은하수: 등장방형 밝기 그림을 같은 회전 구에 입힌다. 궁수자리(은하 중심) 쪽이 더 밝고 조금 따뜻하다(어두운 노랑은 갈색으로 보이니 옅게).
   _buildMilkyWay(tex) {
     const sg = new THREE.SphereGeometry(1, 96, 48), p = sg.attributes.position, d = new Float32Array(p.count * 3);
     for (let i = 0; i < p.count; i++) d.set([-p.getX(i), p.getZ(i), p.getY(i)], i * 3);   // 구의 u = 적경/360, 위 = 천구 북극
@@ -88,7 +88,7 @@ export class Sky {
     mat.colorNode = Fn(() => {
       const v = texture(tex, uv()).r, b = v.mul(v), k = core.pow(3);
       const hz = smoothstep(0.0, 0.25, vy);
-      return mix(vec3(0.62, 0.7, 0.9), vec3(0.95, 0.85, 0.7), k).mul(b).mul(k.mul(1.8).add(0.5)).mul(hz).mul(this.u.mw);
+      return mix(vec3(0.62, 0.7, 0.9), vec3(0.9, 0.86, 0.78), k).mul(b).mul(k.mul(1.8).add(0.5)).mul(hz).mul(this.u.mw);
     })();
     this.milky = this._mesh(g, mat, -2.6);
   }
@@ -131,9 +131,9 @@ export class Sky {
     this.labels = this._mesh(g, mat, -2.1);
   }
 
-  // 해·달 공통: 방향 하나에 놓는 사각형. 가로·세로 축은 지평선 기준(달의 무늬가 하늘에 고정되게).
-  _disc(dirU, halfDeg, scale) {
-    const corner = attribute('aCorner', 'vec2'), fw = normalize(viewOf(dirU)), upW = viewOf(vec3(0.0001, 1, 0));
+  // 해·달 공통: 방향 하나에 놓는 사각형. 세로 축은 upDir(해: 천정, 달: 천구 북극. 달의 무늬는 뜰 때 기울고 질 때 반대로 기운다).
+  _disc(dirU, halfDeg, scale, upDir = vec3(0.0001, 1, 0)) {
+    const corner = attribute('aCorner', 'vec2'), fw = normalize(viewOf(dirU)), upW = viewOf(upDir);
     const right = normalize(cross(fw, upW)), up = cross(right, fw);
     const pos = fw.add(right.mul(corner.x).add(up.mul(corner.y)).mul(Math.tan(halfDeg * DEG)).mul(scale));
     return { corner, fw, right, up, clip: Fn(() => farClip(pos))() };
@@ -155,7 +155,7 @@ export class Sky {
 
   // ---- 달: 해 방향으로 비추는 구(위상과 밝은 쪽이 저절로 맞는다), 바다 무늬, 어두운 쪽의 지구빛(지구에 반사된 햇빛)
   _buildMoon() {
-    const U = this.u, S = 1.25, d = this._disc(U.moonDir, MOON_R * S, float(1));
+    const U = this.u, S = 1.25, d = this._disc(U.moonDir, MOON_R * S, float(1), U.pole);
     const L = normalize(viewOf(U.sunDir));
     const vL = varying(vec3(dot(L, d.right), dot(L, d.up), dot(L, d.fw.negate())));   // 달 좌표계의 햇빛 방향
     const vc = varying(d.corner.mul(S)), vy = varying(U.moonDir.y), tex = moonTexture();
@@ -180,7 +180,7 @@ export class Sky {
     const s = this.s; if (!s) return;
     const U = this.u, cloud = Math.max(0, Math.min(1, s.cloud || 0)), clear = 1 - cloud, o = s.opts || {};
     const M = skyMatrix(s.date, s.lat, s.lon);
-    this._m4.set(M[0], M[1], M[2], 0, M[3], M[4], M[5], 0, M[6], M[7], M[8], 0, 0, 0, 0, 1); uRot.value.copy(this._m4);
+    this._m4.set(M[0], M[1], M[2], 0, M[3], M[4], M[5], 0, M[6], M[7], M[8], 0, 0, 0, 0, 1); uRot.value.copy(this._m4); U.pole.value.set(M[2], M[5], M[8]);   // 천구 북극(그날)의 장면 방향
     // 별이 보이는 정도: 해 고도 → 한계 등급, 달빛과 구름이 깎는다
     const moonUp = sstep(-3, 25, s.moonAlt), lim = lerpTab(LIM_SUN, s.sunAlt) - 1.8 * Math.pow(s.moonFrac, 1.3) * moonUp - 3.5 * cloud;
     U.lim.value = lim; U.gain.value = Math.pow(clear, 1.5) * 1.05; U.tw.value = 1;
@@ -201,7 +201,7 @@ export class Sky {
     const a = s.sunAlt, low = 1 - sstep(0, 12, a);
     U.sunDir.value.copy(s.sunDir); U.sunScale.value = 1 + 0.35 * low;
     U.sunCol.value.setRGB(1, 0.4, 0.13).lerp(this._white.setRGB(1, 0.93, 0.82), sstep(0, 25, a));
-    U.sunDisc.value = (3 + 22 * sstep(3, 20, a)) * Math.pow(clear, 2.5);     // 지평선 가까이는 붉고 덜 눈부시다
+    U.sunDisc.value = (8 + 17 * sstep(3, 20, a)) * Math.pow(clear, 2.5);     // 지평선 가까이는 붉고 덜 눈부시다(그래도 밝은 지평선 하늘 위에서 원반이 보이게)
     U.sunGlow.value = (1.6 + 1.2 * low) * sstep(-5, 1, a) * (1 - 0.7 * cloud);
     this.sun.visible = a > -6 && (U.sunDisc.value + U.sunGlow.value) > 0.01;
     // 달: 밤에는 밝게, 낮에는 옅은 낮달. 위상에 따라 밝기가 바뀐다.
