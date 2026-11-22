@@ -210,7 +210,10 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     bookLight.position.copy(book.group.position).addScaledVector(dir, -0.22); bookLight.position.y += 0.1;
     const steady = reader.set.contrast;
     // 밤에는 종이가 방보다 지나치게 희지 않게 낮추고(불빛 색을 띤 크림색), 낮에는 창빛만큼 밝힌다
-    bookLight.intensity = steady ? 0.5 : 0.07 + 0.3 * light.fire + 0.55 * light.day;
+    bookLight.intensity = steady ? 0.5 : 0.07 + 0.3 * light.fire + 0.1 * light.day;
+    // 낮에는 누운 책이 하늘빛과 창빛을 그대로 받아 종이가 하얗게 날아간다: 낮일수록 종이를 어둡게 받고, 방의 반사광은 받지 않게 한다. '종이 밝기'로 직접 맞출 수도 있다.
+    const pk = (reader.set.bright ?? 1) * (1 - 0.72 * light.day);
+    for (const m of Object.values(book.mat)) { m.color.setScalar(pk); m.envMapIntensity = 0; }
     bookLight.color.setRGB(1, 0.69 + 0.31 * light.day, 0.44 + 0.56 * light.day);
   };
   return api;

@@ -152,6 +152,7 @@ export class ReaderUI {
       check('양쪽 맞춤', T, 'justify', relayout), check('첫 줄 들여쓰기', T, 'indent', relayout),
       el('h3', { textContent: '종이' }), select('종이색', S, 'paper', Object.fromEntries(Object.entries(PAPERS).map(([k, p]) => [k, p.name])), redraw), slider('종이 질감', S, 'grain', [0, 1, 0.05], redraw, (v) => Math.round(v * 100) + '%'),
       check('고대비 종이 (불빛 영향 줄임)', S, 'contrast', redraw),
+      slider('종이 밝기', S, 'bright', [0.3, 1.6, 0.05], () => this.r.saveSettings(), (v) => Math.round(v * 100) + '%'),
       el('h3', { textContent: '보기' }), check('한 쪽 크게 보기', S, 'single', () => { this.r.saveSettings(); this.host.onView?.(); }), slider('확대', S, 'zoom', [0.7, 1.8, 0.05], () => { this.r.saveSettings(); this.host.onView?.(); }, (v) => Math.round(v * 100) + '%'), slider('장 넘김 시간', S, 'flip', [0.15, 1.2, 0.05], () => this.r.saveSettings(), (v) => v.toFixed(2) + '초'),
       el('h3', { textContent: '읽기 자세' }),
       ...(() => { const pv = () => { this.r.saveSettings(); this.host.onView?.(); }, deg = (v) => Math.round(v) + '°', cm = (v) => Math.round(v * 100) + 'cm';

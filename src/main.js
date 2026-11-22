@@ -139,7 +139,7 @@ async function main() {
   if (Q.has('nocandle')) scene.traverse((o) => { if (o.isPointLight && o.distance === 2.6) o.visible = false; });
   const fit = () => {
     // 책을 읽는 동안은 글자가 또렷하도록 화면 해상도를 낮추지 않는다
-    const pr = player.state === 'reading' ? Math.max(1, Math.min(devicePixelRatio, 2)) : scale;
+    const pr = player.state === 'reading' ? Math.max(scale, Math.min(devicePixelRatio, 2, 2240 / innerWidth)) : scale;   // 읽는 동안은 또렷하게, 다만 가로 2240픽셀을 넘기지 않는다
     renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
     fire?.resize(innerWidth, innerHeight, Math.min(devicePixelRatio, 1.5)); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
@@ -234,7 +234,7 @@ async function main() {
     prevCam.copy(camera.position);
     const lv = Math.max(0.3, Math.min(1.8, level));
     fireLight.intensity = 9 * power * lv;
-    fireLight.position.y = FP.hearthH + 0.3 + 0.03 * (level - 1);
+    // 불빛의 위치는 고정한다: 그림자를 초당 10번만 다시 그리므로, 빛이 그 사이에 움직이면 창틀 같은 가는 물체의 그림자가 깜박인다
     // 그림자 갱신: 평소 초당 10번, 책장을 넘기거나 가구를 옮기는 동안은 초당 30번. 설정에서 그림자를 끄면 드리우지 않는다.
     const shOn = prefs.shadows !== false && !Q.has('noshadow'); if (fireLight.castShadow !== shOn) { fireLight.castShadow = shOn; lamp.castShadow = shOn && !Q.has('nolampshadow'); }
     const busy = arrange.held || player.tween || (player.state === 'reading' && reading.reader.book3d.flipping);

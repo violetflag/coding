@@ -8,9 +8,9 @@ import { gaussianBlur } from 'three/addons/tsl/display/GaussianBlurNode.js';
 
 export function setupPost(renderer, scene, camera) {
   const post = new THREE.RenderPipeline(renderer);
-  const sp = pass(scene, camera);   // 법선은 따로 그리지 않고 깊이에서 되살린다(추가 렌더 타깃을 아낀다)
-  const col = sp.getTextureNode('output'), depth = sp.getTextureNode('depth');
-  const aoPass = ao(depth, null, camera); aoPass.resolutionScale = 0.5; aoPass.radius.value = 0.32; aoPass.samples.value = 8; aoPass.distanceFallOff.value = 1; aoPass.thickness.value = 1.2;
+  const sp = pass(scene, camera); sp.setMRT(mrt({ output, normal: normalView }));   // 법선을 함께 그린다(깊이에서 되살리면 창살 같은 가는 물체에서 음영이 떨린다)
+  const col = sp.getTextureNode('output'), nrm = sp.getTextureNode('normal'), depth = sp.getTextureNode('depth');
+  const aoPass = ao(depth, nrm, camera); aoPass.resolutionScale = 0.5; aoPass.radius.value = 0.32; aoPass.samples.value = 8; aoPass.distanceFallOff.value = 1; aoPass.thickness.value = 1.2;
   const aoSoft = gaussianBlur(aoPass.getTextureNode(), 1.5, 3);
   const aoAmt = uniform(0.85), bloomAmt = uniform(0.22);
   const occ = aoSoft.r.oneMinus().mul(aoAmt).oneMinus();

@@ -9,7 +9,7 @@ import { Book3D } from './book3d.js';
 const KEY = 'nanro.reader';
 const DEFAULTS = { type: { ...DEFAULT_TYPE }, paper: 'cream', grain: 0.6, single: false, contrast: false, cpm: 650, ttsRate: 1, ttsVoice: '', flip: 0.55, zoom: 1,
   // 읽기 자세: 시선(위아래·좌우, 도), 시야각, 책의 높이·거리·좌우(m)와 기울기(도), 손 보이기
-  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, hands: false };
+  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, hands: false, bright: 1 };
 
 export const POSE_DEFAULTS = { vPitch: DEFAULTS.vPitch, vYaw: 0, vFov: DEFAULTS.vFov, bH: 0, bDist: DEFAULTS.bDist, bSide: 0, bTilt: DEFAULTS.bTilt };
 export class Reader {
