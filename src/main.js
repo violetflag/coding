@@ -16,6 +16,8 @@ import { loadFireConfig, applyUrl, toQuality, FIRE_PRESETS } from './ui/fireConf
 import { Settings } from './ui/settings.js';
 import { buildSections, loadPrefs } from './ui/sections.js';
 import { setupReading } from './reading.js';
+import { setupNotes } from './notes/notes.js';
+import { notesSection } from './notes/section.js';
 import { setupCozy } from './cozy.js';
 import { setupArrange } from './scene/arrange.js';
 import { setupPost } from './scene/post.js';
@@ -128,7 +130,8 @@ async function main() {
   applyPrefs();
 
   // ---- 읽기 모드 (리더, 3D 책, 메뉴)
-  const uiMode = () => player.state === 'reading' || reading.ui.isOpen || !!settings?.isOpen;
+  let notes = null;
+  const uiMode = () => player.state === 'reading' || reading.ui.isOpen || !!settings?.isOpen || !!notes?.isOpen;
   const start = $('start'), hint = $('hint'), dot = $('dot'), prompt = $('prompt'), stats = $('stats');
   // 시작 화면은 처음 들어올 때만 보인다. 한 번 들어온 뒤에 마우스가 풀리면 화면을 가리지 않는 작은 안내만 띄운다.
   let entered = false;
@@ -150,14 +153,18 @@ async function main() {
   help.addEventListener('click', () => toggleHelp(false));
 
   // 읽는 중에 옆 메뉴를 열면 책이 메뉴에 가리지 않게 화면을 왼쪽으로 민다
-  const panelShift = (open) => { const w = Math.min(420, innerWidth * 0.4); if (open && player.state === 'reading' && innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, w / 2, 0, innerWidth, innerHeight); else camera.clearViewOffset(); };
+  const panelShift = (open, w = Math.min(420, innerWidth * 0.4)) => { if (open && player.state === 'reading' && innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, w / 2, 0, innerWidth, innerHeight); else camera.clearViewOffset(); };
   const reading = setupReading({
     scene, camera, player, canvas: roomCanvas, toast, sfx,
-    onUiMode: (open) => { panelShift(open); if (open) { if (player.locked) document.exitPointerLock(); } else if (player.state !== 'reading' && !settings?.isOpen) player.lock(); syncOverlay(); },
+    onUiMode: (open) => uiChange(open),
     // 낭독 중에는 불 소리와 음악을 낮춘다 (브라우저 음성 합성에는 잔향을 직접 입힐 수 없어, 방의 소리를 낮춰 목소리가 묻히지 않게 한다)
     onTts: (on) => { if (!cozy?.hearth.sleepT) mixer.setScale(on ? 0.45 : 1); music.duck = on ? 0.35 : 1; music.applyVolume(); },
     onQuote: (text, meta) => cozy.quoteCard(text, meta),
   });
+  // 옆 창(읽기 메뉴, 메모장)이 열리고 닫힐 때: 마우스를 풀고 책을 옆으로 비킨다. 닫으면 걷던 중이었으면 다시 잡는다.
+  function uiChange(open, w) { panelShift(open, w); if (open) { if (player.locked) document.exitPointerLock(); } else if (player.state !== 'reading' && !settings?.isOpen && !notes?.isOpen && !reading.ui.isOpen) player.lock(); syncOverlay(); }
+  // ---- 메모장 (M 키, 읽는 중 오른쪽 위 "메모" 단추)
+  notes = setupNotes({ reading, player, toast, onUiMode: uiChange });
   ctx.onLampMove = (o) => { lamp.position.set(o.position.x, LAMP.h + 0.05, o.position.z); ctx.refreshEnv(0.4); };
   const arrange = setupArrange({ ctx, player, camera, canvas: roomCanvas, toast, sfx });
   cozy = setupCozy({ scene, camera, ctx, player, fire, reading, prefs, toast, sfx, mixer, music, setLamp, env });
@@ -233,9 +240,9 @@ async function main() {
   settings = new Settings({
     quitButton: quitButton(),
     cfg: fireCfg, fire, mixer,
-    sections: buildSections({ renderSize: () => { const v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); return `${v.x}×${v.y}`; }, fps: () => fpsMs ? `초당 ${(1000 / fpsMs).toFixed(0)}프레임` : '', env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }),
+    sections: buildSections({ renderSize: () => { const v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); return `${v.x}×${v.y}`; }, fps: () => fpsMs ? `초당 ${(1000 / fpsMs).toFixed(0)}프레임` : '', env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }).concat(notesSection(notes)),
     onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); },
-    onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && mixer.ctx) player.lock(); },
+    onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && !notes?.isOpen && mixer.ctx) player.lock(); },
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
   });
   $('openSettings').addEventListener('click', (e) => { e.stopPropagation(); settings.open(); });
@@ -249,7 +256,7 @@ async function main() {
   addEventListener('keydown', (e) => { if (typing(e)) return; if (e.code === 'KeyH' && !e.repeat) toggleHelp(); else if (e.code === 'Escape' && help.classList.contains('on')) toggleHelp(false); });
   let showStats = Q.has('stats');
   addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); showStats = !showStats; stats.textContent = ''; } });
-  addEventListener('beforeunload', () => { cozy.saveSession(); reading.reader.flush(); });
+  addEventListener('beforeunload', () => { cozy.saveSession(); reading.reader.flush(); notes.flush(); });
 
   // ---- 서재가 기억하는 자리: 앉아 있던 의자에서 다시 시작한다. 책은 시작 화면의 "이어서 읽기"를 눌렀을 때 펼친다(시작 카드 뒤에서 혼자 펴지지 않게).
   const ses = cozy.session, wantSeat = prefs.startSeated || (ses && ses.state !== 'walk');
@@ -431,7 +438,7 @@ async function main() {
   // 테스트·스크린샷 도구용
   mark('mainDone');
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, get roomReady() { return roomReady; }, marks, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, notes, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, get roomReady() { return roomReady; }, marks, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire, post: post && prefs.post ? post : null }, w, h); },
   };
 }
