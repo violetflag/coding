@@ -3,9 +3,14 @@
 // 소리 엔진이 스스로 낸 "탁" 소리에는 같은 순간에 불티를 튀긴다.
 import { FireAudio } from '../fire/vendor/audio/engine.js';
 
+// 바람처럼 들리는 바탕 소리(낮은 웅웅거림 roar, 숨 쉬듯 부는 breath, 훅 하는 whoosh, 쉭쉭 hiss, 핥는 소리 lapping)를 거의 끈다.
+// 주인님 의견(2026-11-22): 불 소리에 바람 소리가 너무 많다. 장작이 타닥거리고 터지는 소리(crackles, pops, logs, embers)는 그대로 둔다.
+// 원래 값(dB): roar -16.5, breath -15.8, whoosh -13.2, hiss -31.2, lapping -32
+export const QUIET_BED = { roar: -34, breath: -60, whoosh: -60, hiss: -44, lapping: -60, crickets: -60 };
+
 export class FireSound {
   static async create(mixer, fire) {
-    const audio = await FireAudio.create(mixer.ctx, { connect: false, volume: 1 });
+    const audio = await FireAudio.create(mixer.ctx, { connect: false, volume: 1, params: { mix: QUIET_BED } });
     audio.output.connect(mixer.channel('fire'));
     await audio.start();
     return new FireSound(audio, fire);

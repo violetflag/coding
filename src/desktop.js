@@ -12,11 +12,33 @@ export function setupDesktop() {
   const wrap = document.getElementById('quitWrap');
   if (wrap) { wrap.hidden = false; document.getElementById('quitApp').addEventListener('click', (e) => { e.stopPropagation(); call('quit'); }); }
   const pause = document.getElementById('pause');
-  if (pause) pause.append('  ·  F11 창/전체 화면  ·  Alt+F4 끝내기');
+  if (pause) pause.append('\u00a0 · \u00a0F11 창/전체 화면');
+  // 방 안에서도 누를 수 있는 "끝내기" 단추: 마우스가 풀려 있을 때(멈춤, 책 읽기, 메뉴) 왼쪽 위에 보인다.
+  // 마우스로 둘러보는 동안에는 숨는다. 시작 화면에는 원래의 끝내기가 있어 숨긴다.
+  const st = document.createElement('style');
+  st.textContent = `#quitCorner { position: fixed; left: 14px; top: 12px; z-index: 7; padding: 6px 14px; border-radius: 16px; font: 13px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif;
+    background: rgba(20,14,9,.72); color: #e9dcc6; border: 1px solid rgba(233,220,198,.28); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .2s; }
+    #quitCorner.on { opacity: .85; pointer-events: auto; } #quitCorner:hover { opacity: 1; background: rgba(120,50,20,.85); }`;
+  document.head.append(st);
+  const corner = Object.assign(document.createElement('button'), { id: 'quitCorner', type: 'button', textContent: '끝내기', title: '난로 끝내기 (Alt+F4)' });
+  corner.addEventListener('click', (e) => { e.stopPropagation(); call('quit'); });
+  corner.addEventListener('mousedown', (e) => e.stopPropagation());
+  document.body.append(corner);
+  const start = document.getElementById('start');
+  const sync = () => corner.classList.toggle('on', !document.pointerLockElement && !!start?.classList.contains('off'));
+  document.addEventListener('pointerlockchange', sync); setInterval(sync, 400); sync();
 }
 
 // 파일 저장(백업, 밑줄 내보내기, 인용구 카드). 웹버전은 브라우저의 내려받기를 쓰고 null 을 돌려준다.
 // 프로그램 창에서는 브라우저식 내려받기가 되지 않아서, 내용을 프로그램에 넘겨 내려받기 폴더에 쓰게 하고 저장된 경로를 돌려준다.
+// 설정창 아래의 "난로 끝내기" 단추 (프로그램에서만)
+export function quitButton() {
+  if (!DESKTOP) return null;
+  const b = Object.assign(document.createElement('button'), { type: 'button', textContent: '난로 끝내기' });
+  b.addEventListener('click', () => T.core.invoke('quit').catch(() => {}));
+  return b;
+}
+
 export async function saveFile(blob, name) {
   if (!DESKTOP) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.append(a); a.click();

@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { ROOM, FIREPLACE as FP, LAMP, CHAIRS, RUG } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
+import { resolveCoplanar } from './scene/coplanar.js';
 import { applyPhotoTextures } from './scene/textures.js';
 import { Environment } from './scene/environment.js';
 import { Player } from './player/player.js';
@@ -18,7 +19,7 @@ import { setupReading } from './reading.js';
 import { setupCozy } from './cozy.js';
 import { setupArrange } from './scene/arrange.js';
 import { setupPost } from './scene/post.js';
-import { setupDesktop, watchOpened, syncLibraryFolder, libraryFolderPanel, setupMoveIn } from './desktop.js';
+import { setupDesktop, quitButton, watchOpened, syncLibraryFolder, libraryFolderPanel, setupMoveIn } from './desktop.js';
 import { bringBackup } from './reader/ui.js';
 import * as store from './reader/store.js';
 
@@ -63,6 +64,8 @@ async function main() {
   const refreshEnv = () => { if (!ENV_I) return; lamp.shadow.needsUpdate = true; scene.environment = null; cubeCam.update(renderer, scene); scene.environment = cubeRT.texture; };
   ctx.refreshEnv = (delay = 0.3) => { envDue = Math.max(0.05, delay); };
   const env = new Environment(scene, ctx, renderer, { url: Q });
+  // 같은 평면에 겹친 면(창틀과 창살이 만나는 곳 등)은 깜빡이므로 작은 쪽을 1mm 내민다. 주소 옵션 nocoplanar 로 끈다(비교용).
+  if (!Q.has('nocoplanar')) resolveCoplanar(scene);
   env.recompute();
   if (!HEADLESS) env.locate();
   // ambientCG 사진 텍스처를 읽어 코드로 그린 임시 텍스처와 바꾼다 (없으면 그대로 둔다)
@@ -103,6 +106,7 @@ async function main() {
     camera, canvas: roomCanvas, ctx,
     onInteract(it) {
       if (it.id === 'lamp') { setLamp(!lampOn); sfx('click'); }
+      else if (it.door) sfx(ctx.door.toggle() ? 'dooropen' : 'doorclose');
       else if (it.id === 'woodpile') { if (cozy.hearth.startLog()) fireSound?.trigger('log-shift', 0.6); }
       else if (it.id === 'poker') { fire?.stoke(); fireSound?.trigger('log-shift', 1); toast('불을 뒤적였습니다'); }
       else if (it.candle) cozy.toggleCandle(it.candle);
@@ -118,7 +122,9 @@ async function main() {
     player.sens = 0.0019 * prefs.sens; player.invertY = prefs.invertY; player.sway = prefs.sway;
     if (player.baseFov !== prefs.fov) { if (player.state !== 'reading') player.fov = prefs.fov; player.baseFov = prefs.fov; }
     if (ambient) ambient.clock = prefs.clockTick;
+    resetRes?.();
   };
+  let resetRes = null;
   applyPrefs();
 
   // ---- 읽기 모드 (리더, 3D 책, 메뉴)
@@ -158,8 +164,9 @@ async function main() {
   if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
-  // 방은 가로 1920픽셀까지만 그린다: 4K 화면에서도 1080p와 같은 부하가 되게 한다(나머지는 화면이 늘려 보여 준다)
-  const cap = () => Math.min(devicePixelRatio, 1.5, 1920 / innerWidth);
+  // 방을 그리는 크기의 상한은 설정의 그래픽 탭에서 고른다(기본 가로 1920: 4K 화면에서도 1080p와 같은 부하, 나머지는 화면이 늘려 보여 준다).
+  const cap = () => Math.min(devicePixelRatio, prefs.resW === 'native' ? Infinity : (+prefs.resW || 1920) / innerWidth);
+  const fireCap = () => Math.min(devicePixelRatio, 1.5, 1920 / innerWidth);   // 불은 자기 품질 설정을 따로 가진다
   let scale = cap();
   if (Q.has('rs')) scale = +Q.get('rs') || scale;
   if (Q.has('nocandle')) scene.traverse((o) => { if (o.isPointLight && o.distance === 2.6) o.visible = false; });
@@ -168,9 +175,10 @@ async function main() {
     const pr = player.state === 'reading' ? Math.max(Math.min(scale, cap()), Math.min(devicePixelRatio, 2, 2240 / innerWidth)) : Q.has('rs') ? scale : Math.min(scale, cap());   // 읽는 동안은 또렷하게, 다만 가로 2240픽셀을 넘기지 않는다
     renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight, false);
     camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-    fire?.resize(innerWidth, innerHeight, cap()); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
+    fire?.resize(innerWidth, innerHeight, fireCap()); // 불은 구멍 영역만 그리므로 방의 해상도 조절과 무관하게 화면 픽셀 기준
   };
   addEventListener('resize', fit); fit(); fitSoon = () => fit();
+  resetRes = () => { if (!Q.has('rs')) scale = cap(); fit(); };
 
   // ---- 시작 화면과 포인터 잠금
   // 시작 화면의 두 갈래: 곧바로 읽기(읽기 의자에 앉아 책을 펼친다)와 방 둘러보기.
@@ -223,8 +231,9 @@ async function main() {
   });
   // ---- 설정창 (O 키 또는 시작 화면의 버튼)
   settings = new Settings({
+    quitButton: quitButton(),
     cfg: fireCfg, fire, mixer,
-    sections: buildSections({ env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }),
+    sections: buildSections({ renderSize: () => { const v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); return `${v.x}×${v.y}`; }, fps: () => fpsMs ? `초당 ${(1000 / fpsMs).toFixed(0)}프레임` : '', env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }),
     onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); },
     onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && mixer.ctx) player.lock(); },
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
@@ -301,13 +310,17 @@ async function main() {
   if (!roomReady) texturesReady.then(() => Promise.race([prewarm(), new Promise((r) => setTimeout(r, 20000))])).catch((e) => console.warn('그리기 준비를 미리 마치지 못했습니다', e)).then(() => { roomReady = true; warmT = 0.3; mark('roomReady'); });
   let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0, idleN = 0, mouseHeld = false;
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
+  let capT = 0;
   const frame = () => {
+    // 프레임 제한(설정의 그래픽 탭): 정한 간격이 지나지 않았으면 이번 화면 갱신은 건너뛴다(시간은 다음 프레임에 몰아서 흐른다)
+    if (prefs.fpsCap > 0) { const t = performance.now(), ms = 1000 / prefs.fpsCap; if (t - capT < ms - 2) return; capT = Math.max(capT + ms, t - ms); }
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     const now = performance.now(), gap = now - lastNow; lastNow = now;
     if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; mark('settled'); settled(); } }
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
+    { const out = (ctx.door?.t || 0) > 0 || (ctx.outsideAt?.(player.pos.x, player.pos.z) || 0) > 0; if (out !== env.outdoorView) env.setOutdoorView((env.outdoorView = out)); }
     env.update(dt, elapsed); ctx.clock.userData.tick(new Date());                // 선반 시계는 방의 시각 설정과 상관없이 항상 컴퓨터 시계를 따른다
     cozy.update(dt); arrange.update(dt);
 
@@ -354,7 +367,7 @@ async function main() {
     // 환경음과 발소리
     if (ambient) {
       const kd = Math.hypot(camera.position.x - kettlePos.x, camera.position.z - kettlePos.z);
-      ambient.update({ dt, weather: env.state.weather, day: env.state.day, season: env.state.season, clockDist: camera.position.distanceTo(clockPos), kettle: (cozy.kettleBoil || 0) / (1 + kd * kd * 0.5) });
+      ambient.update({ dt, outside: Math.max(ctx.outsideAt?.(player.pos.x, player.pos.z) || 0, (ctx.door?.t || 0) * 0.35), weather: env.state.weather, day: env.state.day, season: env.state.season, clockDist: camera.position.distanceTo(clockPos), kettle: (cozy.kettleBoil || 0) / (1 + kd * kd * 0.5) });
       if (player.state === 'walk' && player.speed > 0.3) {
         const ph = Math.floor(player.bob / Math.PI);
         if (ph !== stepPhase) { stepPhase = ph; const onRug = Math.abs(player.pos.x - RUG.x) < RUG.w / 2 && Math.abs(player.pos.z - RUG.z) < RUG.d / 2; sfx(onRug ? 'steprug' : 'step', { pan: ph % 2 ? 0.15 : -0.15, gain: Math.min(1, player.speed / 1.4) }); }
@@ -396,7 +409,7 @@ async function main() {
     if (acc > 1) {
       fpsMs = acc / frames * 1000; acc = 0; frames = 0;
       const now = performance.now();
-      if (!Q.has('fixed') && !Q.has('rs') && player.state !== 'reading' && now - lastFit > 1500) {
+      if (!Q.has('fixed') && !Q.has('rs') && prefs.autoRes !== false && player.state !== 'reading' && now - lastFit > 1500) {
         if (fpsMs > 24 && scale > 0.5) { scale = Math.max(0.5, scale * 0.88); lastFit = now; fit(); }
         else if (fpsMs < 12.5 && scale < cap()) { scale = Math.min(cap(), scale * 1.08); lastFit = now; fit(); }
       }

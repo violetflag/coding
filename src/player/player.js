@@ -11,7 +11,7 @@ export class Player {
   constructor({ camera, canvas, ctx, onInteract, onState }) {
     this.camera = camera; this.canvas = canvas; this.ctx = ctx; this.onInteract = onInteract; this.onState = onState;
     this.pos = new THREE.Vector3(PLAYER_START.x, 0, PLAYER_START.z); this.vel = new THREE.Vector3();
-    this.yaw = PLAYER_START.yaw; this.pitch = -0.05; this.eye = EYE; this.bob = 0; this.breath = 0;
+    this.feet = 0; this.yaw = PLAYER_START.yaw; this.pitch = -0.05; this.eye = EYE; this.bob = 0; this.breath = 0;
     this.state = 'walk'; this.chair = null; this.tween = null; this.focus = null;
     this.keys = new Set(); this.sens = 0.0019; this.baseFov = 62; this.fov = 62; this.invertY = false; this.sway = true; this.readPitch = -0.5; this.readFov = 42; this.readYaw = 0;
     this.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -47,9 +47,11 @@ export class Player {
   }
 
   blocked(x, z) {
-    if (x < R + 0.02 || x > ROOM.W - R - 0.02 || z < R + 0.05 || z > ROOM.D - R - 0.02) return true;
+    // 걸을 수 있는 곳: 방 안, 열린 문, 집 밖 마당(src/scene/outdoor.js). 없으면 방 안만
+    if (this.ctx.walkable ? !this.ctx.walkable(x, z, R) : x < R + 0.02 || x > ROOM.W - R - 0.02 || z < R + 0.05 || z > ROOM.D - R - 0.02) return true;
+    const f = this.ctx.groundAt ? this.ctx.groundAt(x, z) : 0;
     for (const c of this.ctx.colliders) {
-      if (c.max[1] < 0.25 || c.min[1] > this.eye) continue;
+      if (c.max[1] < f + 0.25 || c.min[1] > f + this.eye) continue;
       if (x > c.min[0] - R && x < c.max[0] + R && z > c.min[2] - R && z < c.max[2] + R) return true;
     }
     return false;
@@ -146,7 +148,9 @@ export class Player {
     this.breath += dt;
     const still = this.state === 'seated' || this.state === 'reading';
     const sway = this.reduceMotion || !this.sway ? 0 : (still ? Math.sin(this.breath * 1.55) * 0.0015 : Math.sin(this.bob) * 0.011 * Math.min(1, sp));
-    cam.position.set(this.pos.x, this.eye + sway, this.pos.z);
+    // 발 높이(마루, 계단, 마당)는 부드럽게 따라간다
+    const gy = this.ctx.groundAt ? this.ctx.groundAt(this.pos.x, this.pos.z) : 0; this.feet += (gy - this.feet) * (1 - Math.exp(-dt * 9)); if (Math.abs(gy - this.feet) < 1e-4) this.feet = gy;
+    cam.position.set(this.pos.x, this.feet + this.eye + sway, this.pos.z);
     cam.rotation.set(this.pitch, this.yaw, 0, 'YXZ');
     if (Math.abs(cam.fov - this.fov) > 1e-4) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     cam.updateMatrixWorld(true);

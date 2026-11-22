@@ -1,8 +1,8 @@
-// 설정창의 구역들: 방(시간·날씨·계절·위치), 소리(유튜브 음악, 시계 소리), 난롯가(장작 타이머, 잠들기), 조작·접근성.
+// 설정창의 구역들: 그래픽(해상도·프레임 제한·그림자·실사 효과), 방(시간·날씨·계절·위치), 소리(유튜브 음악, 시계 소리), 난롯가(장작 타이머, 잠들기), 조작·접근성.
 import { WEATHERS, SEASONS, SEOUL } from '../scene/environment.js';
 
 const KEY = 'nanro.prefs';
-export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, shadows: true, logMinutes: 25, sleepMinutes: 30 };
+export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, shadows: true, resW: '1920', autoRes: true, fpsCap: 0, logMinutes: 25, sleepMinutes: 30 };
 export function loadPrefs() { const p = { ...PREF_DEFAULTS }; try { Object.assign(p, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* 기본값 */ } return p; }
 export const savePrefs = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* 무시 */ } };
 
@@ -27,6 +27,21 @@ const hm = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round
 export function buildSections(d) {
   const { env, music, prefs } = d, sp = () => { savePrefs(prefs); d.applyPrefs(); };
   return [
+    { key: 'gfx', label: '그래픽', build(el) {
+      const px = () => `${Math.round(innerWidth * devicePixelRatio)}×${Math.round(innerHeight * devicePixelRatio)}`;
+      const res = { '1280': '가로 1280 (가벼움)', '1600': '가로 1600', '1920': '가로 1920 (기본, 1080p)', '2560': '가로 2560 (1440p)', native: '화면 그대로' };
+      const info = note('');
+      const resRow = select('방을 그리는 해상도', () => prefs.resW, (v) => { prefs.resW = v; sp(); }, res, '높을수록 또렷하지만 GPU를 많이 씁니다. 화면보다 작게 그린 것은 화면 크기로 늘려 보여 줍니다. 4K 화면을 그대로 그리면 1080p의 약 4배를 씁니다. 책을 읽는 동안은 글자가 또렷하도록 최소 가로 2240으로 그립니다.');
+      el.append(H('화면'), info, resRow,
+        check('느려지면 해상도 자동으로 낮추기', () => prefs.autoRes, (v) => { prefs.autoRes = v; sp(); }, '초당 프레임이 40 아래로 떨어지면 해상도를 조금씩 낮추고, 여유가 생기면 고른 해상도까지 되돌립니다.'),
+        select('프레임 제한', () => String(prefs.fpsCap), (v) => { prefs.fpsCap = +v; sp(); }, { 0: '모니터 주사율 그대로', 30: '초당 30', 60: '초당 60', 120: '초당 120', 144: '초당 144' }, '모니터 주사율보다 높게는 그리지 않습니다. 30으로 묶으면 GPU를 절반쯤 덜 쓰지만 움직임이 덜 부드럽습니다.'),
+        H('효과'),
+        check('그림자', () => prefs.shadows, (v) => { prefs.shadows = v; sp(); }, '불빛과 스탠드의 그림자입니다. 끄면 GPU 부하가 조금 줄어듭니다.'),
+        check('실사 효과 (음영과 빛 번짐)', () => prefs.post, (v) => { prefs.post = v; sp(); }, '구석과 물건이 맞닿은 곳의 음영, 밝은 빛의 번짐을 더합니다.'),
+        check('가만히 있을 때 절전', () => prefs.readSave, (v) => { prefs.readSave = v; sp(); }, '시선을 움직이지 않는 동안 방을 절반 속도로(책을 읽는 동안은 3분의 1로) 그립니다. 불과 책장 넘김, 둘러보기는 그대로 부드럽습니다.'),
+        note('불의 품질은 "불 그래픽" 탭에서 따로 고릅니다.'));
+      this._tick = () => { info.textContent = `화면 ${px()} · 지금 방을 그리는 크기 ${d.renderSize?.() || '-'} · ${d.fps?.() || ''}`; };
+    }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
     { key: 'room', label: '방 (시간·날씨)', build(el) {
       const info = note(''), hour = slider('시각', () => env.opts.hour, (v) => env.set({ hour: v, timeMode: 'manual' }), 0, 23.75, 0.25, hm, '직접 고르면 그 시각의 하늘과 빛이 됩니다.');
       const mode = check('컴퓨터 시계를 따름', () => env.opts.timeMode === 'real', (v) => { if (!v) { const n = new Date(); env.set({ timeMode: 'manual', hour: n.getHours() + Math.round(n.getMinutes() / 15) / 4 }); hour.refresh(); } else env.set({ timeMode: 'real' }); });
@@ -61,9 +76,6 @@ export function buildSections(d) {
         slider('시야각', () => prefs.fov, (v) => { prefs.fov = v; sp(); }, 45, 85, 1, (v) => v + '°'),
         H('편의'), check('걸음·숨쉬기 흔들림', () => prefs.sway, (v) => { prefs.sway = v; sp(); }), check('불빛 흔들림', () => prefs.flicker, (v) => { prefs.flicker = v; sp(); }, '끄면 방과 책 위의 불빛이 일정하게 유지됩니다.'),
         check('바로 의자에서 시작', () => prefs.startSeated, (v) => { prefs.startSeated = v; sp(); }, '켜 두면 걸어 다니지 않고 읽기 의자에 앉은 채로 시작합니다.'),
-        check('실사 효과 (음영과 빛 번짐)', () => prefs.post, (v) => { prefs.post = v; sp(); }, '구석과 물건이 맞닿은 곳의 음영, 밝은 빛의 번짐을 더합니다. 끄면 GPU 부하가 조금 줄어듭니다.'),
-        check('그림자', () => prefs.shadows, (v) => { prefs.shadows = v; sp(); }, '불빛과 스탠드의 그림자입니다. 끄면 GPU 부하가 꽤 줄어듭니다.'),
-        check('가만히 있을 때 절전', () => prefs.readSave, (v) => { prefs.readSave = v; sp(); }, '시선을 움직이지 않는 동안(앉아서 불을 보거나 책을 읽을 때) 방을 절반 속도로(책을 읽는 동안은 3분의 1로) 그려 발열과 팬 소음을 줄입니다. 불과 책장 넘김, 둘러보기는 그대로 부드럽습니다.'),
         check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 불빛을 1분쯤 기록한 뒤 불 계산을 멈추고 기록한 불빛을 되풀이합니다. 고개를 들거나 책을 덮으면 불이 다시 실제로 탑니다.'),
         note('운영체제의 "동작 줄이기" 설정이 켜져 있으면 화면 전환과 흔들림을 자동으로 줄입니다. 키 바꾸기와 영어 화면은 아직 없습니다.'));
     } },

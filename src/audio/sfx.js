@@ -38,6 +38,8 @@ export class Sfx {
       case 'steprug': B({ dur: 0.12, f0: rnd(110, 150), f1: 60, q: 0.8, gain: 0.2, type: 'lowpass', attack: 0.012 }); break;
       case 'sit': B({ dur: 0.3, f0: 130, f1: 60, q: 1, gain: 0.45, type: 'lowpass', attack: 0.03 }); for (let i = 0; i < 3; i++) B({ dur: 0.16, f0: rnd(500, 900), f1: rnd(300, 500), q: 14, gain: 0.07, delay: 0.08 + i * 0.11, attack: 0.03 }); break;
       case 'stand': for (let i = 0; i < 2; i++) B({ dur: 0.18, f0: rnd(400, 700), f1: rnd(600, 950), q: 12, gain: 0.06, delay: i * 0.12, attack: 0.03 }); break;
+      case 'dooropen': for (let i = 0; i < 4; i++) B({ dur: 0.22, f0: rnd(380, 520), f1: rnd(620, 820), q: 16, gain: 0.05, delay: 0.08 + i * 0.16, attack: 0.05 }); B({ dur: 0.06, f0: 1400, q: 3, gain: 0.12, attack: 0.002 }); break;
+      case 'doorclose': B({ dur: 0.25, f0: 150, f1: 60, q: 1, gain: 0.6, type: 'lowpass', delay: 0.55 }); B({ dur: 0.05, f0: 1800, q: 4, gain: 0.14, delay: 0.6, attack: 0.002 }); for (let i = 0; i < 2; i++) B({ dur: 0.2, f0: rnd(420, 560), f1: rnd(300, 380), q: 16, gain: 0.04, delay: i * 0.16, attack: 0.05 }); break;
       case 'click': B({ dur: 0.03, f0: 2600, q: 3, gain: 0.25, attack: 0.001 }); B({ dur: 0.04, f0: 900, q: 4, gain: 0.2, delay: 0.035, attack: 0.001 }); break;
       case 'match': B({ dur: 0.35, f0: 3500, f1: 6500, q: 0.7, gain: 0.16, attack: 0.02 }); B({ dur: 0.5, f0: 500, f1: 250, q: 0.8, gain: 0.12, delay: 0.16, attack: 0.05 }); break;
       case 'blow': B({ dur: 0.35, f0: 700, f1: 300, q: 0.6, gain: 0.22, attack: 0.05 }); break;
@@ -71,7 +73,8 @@ export class Ambient {
   // o: { weather, day, season, clockDist(m), kettle(0…1), dt }
   update(o) {
     const c = this.ctx, t = c.currentTime;
-    const base = o.weather === 'heavy' ? 0.9 : o.weather === 'snow' ? 0.34 : 0.14;
+    // 방 안에서는 바람을 아주 작게만(주인님: 바람 소리가 너무 많다). 밖에 나가 있으면(o.outside) 제대로 들린다.
+    const base = (o.weather === 'heavy' ? 0.9 : o.weather === 'snow' ? 0.34 : 0.14) * (0.25 + 0.75 * (o.outside || 0));
     this.gustT -= o.dt;
     if (this.gustT <= 0) {                                                  // 몇 초마다 바람 세기를 새로 정한다(돌풍)
       this.gustT = rnd(1.5, 5); const g = base * rnd(0.45, 1.5);

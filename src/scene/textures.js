@@ -204,6 +204,9 @@ export function makeMaterials() {
   M.wicker = std(fabric({ seed: 9, base: [0.42, 0.29, 0.15], threads: 18 }), [0.2, 0.2]);
   M.bark = std(planks({ size: 256, rows: 3, seed: 33, base: [0.2, 0.14, 0.09], dark: [0.06, 0.04, 0.03], gloss: 0.9, gap: 0.12, lenFreq: 5, bump: 4 }), [0.4, 0.3]);
   M.endGrain = new THREE.MeshStandardMaterial({ color: 0xb08a58, roughness: 0.85 });
+  // 천장 널 틈의 가파른 면이 방의 반사 그림에서 창밖 하늘을 비춰 하늘이 보이는 것처럼 반짝였다: 천장은 반사를 줄인다
+  M.ceiling.envMapIntensity = 0.25;
+  M.roof = std(planks({ rows: 10, seed: 51, base: [0.17, 0.13, 0.1], dark: [0.05, 0.04, 0.035], gloss: 0.95, gap: 0.09, bump: 3 }), [2.0, 1.25]);   // 지붕 널(바깥)
   return M;
 }
 
@@ -219,12 +222,12 @@ export function boxUV(geo, w, h, d) {
 // 파일이 없거나 읽지 못한 재질은 코드로 그린 텍스처가 그대로 남는다.
 // tint: 사진 색에 곱하는 색(같은 사진을 색만 바꿔 여러 재질에 쓴다). from: 다른 열쇠의 사진을 빌려 쓴다.
 const PHOTO = {
-  floor: { tint: 0xb39279 }, wall: {}, ceiling: {}, wood: { tint: 0xbfa58e }, woodDark: {},
+  floor: { tint: 0xb39279 }, wall: {}, ceiling: { normalScale: 0.55 }, wood: { tint: 0xbfa58e }, woodDark: {},
   stone: {}, hearth: {}, firebrick: {},
   leather: {}, leatherGreen: { from: 'leather', tint: 0x7a9a64 },
   cloth: {}, blanket: { tint: 0xc8483e }, curtain: { tint: 0x9c4444 },
   rug: { keepMap: true }, wicker: {}, bark: { tint: 0x8a6448, normalScale: 2.5 }, endGrain: {},
-  iron: {}, brass: {}, copper: {}, paper: { tint: 0xd9ccb0 },
+  iron: {}, brass: {}, copper: {}, paper: { tint: 0xd9ccb0 }, roof: {},
 };
 // 둥근 형상(원기둥, 회전체, 공, 고리)의 UV는 0~1이라 작은 소품에서는 사진이 통째로 눌려 무늬가 사라진다.
 // 형상 크기를 재서 UV를 미터 단위로 바꾼다. 원기둥의 양 끝면은 0~1로 둔다(나이테 사진을 한 장씩 붙이는 용도).

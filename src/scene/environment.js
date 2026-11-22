@@ -83,7 +83,10 @@ export class Environment {
     const gg = new THREE.PlaneGeometry(160, 90, 96, 54); { const uv = gg.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 160, uv.getY(i) * 90); }  // 미터 단위 UV
     // 완만한 굴곡과 눈 둔덕 (집 가까이는 평평하게). 평면의 +y가 집 쪽이고, 눕히면 z가 높이가 된다.
     { const p = gg.attributes.position; for (let i = 0; i < p.count; i++) { const x = p.getX(i), y = -p.getY(i), far = sstep(40, 34, y); p.setZ(i, far * (0.22 * Math.sin(x * 0.31 + y * 0.17) * Math.sin(y * 0.23 + 1.3) + 0.12 * Math.sin(x * 0.83 + 2.1) * Math.sin(y * 0.71) + 0.02 * (45 - y) * 0.6 * sstep(20, -30, y))); } gg.computeVertexNormals(); }
-    const ground = new THREE.Mesh(gg, this.groundMat); ground.rotation.x = -Math.PI / 2; ground.position.set(wx, -0.45, -44.6); g.add(ground);
+    const ground = new THREE.Mesh(gg, this.groundMat); ground.rotation.x = -Math.PI / 2; ground.position.set(wx, -0.45, -44.6); ground.receiveShadow = true; g.add(ground);
+    // 집 옆과 뒤의 평평한 땅(문밖으로 나갔을 때 보인다). 위 땅의 집 쪽 끝(z = 0.4)에서 북쪽으로 이어진다.
+    { const g2 = new THREE.PlaneGeometry(160, 60); const uv = g2.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * 160, uv.getY(i) * 60);
+      const back = (this.backGround = new THREE.Mesh(g2, this.groundMat)); back.rotation.x = -Math.PI / 2; back.position.set(wx, -0.45, 30.4); back.receiveShadow = true; g.add(back); }
     this.hillMat = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide, fog: false });
     for (const [z, base, amp, seed] of [[-40, 1.2, 2.6, 1], [-46, 2.4, 4.2, 2]]) {
       const n = 80, pos = [], idx = [];
@@ -94,6 +97,9 @@ export class Environment {
     // 숲: 그림으로 그린 전나무와 넓은잎나무 (src/scene/trees.js)
     const spot = () => { for (;;) { const z = -4.5 - Math.pow(r(), 0.8) * 32, x = wx + (r() - 0.5) * (14 + -z * 1.3); if (z > -16 && Math.abs(x - wx) < 3.2 + (z + 16) * 0.12) continue; return [x, z]; } };
     this.forest = buildForest({ spot }); g.add(this.forest.group);
+    // 집 옆과 뒤의 숲: 문을 열었거나 밖에 있을 때만 그린다(방 안에서는 보이지 않는다). 마당(걸을 수 있는 곳) 안에는 심지 않는다.
+    const spot2 = () => { for (;;) { const x = ROOM.W / 2 + (r() - 0.5) * 70, z = -4 + r() * 40; if (x > -9 && x < ROOM.W + 12 && z < ROOM.D + 10) continue; if (z < -4.5 && Math.abs(x - wx) < 18) continue; return [x, z]; } };
+    this.forestBack = buildForest({ seed: 505, spot: spot2, conifers: 130, broadleaf: 45 }); this.forestBack.group.visible = false; g.add(this.forestBack.group); this.backGround.visible = false;
     // 먼 숲의 윤곽: 전나무 숲 그림자를 그린 띠를 두 겹 세운다 (깊이감)
     { const fc2 = document.createElement('canvas'); fc2.width = 2048; fc2.height = 256; const f = fc2.getContext('2d'); f.fillStyle = '#fff';
       for (let i = 0; i < 520; i++) { const x = r() * 2048, hh = 70 + r() * 150, w2 = hh * (0.2 + r() * 0.1); for (let k = 0; k < 6; k++) { const t = k / 6, yy = 256 - hh * (1 - t), hw = w2 * (0.15 + 0.85 * t); f.beginPath(); f.moveTo(x, yy - hh * 0.22); f.lineTo(x + hw, yy + hh * 0.05); f.lineTo(x - hw, yy + hh * 0.05); f.fill(); } }
@@ -143,6 +149,13 @@ export class Environment {
   }
   _dir(az, alt, out = new THREE.Vector3()) { return out.set(-Math.sin(az) * Math.cos(alt), Math.sin(alt), Math.cos(az) * Math.cos(alt)); }
 
+  // 문이 열렸거나 밖에 있을 때만 집 옆과 뒤의 땅과 숲을 그린다
+  // 밖에서는 안개를 멀리 밀고(가까운 나무가 뿌옇지 않게), 해 그림자가 집 둘레 마당까지 닿게 넓힌다
+  setOutdoorView(on) {
+    this.outdoorView = on; this.forestBack.group.visible = on; this.backGround.visible = on;
+    const c = this.sunLight.shadow.camera, s = on ? 13 : 5; c.left = c.bottom = -s; c.right = c.top = s; c.far = on ? 50 : 34; c.updateProjectionMatrix();
+    this.sunLight.shadow.needsUpdate = true; this.dirty = true;
+  }
   setGroundTextures(t) { this.groundTex = t; this.recompute(); }
   // 해·달·하늘·계절을 다시 계산한다 (몇 초에 한 번, 또는 설정이 바뀌었을 때)
   recompute() {
@@ -167,7 +180,7 @@ export class Environment {
     x.fillStyle = gr; x.fillRect(0, 0, 4, 256); this.skyTex.needsUpdate = true;
     this.skyMat.color.setScalar(1 + 1.6 * day);
     this.starMat.opacity = night * (1 - oc) * 0.9;
-    this.scene.fog.color.copy(hor).multiplyScalar(0.9 + 1.2 * day); this.scene.fog.near = 9; this.scene.fog.far = oc >= 1 ? 24 : oc > 0 ? 38 : 75;
+    this.scene.fog.color.copy(hor).multiplyScalar(0.9 + 1.2 * day); this.scene.fog.near = this.outdoorView ? 22 : 9; this.scene.fog.far = (oc >= 1 ? 24 : oc > 0 ? 38 : 75) * (this.outdoorView ? 1.3 : 1);
 
     // 해와 달의 원반
     const origin = new THREE.Vector3((WINDOW.x0 + WINDOW.x1) / 2, 1.5, 0), sd = this._dir(sp.az, sp.alt), md = this._dir(mp.az, mp.alt);
@@ -204,7 +217,7 @@ export class Environment {
     this.sillSnowMat.emissive.set(0x3a517c).multiplyScalar(glow * 0.3);
     // 나무 그림의 밝기와 색: 밤에는 달빛의 푸른 기운만 남고, 낮에는 햇빛 색을 조금 띤다. 흐린 날은 가라앉는다.
     const treeLight = C(0x4a6696).multiplyScalar(glow * 0.62).lerp(C(0xffffff).lerp(L.color, 0.35 * (sunI > 0.01 ? 1 : 0)).multiplyScalar(1.55 - 0.5 * oc), day);
-    this.forest.set({ snowy, crownColors: P.crown, light: treeLight });
+    this.forest.set({ snowy, crownColors: P.crown, light: treeLight }); this.forestBack.set({ snowy, crownColors: P.crown, light: treeLight });
     const lc = (snowy ? C(0x2a3a44) : C(P.conifer)).multiplyScalar(0.25 + 1.1 * day + 0.5 * glow);
     this.lineMats[0].color.copy(lc).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.3); this.lineMats[1].color.copy(lc).lerp(hor.clone().multiplyScalar(1 + 1.2 * day), 0.55);
     // 눈

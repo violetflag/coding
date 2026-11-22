@@ -5,6 +5,7 @@ import { vec4 } from 'three/tsl';
 import { ROOM, WINDOW, FIREPLACE as FP, CHAIRS, RUG, LAMP, SHELF, TABLE } from './layout.js';
 import { makeMaterials, boxUV, rng } from './textures.js';
 import * as F from './furniture.js';
+import { buildOutdoor, DOOR } from './outdoor.js';
 
 export const BOOK_COLORS = [0x5b2a22, 0x2f3b2a, 0x1f2c44, 0x6a5330, 0x3d2630, 0x49392a, 0x7a3b1e, 0x243a3a, 0x58481f, 0x30263c, 0x6b6250, 0x3a1818];
 
@@ -30,7 +31,10 @@ export function buildRoom(ctx) {
   for (const x of [1.15, 2.55, 3.95]) box(0.16, 0.17, D, x, H - 0.085, D / 2, M.woodDark);     // 천장 들보
   box(W, 0.14, 0.16, W / 2, H - 0.07, D - 0.08, M.woodDark); box(W, 0.14, 0.16, W / 2, H - 0.07, 0.08, M.woodDark);
   box(0.1, H, D, -0.05, H / 2, D / 2, M.wall);                                   // 왼쪽 벽
-  box(0.1, H, D, W + 0.05, H / 2, D / 2, M.wall);                                // 오른쪽 벽
+  // 오른쪽 벽: 벽난로 오른쪽에 문 구멍을 뺀 세 조각 (문과 바깥은 outdoor.js)
+  box(0.1, H, DOOR.z0, W + 0.05, H / 2, DOOR.z0 / 2, M.wall);
+  box(0.1, H, D - DOOR.z1, W + 0.05, H / 2, (DOOR.z1 + D) / 2, M.wall);
+  box(0.1, H - DOOR.h, DOOR.z1 - DOOR.z0, W + 0.05, (H + DOOR.h) / 2, (DOOR.z0 + DOOR.z1) / 2, M.wall);
   box(W, H, 0.1, W / 2, H / 2, D + 0.05, M.wall);                                // 뒷벽
   // 창문 벽: 창 구멍을 뺀 네 조각 (바깥으로 두께 0.3)
   const wn = WINDOW, T = ROOM.wall;
@@ -38,7 +42,7 @@ export function buildRoom(ctx) {
   box(W - wn.x1, H, T, (W + wn.x1) / 2, H / 2, -T / 2, M.wall);
   box(wn.x1 - wn.x0, wn.y0, T, (wn.x0 + wn.x1) / 2, wn.y0 / 2, -T / 2, M.wall);
   box(wn.x1 - wn.x0, H - wn.y1, T, (wn.x0 + wn.x1) / 2, (H + wn.y1) / 2, -T / 2, M.wall);
-  for (const [bx, bz, bw, bd] of [[W / 2, D - 0.012, W, 0.024], [0.012, D / 2, 0.024, D], [W - 0.012, D / 2, 0.024, D]]) box(bw, 0.11, bd, bx, 0.055, bz, M.woodDark, { cast: false }); // 걸레받이
+  for (const [bx, bz, bw, bd] of [[W / 2, D - 0.012, W, 0.024], [0.012, D / 2, 0.024, D], [W - 0.012, (DOOR.z0 - 0.07) / 2, 0.024, DOOR.z0 - 0.07], [W - 0.012, (DOOR.z1 + 0.07 + D) / 2, 0.024, D - DOOR.z1 - 0.07]]) box(bw, 0.11, bd, bx, 0.055, bz, M.woodDark, { cast: false }); // 걸레받이
   // 창틀, 창살, 유리, 창턱
   const ww = wn.x1 - wn.x0, wh = wn.y1 - wn.y0, wx = (wn.x0 + wn.x1) / 2, wy = (wn.y0 + wn.y1) / 2, gz = -0.12;
   box(0.08, wh + 0.16, 0.14, wn.x0 - 0.04, wy, -0.06, M.woodDark, { vgrain: true }); box(0.08, wh + 0.16, 0.14, wn.x1 + 0.04, wy, -0.06, M.woodDark, { vgrain: true });
@@ -126,7 +130,6 @@ export function buildRoom(ctx) {
       let u = a0 + len * b / bays + 0.025;
       while (u < u1 - 0.02) {
         const k = r();
-        if (k < 0.07) { u += 0.05 + r() * 0.12; continue; }                                                    // 빈 틈
         const t = 0.02 + r() * 0.035, h = Math.min(SH.pitch - 0.05, 0.19 + r() * 0.1), d = 0.13 + r() * 0.06;
         if (u + t > u1) break;
         const lean = k > 0.95 ? (r() - 0.5) * 0.3 : 0;
@@ -207,5 +210,8 @@ export function buildRoom(ctx) {
 
   // 고리버들 바구니 (윙체어 옆)
   movable('basket', '바구니', put(F.basket(M), 2.0, 0, 1.25, 0.5), 0.24, 0.5);
+
+  // ---- 문, 문밖 마루, 기초, 지붕
+  g.add(buildOutdoor(ctx, M));
   return g;
 }

@@ -25,6 +25,15 @@ const VIEWS = {
   chair2: { pos: [2.75, 3.0], yaw: [1.2, 2.05], pitch: -0.4 },
   hearthclose: { pos: [4.0, 1.0], yaw: [5.0, 2.2], pitch: -0.75 },
   spines: { pos: [1.1, 3.0], yaw: [0.2, 3.0], pitch: 0.0 },
+  ceiling: { pos: [2.8, 3.6], yaw: [2.8, 1.0], pitch: 1.0 },
+  ceiling2: { pos: [3.5, 2.5], yaw: [5.6, 2.5], pitch: 0.9 },
+  shelfwall: { pos: [2.6, 2.4], yaw: [0, 2.4], pitch: 0.05 },
+  shelfwin: { pos: [1.2, 2.6], yaw: [1.0, 0], pitch: 0.0 },
+  door: { pos: [3.4, 3.4], yaw: [5.6, 3.5], pitch: -0.05, door: true },
+  doorshut: { pos: [3.4, 3.4], yaw: [5.6, 3.5], pitch: -0.05 },
+  house: { pos: [10.5, -3.0], yaw: [2.8, 2.6], pitch: 0.12, door: true },
+  house2: { pos: [-4.5, 10.5], yaw: [2.8, 2.0], pitch: 0.1 },
+  porch: { pos: [6.3, 3.5], yaw: [12, 2.5], pitch: -0.05, door: true },
 };
 
 mkdirSync('shots', { recursive: true });
@@ -58,7 +67,8 @@ for (const name of names) {
       if (p.state === 'walk') { p.sit(window.NANRO.ctx.interact.find(i => i.id === 'chair:reading').chair); await until(() => p.state === 'seated' && !p.tween); }
       if (name === 'reading') { p.openBook(); await until(() => !p.tween); }
     } else if (v) {
-      p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch;
+      p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch; p.feet = window.NANRO.ctx.groundAt?.(p.pos.x, p.pos.z) ?? 0;
+      if (v.door) { window.NANRO.ctx.door.toggle(); window.NANRO.ctx.door.t = 0.999; }
       p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
     }
   }, { name, VIEWS });

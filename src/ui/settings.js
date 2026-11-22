@@ -103,6 +103,7 @@ export class Settings {
     for (const [k, label] of order) { const b = document.createElement('button'); b.textContent = label; b.dataset.k = k; b.addEventListener('click', () => this.show(k)); tabs.appendChild(b); }
     $('setApply').addEventListener('click', () => this.apply());
     $('setClose').addEventListener('click', () => this.close());
+    if (this.quitButton) $('setClose').before(this.quitButton);
     $('setReset').addEventListener('click', () => { this.cfg.custom = false; this.cfg.values = { ...FIRE_PRESETS[this.cfg.preset].v }; this._fill(); this._live(); });
     el.addEventListener('click', (e) => { if (e.target === el) this.close(); });
     el.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.code === 'Escape') this.close(); }); // 입력 중에 이동 키가 먹지 않게
