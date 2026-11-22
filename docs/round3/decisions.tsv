@@ -1,0 +1,5 @@
+ts	phase	decision	why	evidence	result
+2026-11-22T02:06:31Z	frame	완료 기준을 정함: 앉은 상태 GPU 55% 이하(1080p와 4K, 그림자와 실사 효과 켠 채), 사용 흐름 문제 목록 해결, 항목마다 전후 사진	주인님 목표는 실사용 GPU 50% 안팎이고 지금은 68~77%	docs/round2/pc-report.md	open
+2026-11-22T02:06:31Z	harness	화면 요소까지 찍는 촬영 옵션(--dom, --eval)을 만듦	시작 화면, 설정창, 읽기 메뉴를 사진으로 확인하려고	tools/shot.mjs	시작 화면·설정·메뉴 사진 3장 확인
+2026-11-22T02:06:31Z	efficiency	시선이 멈춰 있으면 방을 한 프레임 걸러 그리게 함(읽을 때만 하던 것을 앉아 있을 때와 서 있을 때로 넓힘)	방 그리기가 부하의 대부분이고 멈춘 화면은 초당 30번으로도 차이가 안 보임. 불은 따로 그려져 그대로 60	src/main.js stillT	PC 측정 대기
+2026-11-22T02:06:31Z	efficiency	계단 방지 방식 비교용 옵션 aa=fxaa 추가	PC 측정에서 MSAA와 환경 반사가 약 20%를 차지. 묻지 않고 실제로 재서 정하려고	src/scene/post.js	PC 측정 대기

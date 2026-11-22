@@ -11,6 +11,8 @@ const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args.splice(i, 2)[1] : d; };
 const url = opt('url', 'http://127.0.0.1:5320/'), frames = Number(opt('frames', 260)), query = opt('query', 'q=test&fixed&stats&headless');
 const W = Number(opt('w', 1280)), H = Number(opt('h', 720));
+// --dom: 3D 화면 위에 실제 화면 요소(시작 화면, 설정창, 읽기 메뉴)까지 함께 찍는다. --eval "코드": 찍기 직전에 페이지에서 실행한다(화면 요소를 여는 용도).
+const evalJs = opt('eval', ''), DOM = args.includes('--dom') ? !!args.splice(args.indexOf('--dom'), 1) : false;
 const names = args.length ? args : ['start', 'fire', 'seated', 'reading'];
 const VIEWS = {
   start: null,
@@ -34,7 +36,7 @@ for (const name of names) {
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
   await page.goto(url + '?' + query);
   await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
-  await page.evaluate(() => { document.getElementById("start").style.display = "none"; }); await page.evaluate(() => Promise.all([window.NANRO.texturesReady, window.NANRO.brickReady]));
+  if (!DOM) await page.evaluate(() => { document.getElementById("start").style.display = "none"; }); await page.evaluate(() => Promise.all([window.NANRO.texturesReady, window.NANRO.brickReady]));
   await page.evaluate(async ({ name, VIEWS }) => {
     const p = window.NANRO.player, v = VIEWS[name];
     const until = (f) => new Promise((r) => { const t = setInterval(() => { if (f()) { clearInterval(t); r(); } }, 50); });
@@ -63,6 +65,10 @@ for (const name of names) {
   if (name.startsWith('book') || name.startsWith('demo')) { await page.waitForFunction(() => window.__bookReady, null, { timeout: 300000 }); await page.waitForTimeout(1500); }
   await page.waitForFunction((n) => (window.__nanroFrames | 0) >= n, frames, { timeout: 900000, polling: 500 });
   const url64 = await page.evaluate(({ W, H }) => window.NANRO.capture(W, H), { W, H });
+  if (DOM) {
+    await page.evaluate(async ({ url64, evalJs }) => { const im = new Image(); im.src = url64; im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;z-index:1'; document.body.insertBefore(im, document.body.firstChild); await im.decode(); if (evalJs) await (0, eval)(`(async () => { ${evalJs} })()`); }, { url64, evalJs });
+    await page.waitForTimeout(700); await page.screenshot({ path: `shots/${name}.png` });
+  } else
   writeFileSync(`shots/${name}.png`, Buffer.from(url64.split(',')[1], 'base64'));
   console.log('shots/' + name + '.png', await page.evaluate(() => document.getElementById('stats').textContent.replace(/\n/g, ' | ')));
   await page.close();

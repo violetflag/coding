@@ -63,7 +63,7 @@ export function buildSections(d) {
         check('바로 의자에서 시작', () => prefs.startSeated, (v) => { prefs.startSeated = v; sp(); }, '켜 두면 걸어 다니지 않고 읽기 의자에 앉은 채로 시작합니다.'),
         check('실사 효과 (음영과 빛 번짐)', () => prefs.post, (v) => { prefs.post = v; sp(); }, '구석과 물건이 맞닿은 곳의 음영, 밝은 빛의 번짐을 더합니다. 끄면 GPU 부하가 조금 줄어듭니다.'),
         check('그림자', () => prefs.shadows, (v) => { prefs.shadows = v; sp(); }, '불빛과 스탠드의 그림자입니다. 끄면 GPU 부하가 꽤 줄어듭니다.'),
-        check('읽는 동안 절전', () => prefs.readSave, (v) => { prefs.readSave = v; sp(); }, '책을 읽는 동안 방을 절반 속도로 그려 발열과 팬 소음을 줄입니다. 불과 책장 넘김은 그대로입니다.'),
+        check('가만히 있을 때 절전', () => prefs.readSave, (v) => { prefs.readSave = v; sp(); }, '시선을 움직이지 않는 동안(앉아서 불을 보거나 책을 읽을 때) 방을 절반 속도로 그려 발열과 팬 소음을 줄입니다. 불과 책장 넘김, 둘러보기는 그대로 부드럽습니다.'),
         check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 불빛을 1분쯤 기록한 뒤 불 계산을 멈추고 기록한 불빛을 되풀이합니다. 고개를 들거나 책을 덮으면 불이 다시 실제로 탑니다.'),
         note('운영체제의 "동작 줄이기" 설정이 켜져 있으면 화면 전환과 흔들림을 자동으로 줄입니다. 키 바꾸기와 영어 화면은 아직 없습니다.'));
     } },
