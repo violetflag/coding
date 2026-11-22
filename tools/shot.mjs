@@ -50,6 +50,7 @@ for (const name of names) {
       if (name.endsWith('old')) await R.reader.setMeta(meta.id, { age: 'old' });
       if (m && !name.includes('pdf')) { const pg = R.reader.pages[R.reader.cur.spread], g = pg.g0 + 60; R.reader.addHighlight(g, g + 70, 'yellow'); R.reader.addHighlight(g + 160, g + 215, 'pencil', '다시 읽어 볼 것'); R.reader.addHighlight(g + 300, g + 350, 'blue'); R.reader.toggleBookmark(); }
       if (name.includes('flip')) { R.reader.set.flip = 9999; R.reader.next(); await until(() => R.reader.book3d.flip); R.reader.book3d.flip.t = 0.42; }
+      if (name.includes('opening')) { R.setRise(0.45); await new Promise((r) => setTimeout(r, 1500)); }
       if (name.includes('single')) { R.reader.set.single = true; R.place(); }
       if (name.includes('look')) { Object.assign(R.reader.set, { vPitch: -17, vYaw: name.includes('wing') ? -32 : 30, vFov: 62, bH: 0.13, bTilt: 58, bDist: 0.42 }); R.place(); await new Promise((r) => setTimeout(r, 1500)); }
       window.__bookReady = true;

@@ -89,7 +89,7 @@ async function main() {
 
   // ---- 플레이어와 상호작용
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
-  let lampOn = true, fitSoon = () => {};
+  let lampOn = true, fitSoon = () => {}, stateT = 0, showHint = null;
   const setLamp = (on) => { ctx.refreshEnv?.(0.1); lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
@@ -106,7 +106,7 @@ async function main() {
       else if (it.id === 'shelf') reading.ui.open('lib');
       else if (it.frame !== undefined) arrange.pickFrame(it.frame);
     },
-    onState(s) { reading.onState(s); if (s === 'reading' || s === 'seated') fitSoon(); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
+    onState(s) { reading.onState(s); stateT = 0; if (s === 'seated' || s === 'reading') showHint?.(s); if (s === 'reading' || s === 'seated') fitSoon(); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
   });
   const applyPrefs = () => {
     player.sens = 0.0019 * prefs.sens; player.invertY = prefs.invertY; player.sway = prefs.sway;
@@ -118,7 +118,24 @@ async function main() {
   // ---- 읽기 모드 (리더, 3D 책, 메뉴)
   const uiMode = () => player.state === 'reading' || reading.ui.isOpen || !!settings?.isOpen;
   const start = $('start'), hint = $('hint'), dot = $('dot'), prompt = $('prompt'), stats = $('stats');
-  const syncOverlay = () => { const on = player.locked; start.style.display = on || uiMode() ? 'none' : 'grid'; dot.style.opacity = on ? 1 : 0; };
+  // 시작 화면은 처음 들어올 때만 보인다. 한 번 들어온 뒤에 마우스가 풀리면 화면을 가리지 않는 작은 안내만 띄운다.
+  let entered = false;
+  const pause = $('pause'), help = $('help');
+  const syncOverlay = () => {
+    const on = player.locked, ui = uiMode(); if (on || player.state === 'reading') entered = true;
+    start.classList.toggle('off', entered || on || ui); pause.classList.toggle('on', entered && !on && !ui && !help.classList.contains('on')); dot.style.opacity = on ? 1 : 0;
+  };
+  // 상황에 맞는 한 줄 안내: 상태가 바뀔 때 잠깐 보이고, 상태마다 세 번까지만 보인다. H를 누르면 전체 조작법.
+  const HINTS = { walk: '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 · 의자를 보고 <kbd>E</kbd> 앉기 · <kbd>H</kbd> 조작법', seated: '<kbd>E</kbd> 책 펼치기 · <kbd>Space</kbd> 일어나기', reading: '쪽을 누르거나 <kbd>←</kbd> <kbd>→</kbd> 넘기기 · 오른쪽 단추로 끌어 시선 돌리기 · <kbd>Tab</kbd> 메뉴 · <kbd>X</kbd> 책 덮기' };
+  const hintSeen = (() => { try { return JSON.parse(localStorage.getItem('nanro.hints') || '{}'); } catch { return {}; } })();
+  showHint = (k) => {
+    if (!HINTS[k] || (hintSeen[k] | 0) >= 3 || HEADLESS) return;
+    hintSeen[k] = (hintSeen[k] | 0) + 1; try { localStorage.setItem('nanro.hints', JSON.stringify(hintSeen)); } catch { /* 무시 */ }
+    hint.innerHTML = HINTS[k]; hint.style.opacity = 0.9; clearTimeout(showHint.h); showHint.h = setTimeout(() => (hint.style.opacity = 0), 7000);
+  };
+  const toggleHelp = (on = !help.classList.contains('on')) => { help.classList.toggle('on', on); if (on && player.locked) document.exitPointerLock(); syncOverlay(); };
+  help.addEventListener('click', () => toggleHelp(false));
+
   // 읽는 중에 옆 메뉴를 열면 책이 메뉴에 가리지 않게 화면을 왼쪽으로 민다
   const panelShift = (open) => { const w = Math.min(420, innerWidth * 0.4); if (open && player.state === 'reading' && innerWidth > 900) camera.setViewOffset(innerWidth, innerHeight, w / 2, 0, innerWidth, innerHeight); else camera.clearViewOffset(); };
   const reading = setupReading({
@@ -149,7 +166,25 @@ async function main() {
   addEventListener('resize', fit); fit(); fitSoon = () => fit();
 
   // ---- 시작 화면과 포인터 잠금
-  $('startMsg').textContent = '클릭해서 들어가기';
+  // 시작 화면의 두 갈래: 곧바로 읽기(읽기 의자에 앉아 책을 펼친다)와 방 둘러보기.
+  const goRead = $('goRead'), startFile = Object.assign(document.createElement('input'), { type: 'file', accept: '.epub,.pdf,.txt', multiple: true, style: 'display:none' });
+  document.body.append(startFile);
+  const sitAndRead = () => {
+    if (player.state === 'walk') player.seatNow(CHAIRS.find((c) => c.id === (cozy.session?.chair || 'reading')) || CHAIRS[0]);
+    if (player.state === 'seated') player.openBook();
+    syncOverlay();
+  };
+  startFile.addEventListener('change', async () => { const files = [...startFile.files]; startFile.value = ''; if (!files.length) return; await reading.ui.addFiles(files); if (reading.reader.library.length) sitAndRead(); });
+  const labelStart = () => {
+    const lib = reading.reader.library, b = lib.find((x) => x.id === reading.picked()) || lib[0];
+    goRead.innerHTML = b ? `${b.percent > 0.005 ? '이어서 읽기' : '책 읽기'}<small></small>` : '책 넣고 읽기<small>EPUB · PDF · TXT 파일을 고릅니다</small>';
+    if (b) goRead.querySelector('small').textContent = `${b.title} · ${Math.round((b.percent || 0) * 100)}%`;
+  };
+  reading.reader.ready.then(() => { labelStart(); $('startMsg').hidden = true; $('startActs').hidden = false; });
+  const prevLib = reading.onLibrary; reading.onLibrary = (l) => { prevLib?.(l); labelStart(); };
+  goRead.addEventListener('click', (e) => { e.stopPropagation(); startSound(); if (reading.reader.library.length) sitAndRead(); else startFile.click(); });
+  $('goWalk').addEventListener('click', (e) => { e.stopPropagation(); startSound(); player.lock(); });
+  $('openHelp').addEventListener('click', (e) => { e.stopPropagation(); toggleHelp(true); });
   start.addEventListener('click', () => { startSound(); player.lock(); });
   roomCanvas.addEventListener('click', () => { startSound(); if (!player.locked && !uiMode()) player.lock(); });
   addEventListener('keydown', () => startSound(), { once: true });
@@ -171,8 +206,9 @@ async function main() {
   addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && !typing(e)) settings.toggle(); });
   document.addEventListener('pointerlockchange', () => {
     const on = player.locked; syncOverlay();
-    if (on) { hint.style.opacity = 0.85; setTimeout(() => (hint.style.opacity = 0), 9000); }
+    if (on && player.state === 'walk') showHint('walk');
   });
+  addEventListener('keydown', (e) => { if (typing(e)) return; if (e.code === 'KeyH' && !e.repeat) toggleHelp(); else if (e.code === 'Escape' && help.classList.contains('on')) toggleHelp(false); });
   let showStats = Q.has('stats');
   addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); showStats = !showStats; stats.textContent = ''; } });
   addEventListener('beforeunload', () => { cozy.saveSession(); reading.reader.flush(); });
@@ -257,7 +293,7 @@ async function main() {
     // 가만히 있는 동안은 절전: 시선과 몸이 멈춰 있으면 방을 한 프레임 걸러 그린다(불은 따로 그려지므로 그대로 부드럽다).
     // 둘러보거나 걷거나 장을 넘기거나 가구를 옮기는 동안, 화면을 찍을 때는 매 프레임 그린다.
     const sig = player.yaw * 7 + player.pitch * 13 + player.pos.x * 17 + player.pos.z * 19 + player.eye * 23 + player.fov;
-    if (sig !== viewSig || player.tween || arrange.held || reading.reader.book3d.flipping) { viewSig = sig; stillT = 0; } else stillT += dt;
+    if (sig !== viewSig || player.tween || arrange.held || reading.moving || reading.reader.book3d.flipping) { viewSig = sig; stillT = 0; } else stillT += dt;
     skip = prefs.readSave && !Q.has('noidle') && stillT > 0.25 && !ctx.captureNext && !skip;
     // 환경 맵: 예약된 때, 또는 낮밤이 눈에 띄게 달라졌을 때 다시 찍는다
     envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
@@ -274,7 +310,9 @@ async function main() {
     } else if (ctx.captureNext && HEADLESS) { const cb = ctx.captureNext; ctx.captureNext = null; window.NANRO.capture(1600, 900).then((u) => { const im = new Image(); im.onload = () => cb(im); im.src = u; }, () => cb(null)); }
 
     // 상호작용 힌트
-    const f = player.locked && !arrange.held ? player.focus : null, mv = player.locked ? arrange.target : null;
+    // 앉아 있을 때의 '책 펼치기' 안내는 잠깐만 보인다(불을 바라보는 동안 화면 한가운데를 가리지 않게)
+    stateT += dt;
+    const f0 = player.locked && !arrange.held ? player.focus : null, f = f0 && f0.id === 'book' && stateT > 6 ? null : f0, mv = player.locked ? arrange.target : null;
     const label = (f ? `<kbd>E</kbd>${f.label}` : '') + (mv ? `${f ? ' &nbsp; ' : ''}<kbd>G</kbd>${mv.label} 옮기기` : '');
     prompt.style.opacity = label ? 1 : 0;
     if (label && prompt.dataset.label !== label) { prompt.dataset.label = label; prompt.innerHTML = label; }

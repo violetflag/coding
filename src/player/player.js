@@ -121,7 +121,9 @@ export class Player {
       // 앉을 때 끝에서 살짝 더 가라앉았다가 올라오는 쿠션 반동
       const settle = this.state === 'sitting' ? -0.035 * Math.sin(Math.PI * Math.max(0, (tw.t - 0.7) / 0.3)) : 0;
       this.eye = a.eye + (b.eye - a.eye) * e + settle;
-      this.yaw = lerpAngle(a.yaw, b.yaw, e); this.pitch = a.pitch + (b.pitch - a.pitch) * e; this.fov = a.fov + (b.fov - a.fov) * e;
+      // 앉거나 일어설 때는 몸을 앞으로 숙였다가 편다
+      const lean = this.state === 'sitting' || this.state === 'standing' ? -0.17 * Math.sin(Math.PI * tw.t) : 0;
+      this.yaw = lerpAngle(a.yaw, b.yaw, e); this.pitch = a.pitch + (b.pitch - a.pitch) * e + lean; this.fov = a.fov + (b.fov - a.fov) * e;
       if (tw.t >= 1) { this.tween = null; tw.done?.(); }
     } else if (this.state === 'walk') {
       const fwd = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw)), right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));

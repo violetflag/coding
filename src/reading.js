@@ -38,7 +38,8 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   // ---- 책을 드는 자리: 무릎 위에 얹고 두 손으로 잡은 책. 눈에서 앞으로 FWD, 아래로 DROP 떨어진 곳에 TILT만큼 세워 둔다.
   const DROP = 0.37, DEG = Math.PI / 180;                           // 눈에서 무릎 위 책까지의 기본 높이 차(m)
   const target = new THREE.Vector3(), tq = new THREE.Quaternion(), eul = new THREE.Euler(), dir = new THREE.Vector3(), right = new THREE.Vector3(), eyeP = new THREE.Vector3();
-  let rise = 0; const hands = [];
+  // rise: 책을 펼치는 움직임(0 → 1), closing: 덮는 움직임(1 → 0). 덮인 책은 양쪽 면이 CLOSED도까지 접혀 있다.
+  let rise = 1, closing = 0; const hands = [], CLOSED = 76, smooth = (t) => t * t * (3 - 2 * t);
   // 시선: 읽는 동안의 눈길(위아래·좌우)과 시야각. 설정이나 오른쪽 끌기로 바꾸면 바로 따라간다.
   function applyView(now = true) {
     const S = reader.set, c = player.chair;
@@ -47,7 +48,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     for (const h of hands) h.visible = !!S.hands;
   }
   function place(snap = false) {
-    applyView(); book.setOpen(reader.set.bOpen ?? 16);
+    applyView(); if (rise >= 1 && closing <= 0) book.setOpen(reader.set.bOpen ?? 16);
     const c = player.chair; if (!c) return;
     const yaw = c.yaw, S = reader.set, single = S.single;
     right.set(Math.cos(yaw), 0, -Math.sin(yaw)); eyeP.set(player.pos.x, c.eye, player.pos.z);
@@ -144,14 +145,14 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   api.onState = async (s) => {
     if (s === 'reading') {
       if (document.pointerLockElement) document.exitPointerLock();
-      place(); book.group.position.copy(target); book.group.position.y -= 0.1; book.group.quaternion.copy(tq); rise = 0;
+      place(); book.group.position.copy(target); book.group.position.y -= 0.12; book.group.quaternion.copy(tq); rise = 0; closing = 0; book.setOpen(CLOSED);
       const had = !!reader.cur && (!picked || reader.cur.meta.id === picked);
       book.group.visible = had; ui.setReading(true);
       const ok = had || (await openPicked());
       if (player.state !== 'reading') return;
       if (!ok) { if (!reader.library.length) return; player.closeBook(); return; }
       book.group.visible = true; reader.spreadAt = performance.now(); sfx?.('open');
-    } else if (api.wasReading) { ui.setReading(false); ui.close(); reader.stopTts(); reader.flush(); book.group.visible = false; sfx?.('close'); if (s === 'seated') player.lock(); }
+    } else if (api.wasReading) { ui.setReading(false); ui.close(); reader.stopTts(); reader.flush(); if (book.group.visible) closing = 1; sfx?.('close'); if (s === 'seated') player.lock(); }
     api.wasReading = s === 'reading';
   };
   api.advance = (d) => {
@@ -159,6 +160,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     reader.turn(d);
   };
   api.picked = () => picked; api.setPicked = setPicked; api.place = place;
+  api.setRise = (v) => { rise = v; api.holdRise = v < 1; };   // 촬영 도구용: 펼치는 움직임을 중간에서 멈춘다
 
   // ---- 마우스: 끌어서 선택, 눌러서 넘기기
   const ndc = new THREE.Vector2(); let drag = null, lastWheel = 0;
@@ -233,9 +235,17 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     const ch = player.chair; lap.visible = !!ch && (player.state === 'seated' || reading || (player.state === 'sitting' && player.tween?.t > 0.7));
     if (lap.visible) { lap.position.set(ch.pos[0], ch.eye - 1.08, ch.pos[1]); lap.rotation.y = ch.yaw; }
     reader.tick(dt, reading && book.group.visible);
-    if (!book.group.visible) { bookLight.intensity = 0; return; }
-    rise = Math.min(1, rise + dt * 2.2);
-    const k = 1 - Math.exp(-dt * 10); book.group.position.lerp(target, k); book.group.quaternion.slerp(tq, k);
+    if (!book.group.visible) { bookLight.intensity = 0; api.moving = false; return; }
+    const open = reader.set.bOpen ?? 16;
+    if (closing > 0) {
+      // 책을 덮는다: 양쪽 면을 모으며 무릎으로 내려놓고 사라진다
+      closing -= dt / 0.38; const e = smooth(Math.max(0, closing)); book.setOpen(open + (CLOSED - open) * (1 - e)); book.group.position.y -= dt * 0.3;
+      if (closing <= 0) { book.group.visible = false; book.setOpen(open); bookLight.intensity = 0; api.moving = false; return; }
+    } else {
+      if (rise < 1) { if (!api.holdRise) rise = Math.min(1, rise + dt * 1.7); book.setOpen(open + (CLOSED - open) * (1 - smooth(rise))); }   // 무릎에서 들어 올리며 펼친다
+      const k = 1 - Math.exp(-dt * 10); book.group.position.lerp(target, k); book.group.quaternion.slerp(tq, k);
+    }
+    api.moving = closing > 0 || rise < 1 || book.group.position.distanceToSquared(target) > 1e-7;   // 책이 움직이는 동안은 화면을 매 프레임 그린다
     bookLight.position.copy(book.group.position).addScaledVector(dir, -0.22); bookLight.position.y += 0.1;
     const steady = reader.set.contrast;
     // 밤에는 종이가 방보다 지나치게 희지 않게 낮추고(불빛 색을 띤 크림색), 낮에는 창빛만큼 밝힌다

@@ -3,7 +3,8 @@ import { FIRE_FIELDS, FIRE_PRESETS, clampField, saveFireConfig } from './fireCon
 
 const CSS = `
 #settings { position: fixed; inset: 0; z-index: 6; display: none; place-items: center; background: rgba(5,3,2,.78); font-family: "Malgun Gothic", "Apple SD Gothic Neo", sans-serif; }
-#settings.open { display: grid; }
+#settings.open { display: grid; animation: setFade .2s ease-out; } #settings.open .box { animation: setIn .22s ease-out; }
+@keyframes setFade { from { opacity: 0; } } @keyframes setIn { from { transform: translateY(10px) scale(.985); } }
 #settings .box { width: min(760px, 94vw); max-height: 90vh; overflow: auto; background: #17110c; border: 1px solid #4a3a28; border-radius: 10px; padding: 20px 24px; color: #e9dcc6; font-size: 13px; }
 #settings h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
 #settings h3 { margin: 18px 0 8px; font-size: 14px; font-weight: 600; color: #f0c98a; border-bottom: 1px solid #3a2c1e; padding-bottom: 4px; }
