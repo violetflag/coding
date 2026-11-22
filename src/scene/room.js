@@ -169,15 +169,21 @@ export function buildRoom(ctx) {
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
   inst.material.userData.bookCover = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
+  const pages = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x8a7d64, roughness: 0.95 }), books.length);
+  pages.castShadow = false; pages.receiveShadow = true; g.add(pages);
   books.forEach((b, i) => {
     const z = b.along === 'z';
     e.set(z ? b.lean : 0, 0, z ? 0 : b.lean); q.setFromEuler(e);
     m4.compose(new THREE.Vector3(z ? b.dd : b.a, b.y, z ? b.a : b.dd), q, new THREE.Vector3(z ? b.d : b.t, b.h, z ? b.t : b.d));
     inst.setMatrixAt(i, m4); inst.setColorAt(i, col.setHex(b.color).multiplyScalar(b.tone));
+    // 책 윗면의 종이 단면: 표지 안쪽으로 2mm 들어온 얇은 종이 판을 책 위에 얹는다(위에서 내려다보면 표지 테두리 안에 종이가 보인다)
+    const up = new THREE.Vector3(0, b.h / 2 + 0.0006, z ? 0 : 0).applyQuaternion(q), back = 0;
+    m4.compose(new THREE.Vector3((z ? b.dd + back : b.a) + up.x, b.y + up.y, (z ? b.a : b.dd + back) + up.z), q, new THREE.Vector3(z ? b.d - 0.006 : b.t - 0.004, 0.0012, z ? b.t - 0.004 : b.d - 0.006));
+    pages.setMatrixAt(i, m4);
   });
   inst.castShadow = false; inst.receiveShadow = true; g.add(inst);
   // 내 서재 칸에 꽂힌 보통 책: 내 책이 꽂힌 자리까지는 숨긴다
-  ctx.libraryFill = { inst, items: books.map((b, i) => b.lib && { i, z0: b.a - b.t / 2, m: (() => { const m = new THREE.Matrix4(); inst.getMatrixAt(i, m); return m; })() }).filter(Boolean) };
+  ctx.libraryFill = { meshes: [inst, pages], items: books.map((b, i) => b.lib && { i, z0: b.a - b.t / 2, m: [inst, pages].map((im) => { const m = new THREE.Matrix4(); im.getMatrixAt(i, m); return m; }) }).filter(Boolean) };
   // 내 서재 칸 (7단계에서 불러온 책의 책등이 꽂힌다)
   const lib = SH.library, bayLen = (D - 0.06) / 4;
   ctx.libraryShelf = { x: SH.depth - 0.02, y: SH.y0 + lib.row * SH.pitch, z0: 0.03 + bayLen * lib.bay + 0.03, z1: 0.03 + bayLen * (lib.bay + 1) - 0.03, height: SH.pitch - 0.05 };

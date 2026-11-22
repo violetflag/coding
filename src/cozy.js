@@ -45,7 +45,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
     }
     // 내 책 뒤로 남은 칸은 방에 꽂혀 있던 보통 책이 그대로 채운다. 내 책이 차지한 자리의 책만 숨긴다.
     const lf = ctx.libraryFill;
-    if (lf) { const zero = new THREE.Matrix4().makeScale(0, 0, 0); for (const it of lf.items) lf.inst.setMatrixAt(it.i, it.z0 < z + 0.004 ? zero : it.m); lf.inst.instanceMatrix.needsUpdate = true; }
+    if (lf) { const zero = new THREE.Matrix4().makeScale(0, 0, 0); for (const it of lf.items) lf.meshes.forEach((im, k) => im.setMatrixAt(it.i, it.z0 < z + 0.004 ? zero : it.m[k])); for (const im of lf.meshes) im.instanceMatrix.needsUpdate = true; }
     markPicked(reading.picked());
   }
   // 고른 책은 살짝 튀어나와 있다

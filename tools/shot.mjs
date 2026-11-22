@@ -28,6 +28,7 @@ const VIEWS = {
   ceiling: { pos: [2.8, 3.6], yaw: [2.8, 1.0], pitch: 1.0 },
   ceiling2: { pos: [3.5, 2.5], yaw: [5.6, 2.5], pitch: 0.9 },
   shelfwall: { pos: [2.6, 2.4], yaw: [0, 2.4], pitch: 0.05 },
+  shelftop: { pos: [0.85, 2.0], yaw: [0.1, 2.2], pitch: -0.62 },
   shelfwin: { pos: [1.2, 2.6], yaw: [1.0, 0], pitch: 0.0 },
   door: { pos: [3.4, 3.4], yaw: [5.6, 3.5], pitch: -0.05, door: true },
   doorshut: { pos: [3.4, 3.4], yaw: [5.6, 3.5], pitch: -0.05 },
