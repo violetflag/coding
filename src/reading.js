@@ -39,7 +39,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   const DROP = 0.37, DEG = Math.PI / 180;                           // 눈에서 무릎 위 책까지의 기본 높이 차(m)
   const target = new THREE.Vector3(), tq = new THREE.Quaternion(), eul = new THREE.Euler(), dir = new THREE.Vector3(), right = new THREE.Vector3(), eyeP = new THREE.Vector3();
   // rise: 책을 펼치는 움직임(0 → 1), closing: 덮는 움직임(1 → 0). 덮인 책은 양쪽 면이 CLOSED도까지 접혀 있다.
-  let rise = 1, closing = 0; const hands = [], CLOSED = 76, smooth = (t) => t * t * (3 - 2 * t);
+  let rise = 1, closing = 0, fold = 0; const hands = [], CLOSED = 76, smooth = (t) => t * t * (3 - 2 * t);
   // 시선: 읽는 동안의 눈길(위아래·좌우)과 시야각. 설정이나 오른쪽 끌기로 바꾸면 바로 따라간다.
   function applyView(now = true) {
     const S = reader.set, c = player.chair;
@@ -86,7 +86,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   }
   // ---- 앉은 사람의 몸 (앉아 있는 동안 보인다): 스웨터를 입은 배, 편한 바지를 입은 두 다리, 털양말을 신은 발.
   // 다리는 엉덩이에서 무릎을 지나 발목까지 굵기가 변하는 하나의 관으로 만든다.
-  const lap = new THREE.Group(); lap.visible = false; scene.add(lap);
+  const lap = new THREE.Group(); lap.visible = false; scene.add(lap); api.lap = lap;
   {
     // 천: 가는 능직 결. tint로 옷마다 색을 준다
     const weave = (base, a, b2, rep) => {
@@ -239,10 +239,10 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     const open = reader.set.bOpen ?? 16;
     if (closing > 0) {
       // 책을 덮는다: 양쪽 면을 모으며 무릎으로 내려놓고 사라진다
-      closing -= dt / 0.38; const e = smooth(Math.max(0, closing)); book.setOpen(open + (CLOSED - open) * (1 - e)); book.group.position.y -= dt * 0.3;
+      closing -= dt / 0.38; const e = smooth(Math.max(0, closing)); fold = 1 - e; book.setOpen(open + (CLOSED - open) * fold); book.group.position.y -= dt * 0.3;
       if (closing <= 0) { book.group.visible = false; book.setOpen(open); bookLight.intensity = 0; api.moving = false; return; }
     } else {
-      if (rise < 1) { if (!api.holdRise) rise = Math.min(1, rise + dt * 1.7); book.setOpen(open + (CLOSED - open) * (1 - smooth(rise))); }   // 무릎에서 들어 올리며 펼친다
+      fold = 0; if (rise < 1) { if (!api.holdRise) rise = Math.min(1, rise + dt * 1.7); fold = 1 - smooth(rise); book.setOpen(open + (CLOSED - open) * fold); }   // 무릎에서 들어 올리며 펼친다
       const k = 1 - Math.exp(-dt * 10); book.group.position.lerp(target, k); book.group.quaternion.slerp(tq, k);
     }
     api.moving = closing > 0 || rise < 1 || book.group.position.distanceToSquared(target) > 1e-7;   // 책이 움직이는 동안은 화면을 매 프레임 그린다
@@ -251,7 +251,8 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 밤에는 종이가 방보다 지나치게 희지 않게 낮추고(불빛 색을 띤 크림색), 낮에는 창빛만큼 밝힌다
     bookLight.intensity = steady ? 0.5 : 0.07 + 0.3 * light.fire + 0.1 * light.day;
     // 낮에는 누운 책이 하늘빛과 창빛을 그대로 받아 종이가 하얗게 날아간다: 낮일수록 종이를 어둡게 받고, 방의 반사광은 받지 않게 한다. '종이 밝기'로 직접 맞출 수도 있다.
-    const pk = (reader.set.bright ?? 1) * (1 - 0.66 * light.day);
+    // 접힌 채 올라오는 동안에는 세워진 면이 창빛을 정면으로 받아 더 희게 뜬다: 접힌 만큼 더 낮춘다
+    const pk = (reader.set.bright ?? 1) * (1 - 0.66 * light.day) * (1 - 0.45 * fold * light.day);
     for (const m of Object.values(book.mat)) { m.color.setScalar(pk); m.envMapIntensity = 0; }
     bookLight.color.setRGB(1, 0.69 + 0.31 * light.day, 0.44 + 0.56 * light.day);
   };

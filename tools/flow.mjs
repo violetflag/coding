@@ -8,10 +8,12 @@ const { chromium } = require('playwright');
 
 const url = 'http://127.0.0.1:5320/?nofire&fixed&fresh&time=13';
 mkdirSync('shots/flow', { recursive: true });
-const browser = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
+// 실제 GPU로 돌리려면 환경 변수 NANRO_GPU=1 (Edge 창이 잠깐 뜬다). 기본은 소프트웨어 렌더러라서 화면 그리기는 확인하지 못하고 동작의 흐름만 확인한다.
+const GPU = !!process.env.NANRO_GPU;
+const browser = await chromium.launch(GPU ? { channel: 'msedge', headless: false, args: ['--enable-unsafe-webgpu'] } : { args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-// 다시 열 때 그래픽 장치가 끊기는 알림은 시험 도구 탓이라 뺀다
-const errors = [], note = (t) => { if (!/Device Lost|Instance dropped/.test(t)) errors.push(t.slice(0, 300)); };
+// 소프트웨어 렌더러에서는 화면에 직접 그리는 길에서 그래픽 장치가 끊긴다(이 시험 환경의 한계). 그 알림은 실제 GPU로 돌릴 때만 오류로 센다.
+const errors = [], note = (t) => { if (GPU || !/Device Lost|Instance dropped/.test(t)) errors.push(t.slice(0, 300)); };
 page.on('pageerror', (e) => note(e.message)); page.on('console', (m) => { if (m.type() === 'error') note(m.text()); });
 let fail = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? '통과 ' : '실패 ') + name + (extra ? '  (' + extra + ')' : '')); if (!ok) fail++; };

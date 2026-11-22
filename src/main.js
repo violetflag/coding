@@ -215,12 +215,11 @@ async function main() {
   addEventListener('keydown', (e) => { if (e.code === 'F3') { e.preventDefault(); showStats = !showStats; stats.textContent = ''; } });
   addEventListener('beforeunload', () => { cozy.saveSession(); reading.reader.flush(); });
 
-  // ---- 서재가 기억하는 자리: 앉아 있던 의자에서, 펼친 책 그대로 다시 시작한다
+  // ---- 서재가 기억하는 자리: 앉아 있던 의자에서 다시 시작한다. 책은 시작 화면의 "이어서 읽기"를 눌렀을 때 펼친다(시작 카드 뒤에서 혼자 펴지지 않게).
   const ses = cozy.session, wantSeat = prefs.startSeated || (ses && ses.state !== 'walk');
   if (!Q.has('fresh') && !HEADLESS) {
     if (wantSeat) {
       const chair = CHAIRS.find((c) => c.id === (ses?.chair || 'reading')) || CHAIRS[0]; player.seatNow(chair);
-      if (ses?.state === 'reading') reading.reader.ready.then(() => { if (reading.reader.library.length && player.state === 'seated') { player.openBook(); syncOverlay(); } });
     } else if (ses?.state === 'walk' && ses.x) { if (!player.blocked(ses.x, ses.z)) { player.pos.x = ses.x; player.pos.z = ses.z; player.yaw = ses.yaw; } }
   }
 
@@ -233,6 +232,16 @@ async function main() {
   ctx.fireRec = rec;
   const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
   texturesReady.then(() => ctx.refreshEnv(0.2));
+  // 미리 준비: 시작 화면 뒤에서, 아직 한 번도 화면에 나오지 않은 물체(등 뒤의 가구, 책, 넘기는 책장, 무릎)까지 한 프레임 그려 둔다.
+  // 그리기 준비(셰이더 조립)는 물체가 처음 보일 때 일어나서, 그대로 두면 책장을 처음 넘기거나 처음 고개를 돌릴 때 한 번 끊긴다.
+  let warmT = HEADLESS || Q.has('nowarmup') ? 0 : -1; texturesReady.then(() => { if (warmT < 0) warmT = 1.2; });
+  const draw = () => { if (post && prefs.post) post.render(); else renderer.render(scene, camera); };
+  const warmUp = () => {
+    const undo = [], b3 = reading.reader.book3d;
+    for (const o of [b3.group, b3.flipF, b3.flipB, reading.lap]) if (o && !o.visible) { o.visible = true; undo.push(() => (o.visible = false)); }
+    scene.traverse((o) => { if (o.isMesh && o.frustumCulled) { o.frustumCulled = false; undo.push(() => (o.frustumCulled = true)); } });
+    try { draw(); } finally { for (const f of undo) f(); fireLight.shadow.needsUpdate = true; }
+  };
   let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0, idleN = 0, mouseHeld = false;
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   const frame = () => {
@@ -304,7 +313,8 @@ async function main() {
     envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
     else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
     scene.environmentIntensity = ENV_I * (0.75 + 0.25 * Math.min(1.4, level));
-    if (!HEADLESS && !skip) { if (post && prefs.post) post.render(); else renderer.render(scene, camera); }
+    if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { warmUp(); skip = false; } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
+    if (!HEADLESS && !skip) draw();
     if (ctx.captureNext && !HEADLESS) {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
       const cb = ctx.captureNext; ctx.captureNext = null;
