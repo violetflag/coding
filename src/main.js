@@ -25,10 +25,9 @@ const roomCanvas = $('room'), fireCanvas = $('fire');
 // 헤드리스 테스트 환경은 WebGPU 캔버스에 그리면 장치가 죽는다: 화면 출력은 건너뛰고 NANRO.capture()로만 읽는다.
 const HEADLESS = Q.has('headless');
 const LAMP_ON = 4.0;
-const AA = Q.get('aa') || 'msaa';   // 측정용: aa=fxaa
 
 async function main() {
-  const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa') && AA !== 'fxaa', alpha: true, forceWebGL: Q.has('webgl') });
+  const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa'), alpha: true, forceWebGL: Q.has('webgl') });
   await renderer.init();
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
@@ -229,9 +228,10 @@ async function main() {
   const shot = document.createElement('canvas');
   const REC_HZ = 30, REC_N = (Q.has('rec') ? +Q.get('rec') || 5 : 60) * REC_HZ, rec = { buf: new Float32Array(REC_N), n: 0, acc: 0, on: false, i: 0, dir: 1, t: 0 };  // 불빛 기록(기본 60초)
   ctx.fireRec = rec;
-  const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera, { aa: AA });
+  const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
   texturesReady.then(() => ctx.refreshEnv(0.2));
-  let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0;
+  let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0, idleN = 0, mouseHeld = false;
+  addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   const frame = () => {
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     player.update(dt);
@@ -294,7 +294,9 @@ async function main() {
     // 둘러보거나 걷거나 장을 넘기거나 가구를 옮기는 동안, 화면을 찍을 때는 매 프레임 그린다.
     const sig = player.yaw * 7 + player.pitch * 13 + player.pos.x * 17 + player.pos.z * 19 + player.eye * 23 + player.fov;
     if (sig !== viewSig || player.tween || arrange.held || reading.moving || reading.reader.book3d.flipping) { viewSig = sig; stillT = 0; } else stillT += dt;
-    skip = prefs.readSave && !Q.has('noidle') && stillT > 0.25 && !ctx.captureNext && !skip;
+    // 책을 읽는 동안(불이 화면 밖)에는 움직이는 것이 불빛의 느린 일렁임뿐이라 세 프레임에 한 번만 그린다. 주소 옵션 idle=N 은 측정용.
+    const idle = prefs.readSave && !Q.has('noidle') && stillT > 0.25 && !ctx.captureNext && !mouseHeld;
+    idleN = idle ? (idleN + 1) % (+Q.get('idle') || (player.state === 'reading' && (!fire || fire.hidden) ? 3 : 2)) : 0; skip = idle && idleN !== 0;
     // 환경 맵: 예약된 때, 또는 낮밤이 눈에 띄게 달라졌을 때 다시 찍는다
     envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
     else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
