@@ -35,6 +35,17 @@ const VIEWS = {
   house: { pos: [10.5, -3.0], yaw: [2.8, 2.6], pitch: 0.12, door: true },
   house2: { pos: [-4.5, 10.5], yaw: [2.8, 2.0], pitch: 0.1 },
   porch: { pos: [6.3, 3.5], yaw: [12, 2.5], pitch: -0.05, door: true },
+  // 하늘 점검: 마당에서 올려다보기(남쪽), 창 너머, 해·달 쪽 보기(look: 'sun'|'moon'|방위각°). env 는 환경 설정(별자리 선 등)
+  skynight: { pos: [12, 5], look: 180, pitch: 0.75 },
+  skynames: { pos: [12, 5], look: 180, pitch: 0.75, env: { constellations: 'names' } },
+  skyeast: { pos: [12, 5], look: 110, pitch: 0.6, env: { constellations: 'names' } },
+  skyup: { pos: [12, 5], look: 180, pitch: 1.4 },
+  skynorth: { pos: [12, 5], look: 0, pitch: 0.65 },
+  skywin: { pos: [2.8, 3.9], yaw: [2.8, 0], pitch: 0.12 },
+  skysun: { pos: [12, 5], look: 'sun', pitch: 0.25 },
+  skymoon: { pos: [12, 5], look: 'moon', pitch: 0.3 },
+  skywest: { pos: [12, 5], look: 240, pitch: 0.3 },
+  skysouth: { pos: [12, 5], look: 175, pitch: 0.35 },
 };
 
 mkdirSync('shots', { recursive: true });
@@ -70,7 +81,13 @@ for (const name of names) {
     } else if (v) {
       p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch; p.feet = window.NANRO.ctx.groundAt?.(p.pos.x, p.pos.z) ?? 0;
       if (v.door) { window.NANRO.ctx.door.toggle(); window.NANRO.ctx.door.t = 0.999; }
-      p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
+      if (v.env) window.NANRO.env.set(v.env);
+      if (v.look !== undefined) {                       // 방위각(북 0, 동 90)으로 바라보기. 장면에서 북 = +Z, 동 = -X
+        const S = window.NANRO.env.state, m = window.NANRO.env.sky.u.moonDir.value, mAz = Math.atan2(-m.x, m.z), mAlt = Math.asin(m.y) * 180 / Math.PI;
+        const az = v.look === 'sun' ? S.sunAz : v.look === 'moon' ? mAz : v.look * Math.PI / 180;
+        p.yaw = Math.atan2(Math.sin(az), -Math.cos(az));
+        if (v.look === 'sun' || v.look === 'moon') p.pitch = Math.max(-0.3, Math.min(1.2, (v.look === 'sun' ? S.sunAlt : mAlt) * Math.PI / 180 + 0.12));
+      } else p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
     }
   }, { name, VIEWS });
   // 시간 대신 프레임 수로 기다린다(불이 붙어 자리 잡는 데 약 250프레임).

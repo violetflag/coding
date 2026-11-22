@@ -8,6 +8,10 @@
 | [Leonxlnx/room-at-dawn](https://github.com/Leonxlnx/room-at-dawn) | `aab8be2` (2026-11-12) | `src/player/player.js`의 걷기·충돌·해상도 자동 조절 (`src/game/game.js`를 바탕으로 다시 작성), part 구조 | three.js WebGPU 렌더러에 맞게 재작성, 상호작용과 앉기 상태 추가 |
 | [Leonxlnx/earshot](https://github.com/Leonxlnx/earshot) | `7a7f7c5` (2026-11-20) | 6단계에서 효과음 파일을 만드는 개발 도구로 사용 (코드를 포함하지 않음) | - |
 
+## 밤하늘 자료 (BSD-3-Clause)
+
+`public/sky/`의 별(6등급까지), 별자리 선과 이름 위치, 은하수 윤곽은 [d3-celestial](https://github.com/ofrohn/d3-celestial) 0.7.35(Olaf Frohn, BSD 3-Clause)의 자료를 `tools/sky-data.mjs`로 줄인 것입니다. 라이선스 전문과 원자료 출처(XHIP 별 목록, IAU, Milky Way Outline Catalog)는 `public/sky/LICENSE.txt`에 있습니다. 행성 위치는 JPL의 근사 궤도 요소(Standish)로 계산합니다.
+
 그 밖의 의존성: [three.js](https://threejs.org) (MIT), [Vite](https://vitejs.dev) (MIT).
 
 ## ambientCG 텍스처 (CC0 1.0)

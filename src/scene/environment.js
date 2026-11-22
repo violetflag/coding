@@ -7,6 +7,7 @@ import { ROOM, WINDOW } from './layout.js';
 import { sunPosition, moonPosition, moonPhase, seasonOf } from './astro.js';
 import { rng } from './textures.js';
 import { buildForest } from './trees.js';
+import { Sky } from './sky.js';
 
 const KEY = 'nanro.env', DEG = Math.PI / 180;
 export const SEOUL = { lat: 37.5665, lon: 126.978 };
@@ -59,24 +60,13 @@ export class Environment {
   _build() {
     const g = (this.group = new THREE.Group()); g.name = 'outside'; this.scene.add(g);
     const r = rng(404), wx = (WINDOW.x0 + WINDOW.x1) / 2;
-    // ---- 하늘 (세로 그라데이션 텍스처를 씌운 구), 별, 해, 달
+    // ---- 하늘 (세로 그라데이션 텍스처를 씌운 구). 별·해·달은 sky.js 가 그린다.
     const cv = (this.skyCv = document.createElement('canvas')); cv.width = 4; cv.height = 256;
     this.skyTex = new THREE.CanvasTexture(cv); this.skyTex.colorSpace = THREE.SRGBColorSpace;
     this.skyMat = new THREE.MeshBasicMaterial({ map: this.skyTex, side: THREE.BackSide, fog: false, depthWrite: false });
     const sky = new THREE.Mesh(new THREE.SphereGeometry(48, 24, 16), this.skyMat); sky.renderOrder = -3; sky.position.set(wx, 0, 0); g.add(sky);
-    const sc = document.createElement('canvas'); sc.width = 4096; sc.height = 2048; const s2 = sc.getContext('2d');
-    s2.fillStyle = '#000'; s2.fillRect(0, 0, 4096, 2048);
-    for (let i = 0; i < 5200; i++) { const v = Math.acos(1 - r()) / Math.PI, b = Math.pow(r(), 3), rad = 0.45 + b * 0.9; s2.fillStyle = `rgba(${225 + r() * 30},${225 + r() * 30},${235 + r() * 20},${0.35 + b * 0.65})`; s2.beginPath(); s2.arc(r() * 4096, v * 2048, rad, 0, 7); s2.fill(); }
-    const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
-    this.starMat = new THREE.MeshBasicMaterial({ map: st, side: THREE.BackSide, fog: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 });
-    const stars = new THREE.Mesh(new THREE.SphereGeometry(47, 24, 16), this.starMat); stars.renderOrder = -2; stars.position.copy(sky.position); stars.rotation.z = 0.6; g.add(stars);
-    const glowTex = (inner, size = 256) => { const c = document.createElement('canvas'); c.width = c.height = size; const x = c.getContext('2d'), gr = x.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(inner, 'rgba(255,255,255,1)'); gr.addColorStop(inner + 0.03, 'rgba(255,240,210,.5)'); gr.addColorStop(0.35, 'rgba(255,200,140,.12)'); gr.addColorStop(1, 'rgba(255,180,120,0)'); x.fillStyle = gr; x.fillRect(0, 0, size, size); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; };
-    this.sunMat = new THREE.MeshBasicMaterial({ map: glowTex(0.035), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-    this.sun = new THREE.Mesh(new THREE.PlaneGeometry(26, 26), this.sunMat); this.sun.renderOrder = -1; g.add(this.sun);
-    this.moonCv = document.createElement('canvas'); this.moonCv.width = this.moonCv.height = 128;
-    this.moonTex = new THREE.CanvasTexture(this.moonCv); this.moonTex.colorSpace = THREE.SRGBColorSpace;
-    this.moonMat = new THREE.MeshBasicMaterial({ map: this.moonTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
-    this.moon = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 2.6), this.moonMat); this.moon.renderOrder = -1; g.add(this.moon);
+    this.sky = new Sky(g);                                 // 별·은하수·별자리·해·달 (src/scene/sky.js)
+    for (let i = 0; i < 31200; i++) r();                   // 예전 별 그림이 쓰던 난수만큼 건너뛴다(숲과 능선 배치가 그대로 남게)
 
     // ---- 땅, 먼 능선, 숲
     this.groundMat = new THREE.MeshStandardMaterial({ roughness: 1, envMapIntensity: 0 });   // 방 안을 찍은 반사 그림은 바깥 땅에 비치면 안 된다(풀밭이 반짝이는 점무늬로 보인다)
@@ -179,18 +169,11 @@ export class Environment {
     gr.addColorStop(0, zen.getStyle()); gr.addColorStop(0.32, zen.clone().lerp(hor, 0.35).getStyle()); gr.addColorStop(0.5, hor.getStyle()); gr.addColorStop(1, hor.clone().multiplyScalar(0.6).getStyle());
     x.fillStyle = gr; x.fillRect(0, 0, 4, 256); this.skyTex.needsUpdate = true;
     this.skyMat.color.setScalar(1 + 1.6 * day);
-    this.starMat.opacity = night * (1 - oc) * 0.9;
     this.scene.fog.color.copy(hor).multiplyScalar(0.9 + 1.2 * day); this.scene.fog.near = this.outdoorView ? 22 : 9; this.scene.fog.far = (oc >= 1 ? 24 : oc > 0 ? 38 : 75) * (this.outdoorView ? 1.3 : 1);
 
-    // 해와 달의 원반
-    const origin = new THREE.Vector3((WINDOW.x0 + WINDOW.x1) / 2, 1.5, 0), sd = this._dir(sp.az, sp.alt), md = this._dir(mp.az, mp.alt);
-    this.sun.position.copy(origin).addScaledVector(sd, 44); this.sun.lookAt(origin);
-    this.sunMat.opacity = sstep(-3, 1, alt) * (1 - oc); this.sunMat.color.copy(C(0xff9a55).lerp(C(0xfff4e0), sstep(0, 14, alt))).multiplyScalar(3);
-    this.sun.visible = this.sunMat.opacity > 0.01;
-    this.moon.position.copy(origin).addScaledVector(md, 44); this.moon.lookAt(origin);
-    this.moonMat.opacity = sstep(-2, 4, S.moonAlt) * (1 - oc) * (0.35 + 0.65 * night); this.moon.visible = this.moonMat.opacity > 0.01;
-    this.moonMat.color.setScalar(1.6);
-    this._drawMoon(ph);
+    // 해와 달의 방향, 별 하늘 (구름 양은 날씨가 주는 state.cloud, 없으면 overcast)
+    const sd = this._dir(sp.az, sp.alt), md = this._dir(mp.az, mp.alt);
+    this.sky.update({ date, lat: o.lat, lon: o.lon, sunDir: sd, moonDir: md, sunAlt: alt, moonAlt: S.moonAlt, moonFrac: ph.fraction, night, cloud: S.cloud ?? S.overcast, opts: o });
 
     // 햇빛 또는 달빛 (그림자 하나를 둘이 나눠 쓴다)
     const L = this.sunLight, sunI = 3.4 * sstep(-1.5, 12, alt) * (1 - 0.85 * oc);
@@ -224,21 +207,6 @@ export class Environment {
     this.snow.count = weather === 'heavy' ? this.snowMax : weather === 'snow' ? 1300 : 0; this.snow.visible = this.snow.count > 0;
     this.snowMat.color.setScalar(0.4 + 1.5 * day); this.wind = weather === 'heavy' ? 1.6 : 0.25; this.fall = weather === 'heavy' ? 1.7 : 1;
     this.dirty = false; this.onChange?.(S);
-  }
-
-  _drawMoon(ph) {
-    const key = Math.round(ph.phase * 60); if (key === this._moonKey) return; this._moonKey = key;
-    const c = this.moonCv.getContext('2d'), R = 44, cx = 64, cy = 64;
-    c.clearRect(0, 0, 128, 128); c.fillStyle = '#000'; c.fillRect(0, 0, 128, 128);
-    const gl = c.createRadialGradient(cx, cy, R, cx, cy, 64); gl.addColorStop(0, `rgba(150,170,210,${0.25 * ph.fraction})`); gl.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = gl; c.fillRect(0, 0, 128, 128);
-    // 밝은 쪽: 차오르는 달은 오른쪽이 밝다(북반구 기준)
-    const k = Math.cos(ph.phase * 2 * Math.PI), right = ph.phase < 0.5;        // k: 1 삭 → -1 보름
-    c.save(); c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
-    c.fillStyle = '#0a0c12'; c.fillRect(0, 0, 128, 128);
-    c.fillStyle = '#f2ecd8'; c.beginPath(); c.arc(cx, cy, R, -Math.PI / 2, Math.PI / 2, !right); c.fill();
-    c.fillStyle = ph.fraction > 0.5 ? '#f2ecd8' : '#0a0c12'; c.beginPath(); c.ellipse(cx, cy, Math.abs(k) * R, R, 0, 0, 7); c.fill();
-    c.globalAlpha = 0.12; c.fillStyle = '#6a6a70'; for (const [x, y, s] of [[50, 50, 10], [74, 60, 13], [60, 80, 8], [80, 42, 6]]) { c.beginPath(); c.arc(x, y, s, 0, 7); c.fill(); }
-    c.restore(); this.moonTex.needsUpdate = true;
   }
 
   update(dt, t) {
