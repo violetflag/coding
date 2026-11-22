@@ -81,6 +81,16 @@ for (const name of names) {
       if (name.includes('flip')) { R.reader.set.flip = 9999; R.reader.next(); await until(() => R.reader.book3d.flip); R.reader.book3d.flip.t = 0.42; }
       if (name.includes('opening')) { R.setRise(0.45); await new Promise((r) => setTimeout(r, 1500)); }
       if (name.includes('single')) { R.reader.set.single = true; R.place(); }
+      // demo…notes: 메모장을 펴고 견본 메모를 넣는다(notesview 는 미리 보기)
+      if (name.includes('notes')) {
+        const N = window.NANRO.notes; await N.open(); R.reader.setSelection(null);
+        N.editor.setValue('## 읽으며 적은 것\n\n- **불**은 서두르는 사람을 좋아하지 않는다\n- 굵은 장작은 *비스듬히* 얹는다\n- [x] 2장까지 읽기\n- [ ] 마지막 장 다시 읽기\n');
+        N.editor.buttons.here.click();
+        N.editor.insertBlock('| 장 | 한 줄로 |\n| --- | --- |\n| 1. 첫눈 | 오두막에 불을 지핀다 |\n| 2. 불 피우기 | 기다리는 법 |');
+        document.querySelector('#notes .tags input').value = '겨울, 다시 읽기';
+        if (name.includes('view')) await N.editor.setPreview(true);
+        await new Promise((r) => setTimeout(r, 1500));
+      }
       if (name.includes('look')) { Object.assign(R.reader.set, { vPitch: -17, vYaw: name.includes('wing') ? -32 : 30, vFov: 62, bH: 0.13, bTilt: 58, bDist: 0.42 }); R.place(); await new Promise((r) => setTimeout(r, 1500)); }
       window.__bookReady = true;
     } else if (name === 'seated' || name === 'reading') {

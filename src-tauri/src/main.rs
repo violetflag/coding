@@ -32,6 +32,8 @@ struct Shell {
     win: Mutex<Option<WinState>>,
     /// 서재 폴더. 여기에 넣어 둔 책 파일은 화면이 읽어 서재에 꽂는다.
     library: Mutex<PathBuf>,
+    /// 메모 폴더. 책을 읽으며 쓴 메모(.md)와 그 그림을 둔다.
+    notes: Mutex<PathBuf>,
     /// "난로로 열기"로 넘어왔고 화면이 아직 받아 가지 않은 책 파일.
     waiting: Mutex<Vec<PathBuf>>,
     /// 화면이 읽어도 되는 파일. 넘어온 책 파일만 들어간다(화면이 아무 파일이나 읽지 못하게 한다).
@@ -42,6 +44,8 @@ struct Shell {
 #[derive(Default, Serialize, Deserialize)]
 struct Settings {
     library_dir: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    notes_dir: Option<PathBuf>,
 }
 
 /// 화면에 알려 주는 책 파일 하나. modified 는 1970년부터 센 초.
@@ -80,14 +84,30 @@ fn settings_file(dir: &Path) -> PathBuf {
     dir.join("settings.json")
 }
 
-/// 서재 폴더. 고른 적이 없거나 그 폴더가 없어졌으면 자료 폴더 안의 books.
-fn load_library(dir: &Path) -> PathBuf {
+fn load_settings(dir: &Path) -> Settings {
     fs::read_to_string(settings_file(dir))
         .ok()
         .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
-        .and_then(|s| s.library_dir)
-        .filter(|p| p.is_dir())
-        .unwrap_or_else(|| dir.join("books"))
+        .unwrap_or_default()
+}
+
+/// settings.json 의 한 항목만 바꿔 적는다. 다른 항목(서재 폴더, 메모 폴더)은 그대로 둔다.
+fn change_settings(dir: &Path, change: impl FnOnce(&mut Settings)) {
+    let mut s = load_settings(dir);
+    change(&mut s);
+    if let Ok(text) = serde_json::to_string(&s) {
+        let _ = fs::write(settings_file(dir), text);
+    }
+}
+
+/// 서재 폴더. 고른 적이 없거나 그 폴더가 없어졌으면 자료 폴더 안의 books.
+fn load_library(dir: &Path) -> PathBuf {
+    load_settings(dir).library_dir.filter(|p| p.is_dir()).unwrap_or_else(|| dir.join("books"))
+}
+
+/// 메모 폴더. 고른 적이 없거나 그 폴더가 없어졌으면 자료 폴더 안의 notes.
+fn load_notes(dir: &Path) -> PathBuf {
+    load_settings(dir).notes_dir.filter(|p| p.is_dir()).unwrap_or_else(|| dir.join("notes"))
 }
 
 fn is_book(path: &Path) -> bool {
@@ -343,9 +363,132 @@ fn choose_library_folder(window: WebviewWindow) -> Option<String> {
     #[cfg(not(windows))]
     let picked: Option<PathBuf> = { let _ = start; None };
     let dir = picked?;
-    let text = serde_json::to_string(&Settings { library_dir: Some(dir.clone()) }).ok()?;
-    let _ = fs::write(settings_file(&shell.dir), text);
+    change_settings(&shell.dir, |s| s.library_dir = Some(dir.clone()));
     *shell.library.lock().unwrap() = dir.clone();
+    Some(dir.to_string_lossy().into_owned())
+}
+
+// ---- 메모 폴더: 화면이 이름만 넘기고, 읽고 쓰는 곳은 언제나 메모 폴더 바로 안이다.
+
+/// 메모 폴더에 둘 수 있는 파일 종류. 메모(.md)와 그 메모로 그린 그림(.excalidraw, .svg).
+const NOTE_EXT: [&str; 6] = ["md", "markdown", "txt", "excalidraw", "json", "svg"];
+/// 메모 파일 하나의 크기 한도.
+const MAX_NOTE: usize = 20 * 1024 * 1024;
+
+#[derive(Serialize)]
+struct NoteRef {
+    name: String,
+    size: u64,
+    modified: u64,
+}
+
+#[derive(Serialize)]
+struct Notes {
+    dir: String,
+    files: Vec<NoteRef>,
+}
+
+/// 메모 파일 이름이 쓸 만한지 본다. 폴더 경로, "..", 윈도우가 못 쓰는 글자와 이름(CON, NUL 같은 것), 모르는 확장자는 받지 않는다.
+fn note_name(raw: &str) -> Result<String, String> {
+    let bad = || Err::<String, String>("메모 파일 이름을 쓸 수 없습니다".into());
+    let name = raw.trim();
+    if name.is_empty() || name.chars().count() > 160 || name.starts_with('.') || name.ends_with('.') || name.ends_with(' ') {
+        return bad();
+    }
+    if name.chars().any(|c| c.is_control() || "<>:\"/\\|?*".contains(c)) || name.contains("..") {
+        return bad();
+    }
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) => (&name[..i], name[i + 1..].to_ascii_lowercase()),
+        None => return bad(),
+    };
+    let upper = stem.trim().to_ascii_uppercase();
+    let reserved = ["CON", "PRN", "AUX", "NUL"].contains(&upper.as_str())
+        || ((upper.starts_with("COM") || upper.starts_with("LPT")) && upper.len() == 4 && upper.as_bytes()[3].is_ascii_digit());
+    if stem.trim().is_empty() || reserved || !NOTE_EXT.contains(&ext.as_str()) {
+        return bad();
+    }
+    Ok(name.to_string())
+}
+
+fn notes_dir(shell: &Shell) -> PathBuf {
+    let dir = shell.notes.lock().unwrap().clone();
+    let _ = fs::create_dir_all(&dir);
+    dir
+}
+
+/// 메모 폴더의 파일 목록(하위 폴더는 보지 않는다). 폴더가 없으면 만든다.
+#[tauri::command(async)]
+fn notes_list(shell: tauri::State<'_, Shell>) -> Notes {
+    let dir = notes_dir(&shell);
+    let mut files: Vec<NoteRef> = fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter_map(|e| {
+                    let name = e.file_name().to_string_lossy().into_owned();
+                    note_name(&name).ok()?;
+                    let meta = e.metadata().ok().filter(|m| m.is_file())?;
+                    let modified = meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0);
+                    Some(NoteRef { name, size: meta.len(), modified })
+                })
+                .take(5000)
+                .collect()
+        })
+        .unwrap_or_default();
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    Notes { dir: dir.to_string_lossy().into_owned(), files }
+}
+
+/// 메모 파일의 내용. 없으면 null.
+#[tauri::command(async)]
+fn note_read(shell: tauri::State<'_, Shell>, name: String) -> Result<Option<String>, String> {
+    let path = notes_dir(&shell).join(note_name(&name)?);
+    match fs::metadata(&path) {
+        Err(_) => return Ok(None),
+        Ok(m) if !m.is_file() => return Err("메모 파일이 아닙니다".into()),
+        Ok(m) if m.len() > MAX_NOTE as u64 => return Err("메모 파일이 너무 큽니다".into()),
+        Ok(_) => {}
+    }
+    let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+    Ok(Some(String::from_utf8_lossy(&bytes).into_owned()))
+}
+
+/// 메모 파일을 쓴다. 옆에 임시 파일로 다 쓴 뒤 바꿔 끼워, 쓰다가 꺼져도 예전 내용이 남는다.
+#[tauri::command(async)]
+fn note_write(shell: tauri::State<'_, Shell>, name: String, text: String) -> Result<(), String> {
+    if text.len() > MAX_NOTE {
+        return Err("메모가 너무 깁니다".into());
+    }
+    let name = note_name(&name)?;
+    let dir = notes_dir(&shell);
+    let (path, tmp) = (dir.join(&name), dir.join(format!(".{name}.tmp")));
+    fs::write(&tmp, text.as_bytes()).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| {
+        let _ = fs::remove_file(&tmp);
+        e.to_string()
+    })
+}
+
+/// 메모 폴더를 탐색기로 연다.
+#[tauri::command]
+fn open_notes_folder(shell: tauri::State<'_, Shell>) {
+    let dir = notes_dir(&shell);
+    let _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();
+}
+
+/// 메모 폴더를 고르는 창을 띄운다. 고르면 기억하고 그 경로를 돌려준다.
+#[tauri::command(async)]
+fn choose_notes_folder(window: WebviewWindow) -> Option<String> {
+    let shell = window.state::<Shell>();
+    let start = notes_dir(&shell);
+    #[cfg(windows)]
+    let picked = rfd::FileDialog::new().set_title("메모 폴더 고르기").set_directory(&start).set_parent(&window).pick_folder();
+    #[cfg(not(windows))]
+    let picked: Option<PathBuf> = { let _ = start; None };
+    let dir = picked?;
+    change_settings(&shell.dir, |s| s.notes_dir = Some(dir.clone()));
+    *shell.notes.lock().unwrap() = dir.clone();
     Some(dir.to_string_lossy().into_owned())
 }
 
@@ -372,7 +515,12 @@ fn main() {
             library_books,
             read_book,
             open_library_folder,
-            choose_library_folder
+            choose_library_folder,
+            notes_list,
+            note_read,
+            note_write,
+            open_notes_folder,
+            choose_notes_folder
         ])
         .setup(|app| {
             let dir = data_dir(app);
@@ -381,6 +529,7 @@ fn main() {
                 dir: dir.clone(),
                 win: Mutex::new(saved),
                 library: Mutex::new(load_library(&dir)),
+                notes: Mutex::new(load_notes(&dir)),
                 waiting: Mutex::new(book_paths(std::env::args_os().skip(1).map(PathBuf::from), None)),
                 granted: Mutex::new(HashSet::new()),
             });

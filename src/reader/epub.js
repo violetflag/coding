@@ -148,7 +148,7 @@ export async function parseEpub(buf, name = '') {
   const imgs = {};
   await Promise.all([...images].map(async (k) => { try { imgs[k] = await createImageBitmap(blob(k)); } catch { /* 지원하지 않는 그림은 건너뛴다 */ } }));
   for (const ch of chapters) ch.blocks = ch.blocks.filter((b) => b.type !== 'img' || imgs[b.src]);
-  return finish({ id: await bookId(buf, name), format: 'epub', title: meta('title') || name.replace(/\.epub$/i, ''), author: meta('creator'), language: meta('language'), cover: coverItem && files[coverItem.href] ? blob(coverItem.href, coverItem.type) : null, chapters, toc, images: imgs });
+  return finish({ id: await bookId(buf, name), format: 'epub', title: meta('title') || name.replace(/\.epub$/i, ''), author: meta('creator'), language: meta('language'), publisher: meta('publisher'), date: meta('date'), cover: coverItem && files[coverItem.href] ? blob(coverItem.href, coverItem.type) : null, chapters, toc, images: imgs });
 }
 
 export async function parseTxt(buf, name = '') {
