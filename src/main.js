@@ -171,12 +171,15 @@ async function main() {
   const sitAndRead = () => {
     if (player.state === 'walk') player.seatNow(CHAIRS.find((c) => c.id === (cozy.session?.chair || 'reading')) || CHAIRS[0]);
     if (player.state === 'seated') player.openBook();
-    syncOverlay();
+    entered = true; syncOverlay();
   };
-  startFile.addEventListener('change', async () => { const files = [...startFile.files]; startFile.value = ''; if (!files.length) return; await reading.ui.addFiles(files); if (reading.reader.library.length) sitAndRead(); });
+  // 시작 화면이 떠 있는 동안 넣은 책(파일 고르기든 끌어다 놓기든)은 바로 앉아서 펼친다
+  const addFiles0 = reading.ui.addFiles.bind(reading.ui);
+  reading.ui.addFiles = async (files) => { const added = await addFiles0(files); if (added && !entered) sitAndRead(); return added; };
+  startFile.addEventListener('change', () => { const files = [...startFile.files]; startFile.value = ''; if (files.length) reading.ui.addFiles(files); });
   const labelStart = () => {
     const lib = reading.reader.library, b = lib.find((x) => x.id === reading.picked()) || lib[0];
-    goRead.innerHTML = b ? `${b.percent > 0.005 ? '이어서 읽기' : '책 읽기'}<small></small>` : '책 넣고 읽기<small>EPUB · PDF · TXT 파일을 고릅니다</small>';
+    goRead.innerHTML = b ? `${b.percent > 0.005 ? '이어서 읽기' : '책 읽기'}<small></small>` : '책 넣고 읽기<small>EPUB · PDF · TXT 파일을 고르거나 창에 끌어다 놓으세요</small>';
     if (b) goRead.querySelector('small').textContent = `${b.title} · ${Math.round((b.percent || 0) * 100)}%`;
   };
   reading.reader.ready.then(() => { labelStart(); $('startMsg').hidden = true; $('startActs').hidden = false; });
