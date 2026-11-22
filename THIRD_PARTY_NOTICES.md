@@ -38,3 +38,4 @@
 | `paper` | [Paper001](https://ambientcg.com/view?id=Paper001) |
 | `grass` | [Grass004](https://ambientcg.com/view?id=Grass004) |
 | `snow` | [Snow006](https://ambientcg.com/view?id=Snow006) |
+| `roof` | [RoofingTiles001](https://ambientcg.com/view?id=RoofingTiles001) |

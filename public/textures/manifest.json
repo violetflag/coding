@@ -244,5 +244,16 @@
       "normal",
       "roughness"
     ]
+  },
+  "roof": {
+    "id": "RoofingTiles001",
+    "url": "https://ambientcg.com/view?id=RoofingTiles001",
+    "sizeM": 2,
+    "sizeEstimated": true,
+    "maps": [
+      "color",
+      "normal",
+      "roughness"
+    ]
   }
 }
