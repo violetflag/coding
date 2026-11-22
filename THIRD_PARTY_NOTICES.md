@@ -14,6 +14,8 @@
 
 그 밖의 의존성: [three.js](https://threejs.org) (MIT), [Vite](https://vitejs.dev) (MIT).
 
+메모 그림(AI 설명) 기능: [Excalidraw](https://github.com/excalidraw/excalidraw) 0.18 (MIT, 함께 들어 있는 글꼴은 각 글꼴의 라이선스를 따르며 대부분 SIL OFL 1.1), [React](https://react.dev) (MIT), [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript) (MIT). Excalidraw 글꼴은 빌드할 때 `node_modules`에서 `dist/excalidraw/fonts`로 복사합니다(`tools/excalidraw-assets.mjs`).
+
 ## ambientCG 텍스처 (CC0 1.0)
 
 `public/textures/`의 재질 그림은 [ambientCG](https://ambientcg.com)에서 받은 것입니다(1K-JPG 묶음에서 Color, NormalGL, Roughness와 일부 AmbientOcclusion, Metalness, Opacity만 사용). 모두 CC0 1.0 Universal(퍼블릭 도메인)이며 출처 표시 의무는 없지만 여기에 적어 둡니다. 재질 ID와 실제 크기는 `public/textures/manifest.json`에도 있습니다.
