@@ -5,6 +5,17 @@ import { ROOM, PLAYER_START } from '../scene/layout.js';
 
 const R = 0.2, EYE = 1.62, EYE_CROUCH = 0.98;
 const ease = (t) => t * t * (3 - 2 * t);
+// 시선(원점 o, 방향 d)이 상자 [mn, mx]에 처음 닿는 거리, 안 닿으면 null
+const rayBox = (o, d, mn, mx) => {
+  let t0 = -Infinity, t1 = Infinity;
+  for (let a = 0; a < 3; a++) {
+    const oa = o.getComponent(a), da = d.getComponent(a);
+    if (Math.abs(da) < 1e-9) { if (oa < mn[a] || oa > mx[a]) return null; continue; }
+    let ta = (mn[a] - oa) / da, tb = (mx[a] - oa) / da; if (ta > tb) [ta, tb] = [tb, ta];
+    t0 = Math.max(t0, ta); t1 = Math.min(t1, tb); if (t0 > t1) return null;
+  }
+  return t1 < 0 ? null : t0;
+};
 const lerpAngle = (a, b, t) => a + Math.atan2(Math.sin(b - a), Math.cos(b - a)) * t;
 
 export class Player {
@@ -61,14 +72,16 @@ export class Player {
   _findFocus() {
     if (this.state !== 'walk') return this.state === 'seated' ? { id: 'book', label: '책 펼치기' } : null;
     const o = this.camera.position, d = new THREE.Vector3(); this.camera.getWorldDirection(d);
-    let best = null, bestT = 2.0;
+    let best = null, bestT = 2.0, boxIt = null, boxT = 2.0;
     for (const it of this.ctx.interact) {
+      // 상자로 고르는 대상(책장의 책): 시선이 상자를 지나는 곳까지의 거리
+      if (it.box) { const t = rayBox(o, d, it.box.min, it.box.max); if (t !== null && t > 0.2 && t < boxT) { boxIt = it; boxT = t; } continue; }
       const v = new THREE.Vector3(it.pos[0] - o.x, it.pos[1] - o.y, it.pos[2] - o.z), t = v.dot(d);
       if (t < 0.2 || t > bestT + it.radius) continue;
       const miss = v.addScaledVector(d, -t).length();
       if (miss < it.radius * 0.9 && t < bestT + it.radius * 0.5) { best = it; bestT = Math.min(bestT, t); }
     }
-    return best;
+    return boxIt && (!best || boxT < bestT + 0.3) ? boxIt : best;
   }
 
   interact() {

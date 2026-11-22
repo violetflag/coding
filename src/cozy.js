@@ -5,6 +5,8 @@ import * as store from './reader/store.js';
 import { saveFile } from './desktop.js';
 import { drawCover } from './reader/page.js';
 import { FIREPLACE as FP } from './scene/layout.js';
+import { LibraryShelf, demoLibrary } from './scene/bookshelf.js';
+import { bookDims, bookMaterials, newBuf, writeBook, toGeometry, bookColor } from './scene/books.js';
 
 const CANDLE_HOURS = 4, TEA_MINUTES = 18, SESSION = 'nanro.session', CANDLES = 'nanro.candles';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
@@ -14,54 +16,32 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   const api = {}, reader = reading.reader;
 
   // ================= 1. 서재 책장 = 내 라이브러리 =================
-  const shelf = ctx.libraryShelf, lib = new THREE.Group(); scene.add(lib);
-  let spines = [];
-  const spineTex = (b, w, h) => {
-    const cv = document.createElement('canvas'); cv.width = 96; cv.height = 512; const c = cv.getContext('2d');
-    c.fillStyle = b.color || '#5b2a22'; c.fillRect(0, 0, 96, 512);
-    const g = c.createLinearGradient(0, 0, 96, 0); g.addColorStop(0, 'rgba(0,0,0,.35)'); g.addColorStop(0.3, 'rgba(255,255,255,.06)'); g.addColorStop(1, 'rgba(0,0,0,.3)'); c.fillStyle = g; c.fillRect(0, 0, 96, 512);
-    c.fillStyle = '#d8b25a'; for (const y of [26, 34, 470, 478]) c.fillRect(8, y, 80, 3);
-    // 제목은 책등을 따라 세로로 (위에서 아래로 읽는다)
-    c.save(); c.translate(48, 256); c.rotate(Math.PI / 2); c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#e6c878';
-    let size = 46; c.font = `700 ${size}px "Noto Serif KR", "Batang", serif`; const t = b.title.length > 26 ? b.title.slice(0, 25) + '…' : b.title;
-    while (c.measureText(t).width > 400 && size > 18) { size -= 2; c.font = `700 ${size}px "Noto Serif KR", "Batang", serif`; }
-    c.fillText(t, 0, 2); c.restore();
-    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; return tex;
-  };
-  const paperMat = new THREE.MeshStandardMaterial({ color: 0xd8cdb4, roughness: 0.95 });
+  const shelf = new LibraryShelf(ctx, scene);
+  // 개발용(주소에 shelfdemo=권수): 가짜 책으로 책장을 채워 본다. 저장하지 않고 화면에만 꽂는다
+  const DEMO = new URLSearchParams(location.search).has('shelfdemo') ? demoLibrary(+new URLSearchParams(location.search).get('shelfdemo') || 120) : null;
   function rebuildShelf(library) {
-    for (const s of spines) { lib.remove(s.mesh); s.mesh.material.forEach((m) => { m.map?.dispose(); m !== paperMat && m.dispose(); }); s.mesh.geometry.dispose(); }
-    ctx.interact = ctx.interact.filter((i) => !i.libBook); spines = [];
-    let z = shelf.z0 + 0.01;
-    for (const b of library) {
-      const hsh = [...b.id].reduce((a, ch) => (a * 33 + ch.charCodeAt(0)) >>> 0, 7), t = 0.026 + (Math.min(b.size || 4e5, 3e6) / 3e6) * 0.024 + (hsh % 5) * 0.001, h = Math.min(shelf.height - 0.02, 0.2 + (hsh % 7) * 0.008), d = 0.15;
-      if (z + t > shelf.z1 - 0.01) break;
-      const cover = new THREE.MeshStandardMaterial({ color: b.color || '#5b2a22', roughness: 0.7 }), spine = new THREE.MeshStandardMaterial({ map: spineTex(b), roughness: 0.6, metalness: 0.15 });
-      // 상자 면 순서: +x(책등), -x(배), +y, -y, +z, -z
-      const mesh = new THREE.Mesh(new THREE.BoxGeometry(d, h, t), [spine, paperMat, paperMat, paperMat, cover, cover]);
-      mesh.position.set(shelf.x - d / 2, shelf.y + h / 2, z + t / 2); mesh.castShadow = true; mesh.receiveShadow = true; lib.add(mesh);
-      const it = { id: 'libbook:' + b.id, label: `꺼내기: ${b.title.length > 22 ? b.title.slice(0, 21) + '…' : b.title}`, pos: [shelf.x, shelf.y + h / 2, z + t / 2], radius: Math.max(0.03, t * 0.9), libBook: b.id };
-      ctx.interact.push(it); spines.push({ id: b.id, mesh, baseX: mesh.position.x, it }); z += t + 0.0015;
-    }
-    // 내 책 뒤로 남은 칸은 방에 꽂혀 있던 보통 책이 그대로 채운다. 내 책이 차지한 자리의 책만 숨긴다.
-    const lf = ctx.libraryFill;
-    if (lf) { const zero = new THREE.Matrix4().makeScale(0, 0, 0); for (const it of lf.items) lf.meshes.forEach((im, k) => im.setMatrixAt(it.i, it.z0 < z + 0.004 ? zero : it.m[k])); for (const im of lf.meshes) im.instanceMatrix.needsUpdate = true; }
+    shelf.rebuild(DEMO ? [...library, ...DEMO] : library);
     markPicked(reading.picked());
   }
   // 고른 책은 살짝 튀어나와 있다
-  function markPicked(id) { for (const s of spines) s.mesh.position.x = s.baseX + (s.id === id ? 0.035 : 0); updateHeld(); }
-  // 들고 다니는 책: 꺼낸 책이 화면 오른쪽 아래에 보인다
+  function markPicked(id) { shelf.setPicked(id); updateHeld(); }
+  // 들고 다니는 책: 꺼낸 책이 화면 오른쪽 아래에 보인다 (책장 책과 같은 모양, 앞표지에 표지 그림)
   scene.add(camera);
   const heldCv = document.createElement('canvas'); heldCv.width = 256; heldCv.height = 384; const heldTex = new THREE.CanvasTexture(heldCv); heldTex.colorSpace = THREE.SRGBColorSpace;
-  const heldCover = new THREE.MeshStandardMaterial({ map: heldTex, roughness: 0.7 }), heldSide = new THREE.MeshStandardMaterial({ color: 0x5b2a22, roughness: 0.7 });
-  const held = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.21, 0.028), [paperMat, heldSide, paperMat, paperMat, heldCover, heldSide]);
+  const heldCover = new THREE.MeshStandardMaterial({ map: heldTex, roughness: 0.7 }), bm0 = bookMaterials();
+  const held = new THREE.Mesh(new THREE.BufferGeometry(), [bm0.cloth, bm0.paper, heldCover]);
   held.position.set(0.2, -0.2, -0.42); held.rotation.set(-0.5, -0.45, 0.12); held.visible = false; camera.add(held);
   const heldLight = new THREE.PointLight(0xffc890, 0.12, 0.8, 2); heldLight.position.set(0.1, -0.05, -0.2); camera.add(heldLight);
   let heldId = null;
   async function updateHeld() {
     const id = reading.picked(), b = reader.library.find((x) => x.id === id);
     if (!b) { heldId = null; return; }
-    if (heldId === id) return; heldId = id; heldSide.color.set(b.color || '#5b2a22');
+    if (heldId === id) return; heldId = id;
+    // 손에 든 크기(키 21cm)에 맞추되 두께는 그 책의 두께 그대로
+    const d = bookDims(b), k = 0.21 / d.H; d.H *= k; d.Dp *= k;
+    const B = { cloth: newBuf(), paper: newBuf(), cover: newBuf() }, R = new THREE.Matrix4();
+    writeBook(B, d, new THREE.Matrix4().makeRotationY(Math.PI).multiply(R.makeTranslation((d.Dp - d.bulge) / 2, -d.H / 2, 0)), bookColor(b.color));
+    held.geometry.dispose(); held.geometry = toGeometry([B.cloth, B.paper, B.cover]);
     let bm = null; if (b.cover) { try { bm = await createImageBitmap(await (await fetch(b.cover)).blob()); } catch { /* 표지 없음 */ } }
     drawCover(heldCv, b, b.color, bm); heldTex.needsUpdate = true;
   }

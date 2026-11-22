@@ -3,10 +3,11 @@
 // 책 좌표: 책등이 Y축, 오른쪽 쪽이 +X, 읽는 사람 쪽이 +Z. 단위 m.
 import * as THREE from 'three/webgpu';
 import { PAGE } from './typeset.js';
+import { bookColor } from '../scene/books.js';
 
 export const PW = 0.14, PH = 0.21;
 export const SS = 1.5;
-const SEG = 32, TMAX = 0.02, TMIN = 0.003;
+const SEG = 32, TMAX = 0.02, TMIN = 0.003;          // TMAX: 기본 책 더미 두께(쪽수를 모를 때). 책마다 setBulk로 바꾼다
 const SQ = 0.0035, BOARD = 0.0028;                 // 표지가 종이보다 밖으로 나온 너비, 표지 판 두께
 const ease = (t) => t * t * (3 - 2 * t);
 // 책등에서 d만큼 떨어진 곳의 종이 높이 (더미 두께 t, 표지 판 기준): 가운데 골에서 가파르게 올라와 책등 쪽 3분의 1 지점에서 가장 높고,
@@ -77,7 +78,8 @@ export class Book3D {
 
   // p = 읽은 비율 0…1
   setThickness(p) {
-    this.progress = p; this.tL = TMIN + (TMAX - TMIN) * p; this.tR = TMIN + (TMAX - TMIN) * (1 - p);
+    const tmax = this.tmax ?? TMAX;
+    this.progress = p; this.tL = TMIN + (tmax - TMIN) * p; this.tR = TMIN + (tmax - TMIN) * (1 - p);
     for (const side of ['L', 'R']) {
       const s = side === 'L' ? -1 : 1, t = side === 'L' ? this.tL : this.tR, mesh = side === 'L' ? this.left : this.right, pos = mesh.geometry.attributes.position;
       // PlaneGeometry 정점: 위 줄(0…SEG), 아래 줄. u는 왼→오. 왼쪽 쪽은 u=1이 책등.
@@ -97,7 +99,9 @@ export class Book3D {
     this.spine.scale.set(0.0065, 1, 0.005); this.spine.position.set(0, 0, -BOARD * 0.4);
     const gz = prof(0, Math.max(this.tL, this.tR)) * Math.cos(this.theta) + 0.0012; this.ribbon.position.set(0.0015, -PH * 0.24, gz); this.ribbon.rotation.x = -0.035;
   }
-  setCover(color) { this.coverMat.color.set(color); }
+  setCover(color) { bookColor(color, this.coverMat.color); }
+  // 책 분량에 맞춘 종이 더미 두께: 쪽당 0.05mm(책장 책과 같은 셈), 펼쳐 읽기 좋게 0.8~3.6cm 사이로
+  setBulk(pages) { const t = Math.min(0.036, Math.max(0.008, (pages > 0 ? pages : 400) * 0.00005)) - TMIN; if (t === this.tmax) return; this.tmax = t; this.setThickness(this.progress); }
   // 고대비 종이: 조명과 상관없이 종이가 스스로 빛나는 정도
   setGlow(v) { for (const k in this.mat) this.mat[k].emissiveIntensity = v; }
   refresh(...keys) { for (const k of keys.length ? keys : ['L', 'R', 'F', 'B']) this.tex[k].needsUpdate = true; }

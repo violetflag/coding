@@ -271,8 +271,8 @@ export async function applyPhotoTextures(M, { scene, onGround, anisotropy = 8 } 
   if (scene && n) { const mats = new Set(); for (const k of Object.keys(PHOTO)) { if (M[k]) { mats.add(M[k]); for (const c of M[k].userData.clones || []) mats.add(c); } } meterUVs(scene, mats); }
   // 책장의 책과 탁자 위 책: 표지에 가죽 결을 입힌다
   const lt = await load('leather');
-  const bookMats = new Set(); scene?.traverse((o) => { if (o.material?.userData?.bookCover) bookMats.add(o.material); });
-  // 책의 면은 UV가 0~1 이라, 사진을 그대로 쓰면 3cm 책등에 가죽 결이 3번 넘게 눌려 매끈하게 보였다. 책등 크기만큼만 잘라 쓴다.
+  const bookMats = new Set(); scene?.traverse((o) => { for (const m of [].concat(o.material || [])) if (m.userData?.bookCover) bookMats.add(m); });
+  // 책 천의 UV는 책등 크기(3.5×25cm)가 1이다(books.js). 사진을 그 크기만큼만 잘라 쓴다.
   // 가죽 결은 창빛을 비스듬히 받으면 돌판처럼 얼룩져 보여서, 책장 책에는 천(Fabric066) 결을 쓴다(헝겊 양장 책)
   const ct = await load('cloth'), crop = (t) => { if (!t) return null; const c = t.clone(); c.repeat.set(0.09, 0.62); c.needsUpdate = true; return c; };
   const bookN = crop(ct?.normalMap || lt?.normalMap), bookR = crop(ct?.roughnessMap || lt?.roughnessMap);

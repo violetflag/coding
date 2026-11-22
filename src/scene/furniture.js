@@ -3,6 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { rng } from './textures.js';
+import { bookStackMesh } from './books.js';
 
 const shadow = (m, cast = true) => { m.castShadow = cast; m.receiveShadow = true; return m; };
 const rbox = (w, h, d, r, m) => shadow(new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2 - 1e-3, h / 2 - 1e-3, d / 2 - 1e-3)), m));
@@ -253,16 +254,5 @@ export function basket(M) {
   return g;
 }
 
-// ---- 눕혀 쌓은 책 몇 권
-export function bookStack(colors, n = 3, seed = 1) {
-  const g = new THREE.Group(), r = rng(seed); let y = 0;
-  for (let i = 0; i < n; i++) {
-    const t = 0.022 + r() * 0.018, w = 0.13 + r() * 0.03, d = 0.19 + r() * 0.03;
-    const cover = new THREE.MeshStandardMaterial({ color: colors[Math.floor(r() * colors.length)], roughness: 0.75 }); cover.userData.bookCover = true;
-    const b = shadow(new THREE.Mesh(new THREE.BoxGeometry(w, t, d), cover)); b.position.y = y + t / 2; b.rotation.y = (r() - 0.5) * 0.5; g.add(b);
-    const pages = new THREE.Mesh(new THREE.BoxGeometry(w - 0.008, t - 0.006, d - 0.004), new THREE.MeshStandardMaterial({ color: 0xd8cdb4, roughness: 0.95 })); pages.position.set(0.005, y + t / 2, 0); pages.rotation.y = b.rotation.y; g.add(pages);
-    y += t;
-  }
-  g.userData.top = y;
-  return g;
-}
+// ---- 눕혀 쌓은 책 몇 권 (책장 책과 같은 모양: 표지 판, 종이 더미, 둥근 책등)
+export function bookStack(colors, n = 3, seed = 1) { return bookStackMesh(colors, n, rng(seed)); }

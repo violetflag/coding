@@ -35,6 +35,14 @@ const VIEWS = {
   house: { pos: [10.5, -3.0], yaw: [2.8, 2.6], pitch: 0.12, door: true },
   house2: { pos: [-4.5, 10.5], yaw: [2.8, 2.0], pitch: 0.1 },
   porch: { pos: [6.3, 3.5], yaw: [12, 2.5], pitch: -0.05, door: true },
+  // 내 서재 책장: 빈 책장, 가짜 책(주소 옵션 shelfdemo=권수)으로 채운 책장, 가까이(제목), 위에서(책 모양)
+  shelfempty: { pos: [1.75, 3.0], yaw: [0.3, 3.0], pitch: -0.1 },
+  shelffull: { pos: [1.75, 3.0], yaw: [0.3, 3.0], pitch: -0.1, q: 'shelfdemo=150' },
+  shelfwide: { pos: [3.6, 3.2], yaw: [0.3, 1.0], pitch: 0, q: 'shelfdemo=150' },
+  shelfclose: { pos: [1.25, 2.75], yaw: [0.3, 2.75], pitch: -0.28, q: 'shelfdemo=150' },
+  shelfabove: { pos: [0.85, 2.7], yaw: [0.3, 2.95], pitch: -0.62, q: 'shelfdemo=40' },
+  shelfpick: { pos: [1.05, 3.7], yaw: [0.3, 3.35], pitch: -0.3, q: 'shelfdemo=12', sample: true },   // 견본 책을 서재에 넣고 꺼내 든다
+  tablebooks: { pos: [3.45, 3.55], yaw: [3.8, 4.05], pitch: -0.95 },
 };
 
 mkdirSync('shots', { recursive: true });
@@ -44,7 +52,7 @@ for (const name of names) {
   const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') console.log(`[${m.type()}]`, m.text().slice(0, 400)); });
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  await page.goto(url + '?' + query);
+  await page.goto(url + '?' + query + (VIEWS[name]?.q ? '&' + VIEWS[name].q : ''));
   await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
   if (!DOM) await page.evaluate(() => { document.getElementById("start").style.display = "none"; }); await page.evaluate(() => Promise.all([window.NANRO.texturesReady, window.NANRO.brickReady]));
   await page.evaluate(async ({ name, VIEWS }) => {
@@ -68,6 +76,7 @@ for (const name of names) {
       if (p.state === 'walk') { p.sit(window.NANRO.ctx.interact.find(i => i.id === 'chair:reading').chair); await until(() => p.state === 'seated' && !p.tween); }
       if (name === 'reading') { p.openBook(); await until(() => !p.tween); }
     } else if (v) {
+      if (v.sample) { const R = window.NANRO.reading; await R.reader.ready; const f = await (await fetch('/books/sample.epub')).blob(); const meta = await R.reader.addFile(new File([f], 'sample.epub')); R.setPicked(meta.id); }
       p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch; p.feet = window.NANRO.ctx.groundAt?.(p.pos.x, p.pos.z) ?? 0;
       if (v.door) { window.NANRO.ctx.door.toggle(); window.NANRO.ctx.door.t = 0.999; }
       p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));

@@ -3,7 +3,7 @@
 import * as THREE from 'three/webgpu';
 import { vec4 } from 'three/tsl';
 import { ROOM, WINDOW, FIREPLACE as FP, CHAIRS, RUG, LAMP, SHELF, TABLE } from './layout.js';
-import { makeMaterials, boxUV, rng } from './textures.js';
+import { makeMaterials, boxUV } from './textures.js';
 import * as F from './furniture.js';
 import { buildOutdoor, DOOR } from './outdoor.js';
 
@@ -111,12 +111,10 @@ export function buildRoom(ctx) {
   // 선반 왼쪽 끝의 황동 촛대 둘
   for (const [dz, hh] of [[0.22, 0.24], [0.42, 0.15]]) { const cs = put(F.candlestick(M, hh), FP.faceX - 0.13, mt, FP.z0 + dz); addCandle(FP.faceX - 0.13, mt + cs.userData.top - 0.02, FP.z0 + dz, '선반 촛불', { h: 0.13, r: 0.011, bare: true }); }
 
-  // ---- 책장: 왼쪽 벽 전체 + 창문 벽 왼쪽. 틀(옆판·선반판·칸막이)을 짜고 책은 인스턴스로 꽂는다.
-  const books = [];
-  const r = rng(2024);
-  const SH = SHELF;
-  // along: 'z' = x가 깊이 방향(왼쪽 벽), 'x' = z가 깊이 방향(창문 벽). a0…a1 = 길이 범위, back = 벽 쪽 좌표
-  const shelf = (along, a0, a1, bays, reserved) => {
+  // ---- 책장: 왼쪽 벽 전체 + 창문 벽 왼쪽. 틀(옆판·선반판·칸막이)만 짓는다. 처음엔 비어 있고, 서재에 넣은 책이 꽂힌다(bookshelf.js).
+  const SH = SHELF, rows = [];
+  // along: 'z' = x가 깊이 방향(왼쪽 벽), 'x' = z가 깊이 방향(창문 벽). a0…a1 = 길이 범위
+  const shelf = (along, a0, a1, bays, key) => {
     const len = a1 - a0, mid = (a0 + a1) / 2, dep = SH.depth, dc = dep / 2;
     const P = (a, y, dd, w, h, d, m, o) => (along === 'z' ? box(d, h, w, dd, y, a, m, o) : box(w, h, d, a, y, dd, m, o));
     P(mid, SH.top / 2, 0.012, len, SH.top, 0.024, M.woodDark, { cast: false });                              // 뒤판
@@ -124,70 +122,20 @@ export function buildRoom(ctx) {
     P(mid, 0.05, dc, len, 0.1, dep, M.woodDark);                                                             // 받침
     for (let b = 0; b <= bays; b++) P(a0 + len * b / bays, SH.top / 2, dc, 0.035, SH.top, dep, M.woodDark, { vgrain: true });
     for (let s = 1; s < SH.rows; s++) P(mid, SH.y0 + s * SH.pitch - 0.012, dc, len, 0.024, dep - 0.01, M.wood);
-    for (let s = 0; s < SH.rows; s++) for (let b = 0; b < bays; b++) {
-      const lib = reserved && reserved.row === s && reserved.bay === b;   // 내 서재 칸도 채운다(내 책이 꽂히면 그만큼 비킨다, cozy.js)
-      const y = SH.y0 + s * SH.pitch, u1 = a0 + len * (b + 1) / bays - 0.025;
-      let u = a0 + len * b / bays + 0.025;
-      while (u < u1 - 0.02) {
-        const k = r();
-        const t = 0.02 + r() * 0.035, h = Math.min(SH.pitch - 0.05, 0.19 + r() * 0.1), d = 0.13 + r() * 0.06;
-        if (u + t > u1) break;
-        const lean = k > 0.95 ? (r() - 0.5) * 0.3 : 0;
-        books.push({ lib, along, a: u + t / 2, y: y + h / 2, dd: dep - 0.02 - d / 2 - r() * 0.02, t, h, d, lean, color: BOOK_COLORS[Math.floor(r() * BOOK_COLORS.length)], tone: 0.5 + r() * 0.5 });
-        u += t + 0.002 + Math.abs(lean) * 0.06;
-      }
-    }
+    // 책이 꽂힐 자리(칸마다 한 단씩): 책등 앞면 = front, 아랫면 = y, 쓸 수 있는 높이 = h
+    for (let s = 0; s < SH.rows; s++) for (let b = 0; b < bays; b++)
+      rows.push({ key, bay: b, row: s, along, a0: a0 + len * b / bays + 0.02, a1: a0 + len * (b + 1) / bays - 0.02, y: SH.y0 + s * SH.pitch, h: (s === SH.rows - 1 ? SH.top : SH.y0 + (s + 1) * SH.pitch - 0.024) - (SH.y0 + s * SH.pitch), front: dep - 0.02 });
   };
-  shelf('z', 0.03, D - 0.03, 4, SH.library);
-  shelf('x', SH.depth, 1.93, 1, null);
+  shelf('z', 0.03, D - 0.03, 4, 'wall');
+  shelf('x', SH.depth, 1.93, 1, 'win');
   ctx.colliders.push({ min: [0, 0, 0], max: [SH.depth, SH.top, D] }, { min: [0, 0, 0], max: [1.95, SH.top, SH.depth] });
-  // 책등 무늬(금박 띠)가 들어간 책 인스턴스
-  const bandCv = document.createElement('canvas'); bandCv.width = 64; bandCv.height = 512; const bc = bandCv.getContext('2d');
-  { // 책등: 천 결, 도드라진 띠(밴드), 금박 줄, 제목 딱지와 닳은 가장자리. 흰 바탕이라 책마다의 색이 곱해진다.
-    const br = (() => { let v = 77; return () => ((v = (v * 16807) % 2147483647) / 2147483647); })();
-    const gr = bc.createLinearGradient(0, 0, 64, 0); gr.addColorStop(0, '#8a8a8a'); gr.addColorStop(0.18, '#ffffff'); gr.addColorStop(0.82, '#f4f4f4'); gr.addColorStop(1, '#7c7c7c'); bc.fillStyle = gr; bc.fillRect(0, 0, 64, 512);   // 둥근 책등의 음영
-    bc.globalAlpha = 0.1; for (let i = 0; i < 2400; i++) { bc.fillStyle = br() > 0.5 ? '#000' : '#fff'; bc.fillRect(br() * 64, br() * 512, 1, 2 + br() * 3); } bc.globalAlpha = 1;
-    for (const y of [70, 150, 362, 442]) { bc.fillStyle = 'rgba(0,0,0,.28)'; bc.fillRect(0, y + 7, 64, 3); bc.fillStyle = 'rgba(255,255,255,.2)'; bc.fillRect(0, y - 2, 64, 2); bc.fillStyle = '#c9a24e'; bc.fillRect(0, y, 64, 2); bc.fillRect(0, y + 4, 64, 1); }
-    bc.fillStyle = '#d8c69c'; bc.fillRect(5, 176, 54, 92); bc.fillStyle = '#b08c40'; bc.fillRect(5, 176, 54, 2); bc.fillRect(5, 266, 54, 2);
-    bc.fillStyle = 'rgba(50,34,20,.75)'; for (let k = 0; k < 6; k++) bc.fillRect(12 + br() * 6, 190 + k * 12, 28 + br() * 14, 4);
-    bc.fillStyle = '#c9a24e'; bc.beginPath(); bc.arc(32, 318, 9, 0, 7); bc.fill(); bc.fillStyle = '#fff'; bc.beginPath(); bc.arc(32, 318, 5, 0, 7); bc.fill();
-    const eg = bc.createLinearGradient(0, 0, 0, 512); eg.addColorStop(0, 'rgba(0,0,0,.35)'); eg.addColorStop(0.04, 'rgba(0,0,0,0)'); eg.addColorStop(0.96, 'rgba(0,0,0,0)'); eg.addColorStop(1, 'rgba(0,0,0,.4)'); bc.fillStyle = eg; bc.fillRect(0, 0, 64, 512); }
-  const bandTex = new THREE.CanvasTexture(bandCv); bandTex.colorSpace = THREE.SRGBColorSpace; bandTex.anisotropy = 8;
-  // 책등 바탕에 ambientCG 천 사진(Fabric066)의 결을 깐다: 책등 크기(약 3.5×25cm)만큼 잘라 회색으로 바꾸고, 위에서 그린 띠와 금박을 곱한다
-  { const layer = document.createElement('canvas'); layer.width = 64; layer.height = 512; layer.getContext('2d').drawImage(bandCv, 0, 0);
-    const img = new Image();
-    img.onload = () => {
-      const fw = img.width * 0.09, fh = img.height * 0.62;
-      bc.globalCompositeOperation = 'copy'; bc.drawImage(img, img.width * 0.3, img.height * 0.2, fw, fh, 0, 0, 64, 512);
-      const id = bc.getImageData(0, 0, 64, 512), a = id.data; let mean = 0;
-      for (let i = 0; i < a.length; i += 4) mean += 0.3 * a[i] + 0.59 * a[i + 1] + 0.11 * a[i + 2]; mean /= a.length / 4;
-      for (let i = 0; i < a.length; i += 4) { const l = 0.3 * a[i] + 0.59 * a[i + 1] + 0.11 * a[i + 2], v = 255 * Math.max(0.5, Math.min(1.04, 0.84 + ((l - mean) / (mean || 1)) * 0.55)); a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255; }
-      bc.putImageData(id, 0, 0); bc.globalCompositeOperation = 'multiply'; bc.drawImage(layer, 0, 0); bc.globalCompositeOperation = 'source-over';
-      bandTex.needsUpdate = true;
-    };
-    img.src = 'textures/cloth/color.jpg'; }
-  const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
-  inst.material.userData.bookCover = true;
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-  const pages = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x6f6450, roughness: 0.95, envMapIntensity: 0.3 }), books.length);
-  pages.castShadow = false; pages.receiveShadow = true; g.add(pages);
-  books.forEach((b, i) => {
-    const z = b.along === 'z';
-    e.set(z ? b.lean : 0, 0, z ? 0 : b.lean); q.setFromEuler(e);
-    m4.compose(new THREE.Vector3(z ? b.dd : b.a, b.y, z ? b.a : b.dd), q, new THREE.Vector3(z ? b.d : b.t, b.h, z ? b.t : b.d));
-    inst.setMatrixAt(i, m4); inst.setColorAt(i, col.setHex(b.color).multiplyScalar(b.tone));
-    // 책 윗면의 종이 단면: 표지 안쪽으로 2mm 들어온 얇은 종이 판을 책 위에 얹는다(위에서 내려다보면 표지 테두리 안에 종이가 보인다)
-    const up = new THREE.Vector3(0, b.h / 2 + 0.0006, z ? 0 : 0).applyQuaternion(q), back = 0;
-    m4.compose(new THREE.Vector3((z ? b.dd + back : b.a) + up.x, b.y + up.y, (z ? b.a : b.dd + back) + up.z), q, new THREE.Vector3(z ? b.d - 0.006 : b.t - 0.004, 0.0012, z ? b.t - 0.004 : b.d - 0.006));
-    pages.setMatrixAt(i, m4);
-  });
-  inst.castShadow = false; inst.receiveShadow = true; g.add(inst);
-  // 내 서재 칸에 꽂힌 보통 책: 내 책이 꽂힌 자리까지는 숨긴다
-  ctx.libraryFill = { meshes: [inst, pages], items: books.map((b, i) => b.lib && { i, z0: b.a - b.t / 2, m: [inst, pages].map((im) => { const m = new THREE.Matrix4(); im.getMatrixAt(i, m); return m; }) }).filter(Boolean) };
-  // 내 서재 칸 (7단계에서 불러온 책의 책등이 꽂힌다)
-  const lib = SH.library, bayLen = (D - 0.06) / 4;
-  ctx.libraryShelf = { x: SH.depth - 0.02, y: SH.y0 + lib.row * SH.pitch, z0: 0.03 + bayLen * lib.bay + 0.03, z1: 0.03 + bayLen * (lib.bay + 1) - 0.03, height: SH.pitch - 0.05 };
-  ctx.interact.push({ id: 'shelf', label: '내 서재', pos: [SH.depth, ctx.libraryShelf.y + 0.15, (ctx.libraryShelf.z0 + ctx.libraryShelf.z1) / 2], radius: 0.55 });
+  // 꽂는 순서: 내 서재 칸(눈높이 단)부터, 칸이 차면 그 칸의 위·아래 단, 그다음 옆 칸들, 마지막에 창문 벽 책장
+  const lib = SH.library, rowOrder = [lib.row, lib.row + 1, lib.row - 1, lib.row + 2, lib.row - 2, lib.row + 3, lib.row - 3].filter((s) => s >= 0 && s < SH.rows);
+  const bayOrder = [['wall', lib.bay], ['wall', lib.bay - 1], ['wall', lib.bay + 1], ['wall', lib.bay - 2], ['wall', lib.bay + 2], ['win', 0]];
+  ctx.libraryRows = [];
+  for (const [key, bay] of bayOrder) for (const s of rowOrder) { const r = rows.find((x) => x.key === key && x.bay === bay && x.row === s); if (r) ctx.libraryRows.push(r); }
+  const r0 = ctx.libraryRows[0];
+  ctx.interact.push({ id: 'shelf', label: '내 서재', pos: [SH.depth, r0.y + 0.15, (r0.a0 + r0.a1) / 2], radius: 0.55 });
 
   // ---- 러그
   const rugMesh = new THREE.Mesh(new THREE.BoxGeometry(RUG.w, 0.012, RUG.d), M.rug); rugMesh.position.set(RUG.x, 0.006, RUG.z); rugMesh.receiveShadow = true; g.add(rugMesh);

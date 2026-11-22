@@ -5,6 +5,7 @@ import { parseEpub, parseTxt } from './epub.js';
 import { paginate, charAt, textRange, DEFAULT_TYPE, TYPE_LIMITS, PAGE } from './typeset.js';
 import { drawPage, drawCover, colorFor, PENS } from './page.js';
 import { Book3D } from './book3d.js';
+import { pagesOf } from '../scene/books.js';
 
 const KEY = 'nanro.reader';
 const DEFAULTS = { type: { ...DEFAULT_TYPE }, paper: 'cream', grain: 0.6, single: false, contrast: false, cpm: 650, ttsRate: 1, ttsVoice: '', flip: 0.55, zoom: 1,
@@ -36,7 +37,7 @@ export class Reader {
     let cover = null;
     if (book.cover) { try { const bm = await createImageBitmap(book.cover), c = document.createElement('canvas'); c.width = 200; c.height = 300; drawCover(c, book, '#222', bm); cover = c.toDataURL('image/jpeg', 0.8); } catch { /* 표지 없음 */ } }
     const old = this.library.find((b) => b.id === book.id);
-    const meta = { id: book.id, title: book.title, author: book.author, format: book.format, addedAt: Date.now(), color: colorFor(book.title), age: 'new', pos: 0, percent: 0, ...old, cover, name: file.name, size: buf.byteLength };
+    const meta = { id: book.id, title: book.title, author: book.author, format: book.format, addedAt: Date.now(), color: colorFor(book.title), age: 'new', pos: 0, percent: 0, ...old, cover, name: file.name, size: buf.byteLength, pages: pagesOf(book) };
     await store.saveBook(meta, new Blob([buf])); await this.refreshLibrary();
     this.parsed = { id: book.id, book };                                   // 방금 읽은 것은 다시 풀지 않는다
     return meta;
@@ -56,8 +57,9 @@ export class Reader {
     this.cur = { meta, book, marks, layout: null, spread: 0, pdf: book.format === 'pdf' };
     this.history = []; this.hits = []; this.selection = null;
     await this.relayout(onProgress, meta.pos || 0);
-    meta.lastOpened = Date.now(); store.saveBook(meta);
-    this.book3d.setCover(meta.color); this.onChange('book');
+    meta.lastOpened = Date.now(); if (!(meta.pages > 0)) meta.pages = pagesOf(book);   // 예전에 넣은 책: 쪽수를 이제 채운다(책장 두께)
+    store.saveBook(meta);
+    this.book3d.setBulk(meta.pages); this.book3d.setCover(meta.color); this.onChange('book');
     return this.cur;
   }
   close() { this.stopTts(); this.flush(); this.cur = null; this.onChange('book'); }
