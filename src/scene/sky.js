@@ -193,7 +193,7 @@ export class Sky {
     // 별자리 선과 이름(설정), 황도 12궁 강조
     const mode = CONST_MODES[o.constellations] ? o.constellations : 'lines', zodiac = o.zodiac !== false;
     const li = sstep(1.0, 3.6, lim) * Math.pow(clear, 1.2);
-    U.line0.value.setRGB(0.045, 0.06, 0.09).multiplyScalar(li); U.line1.value.setRGB(0.045, 0.06, 0.09).multiplyScalar(li * (zodiac ? 1.9 : 1)); U.line2.value.setRGB(0.09, 0.07, 0.04).multiplyScalar(zodiac ? li : 0);
+    U.line0.value.setRGB(0.032, 0.043, 0.066).multiplyScalar(li); U.line1.value.setRGB(0.032, 0.043, 0.066).multiplyScalar(li * (zodiac ? 1.9 : 1)); U.line2.value.setRGB(0.09, 0.07, 0.04).multiplyScalar(zodiac ? li : 0);
     if (this.lines) this.lines.visible = mode !== 'off' && li > 0.01;
     U.label0.value.setRGB(0.26, 0.31, 0.4).multiplyScalar(li); U.label1.value.setRGB(0.26, 0.31, 0.4).multiplyScalar(li * (zodiac ? 1.5 : 1));
     if (this.labels) this.labels.visible = mode === 'names' && li > 0.01;

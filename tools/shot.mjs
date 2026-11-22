@@ -41,7 +41,7 @@ const VIEWS = {
   skyeast: { pos: [12, 5], look: 110, pitch: 0.6, env: { constellations: 'names' } },
   skyup: { pos: [12, 5], look: 180, pitch: 1.4 },
   skynorth: { pos: [12, 5], look: 0, pitch: 0.65 },
-  skywin: { pos: [2.8, 3.9], yaw: [2.8, 0], pitch: 0.12 },
+  skywin: { pos: [2.8, 2.9], yaw: [2.8, 0], pitch: 0.3 },
   skysun: { pos: [12, 5], look: 'sun', pitch: 0.25 },
   skymoon: { pos: [12, 5], look: 'moon', pitch: 0.3 },
   skywest: { pos: [12, 5], look: 240, pitch: 0.3 },
