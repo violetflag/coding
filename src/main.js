@@ -185,7 +185,12 @@ async function main() {
     goRead.innerHTML = b ? `${b.percent > 0.005 ? '이어서 읽기' : '책 읽기'}<small></small>` : '책 넣고 읽기<small>EPUB · PDF · TXT 파일을 고르거나 창에 끌어다 놓으세요</small>';
     if (b) goRead.querySelector('small').textContent = `${b.title} · ${Math.round((b.percent || 0) * 100)}%`;
   };
-  reading.reader.ready.then(() => { labelStart(); $('startMsg').hidden = true; $('startActs').hidden = false; });
+  // 화면 준비: 미리 그리기가 끝나고 끊기지 않는 프레임이 이어질 때까지 시작 단추를 내놓지 않는다.
+  // 프로그램을 켠 직후에는 그래픽 준비로 화면이 몇 초씩 멈추는데, 그동안 단추가 먼저 떠서 눌러도 반응이 없어 보이는 일을 막는다.
+  let warmed = false, settleN = 0, settleT = 0, lastNow = performance.now(), settled; const gfxReady = new Promise((r) => (settled = r));
+  if (HEADLESS || Q.has('nowarmup')) settled();
+  reading.reader.ready.then(() => { labelStart(); $('startMsg').textContent = '불을 지피는 중…'; });
+  Promise.all([reading.reader.ready, gfxReady]).then(() => { $('startMsg').hidden = true; $('startActs').hidden = false; });
   const prevLib = reading.onLibrary; reading.onLibrary = (l) => { prevLib?.(l); labelStart(); };
   goRead.addEventListener('click', (e) => { e.stopPropagation(); startSound(); if (reading.reader.library.length) sitAndRead(); else startFile.click(); });
   $('goWalk').addEventListener('click', (e) => { e.stopPropagation(); startSound(); player.lock(); });
@@ -250,6 +255,8 @@ async function main() {
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   const frame = () => {
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
+    const now = performance.now(), gap = now - lastNow; lastNow = now;
+    if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; settled(); } }
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
@@ -317,7 +324,7 @@ async function main() {
     envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
     else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
     scene.environmentIntensity = ENV_I * (0.75 + 0.25 * Math.min(1.4, level));
-    if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { warmUp(); skip = false; } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
+    if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { warmUp(); skip = false; warmed = true; } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
     if (!HEADLESS && !skip) draw();
     if (ctx.captureNext && !HEADLESS) {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다

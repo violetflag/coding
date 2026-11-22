@@ -85,6 +85,17 @@ fn on_screen(win: &WebviewWindow, st: &WinState) -> bool {
     }).unwrap_or(false)
 }
 
+/// 창을 최소화하면 화면 엔진에 "안 보임"을 알려 그리기를 멈추게 한다. 알리지 않으면 최소화한 채로도 방과 불을 계속 그린다.
+fn rest_when_minimized(win: &WebviewWindow) {
+    let visible = !win.is_minimized().unwrap_or(false);
+    #[cfg(windows)]
+    let _ = win.with_webview(move |wv| unsafe {
+        let _ = wv.controller().SetIsVisible(visible);
+    });
+    #[cfg(not(windows))]
+    let _ = visible;
+}
+
 #[tauri::command]
 fn toggle_fullscreen(window: WebviewWindow) -> bool {
     let on = !window.is_fullscreen().unwrap_or(false);
@@ -92,10 +103,60 @@ fn toggle_fullscreen(window: WebviewWindow) -> bool {
     on
 }
 
+/// 끝내기. 창을 닫는 길로 끈다(창 닫기 → 기억 → 종료). 프로세스를 바로 끊으면 화면 엔진이 저장하던 것을 마치지 못할 수 있다.
 #[tauri::command]
 fn quit(window: WebviewWindow) {
     save(&window);
-    window.app_handle().exit(0);
+    if window.close().is_err() {
+        window.app_handle().exit(0);
+    }
+}
+
+/// 파일 이름으로 쓸 수 없는 글자를 바꾸고 길이를 줄인다. 폴더 경로가 섞여 들어와도 이름만 남긴다.
+fn safe_name(raw: &str) -> String {
+    let base = raw.rsplit(['/', '\\']).next().unwrap_or("");
+    let mut name: String = base
+        .chars()
+        .map(|c| if c.is_control() || "<>:\"/\\|?*".contains(c) { '_' } else { c })
+        .take(120)
+        .collect();
+    name = name.trim().trim_end_matches('.').to_string();
+    if name.is_empty() {
+        name = "난로.dat".into();
+    }
+    name
+}
+
+fn unhex(text: &str) -> Option<String> {
+    if text.len() % 2 != 0 {
+        return None;
+    }
+    let bytes: Option<Vec<u8>> = (0..text.len()).step_by(2).map(|i| u8::from_str_radix(text.get(i..i + 2)?, 16).ok()).collect();
+    String::from_utf8(bytes?).ok()
+}
+
+/// 화면 쪽에서 넘긴 내용을 내려받기 폴더에 쓴다(백업, 밑줄 내보내기, 인용구 카드). 같은 이름이 있으면 번호를 붙인다.
+/// 돌려주는 값은 저장된 전체 경로.
+#[tauri::command]
+fn save_download(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("저장할 내용이 없습니다".into());
+    };
+    let name = request.headers().get("x-file-name").and_then(|v| v.to_str().ok()).and_then(unhex).map(|n| safe_name(&n)).unwrap_or_else(|| "난로.dat".into());
+    let dir = app.path().download_dir().unwrap_or_else(|_| app.state::<Shell>().dir.join("내보내기"));
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let (stem, ext) = match name.rfind('.') {
+        Some(i) if i > 0 => (&name[..i], &name[i..]),
+        _ => (name.as_str(), ""),
+    };
+    let mut path = dir.join(&name);
+    let mut n = 2;
+    while path.exists() {
+        path = dir.join(format!("{stem} ({n}){ext}"));
+        n += 1;
+    }
+    fs::write(&path, bytes).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 fn main() {
@@ -108,14 +169,19 @@ fn main() {
                 let _ = w.set_focus();
             }
         }))
-        .invoke_handler(tauri::generate_handler![toggle_fullscreen, quit])
+        .invoke_handler(tauri::generate_handler![toggle_fullscreen, quit, save_download])
         .setup(|app| {
             let dir = data_dir(app);
             let saved = load_state(&dir);
             app.manage(Shell { dir: dir.clone(), win: Mutex::new(saved) });
 
             // 주소 방식(https://tauri.localhost)은 책과 설정이 담기는 저장 공간의 이름이 되므로 바꾸지 않는다.
-            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+            // 시험용: 환경 변수 NANRO_URL 이 있으면 그 주소를 연다(예: 개발 서버, 주소 옵션을 붙인 화면).
+            let url = match std::env::var("NANRO_URL").ok().and_then(|u| u.parse().ok()) {
+                Some(u) => WebviewUrl::External(u),
+                None => WebviewUrl::App("index.html".into()),
+            };
+            let win = WebviewWindowBuilder::new(app, "main", url)
                 .title("난로")
                 .inner_size(1600.0, 900.0)
                 .min_inner_size(640.0, 400.0)
@@ -154,6 +220,10 @@ fn main() {
         })
         .on_window_event(|window, event| {
             let Some(win) = window.app_handle().get_webview_window(window.label()) else { return };
+            match event {
+                WindowEvent::Resized(_) | WindowEvent::Focused(_) => rest_when_minimized(&win),
+                _ => {}
+            }
             match event {
                 WindowEvent::Moved(_) | WindowEvent::Resized(_) => remember(&win),
                 WindowEvent::CloseRequested { .. } => save(&win),

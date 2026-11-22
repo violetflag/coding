@@ -1,6 +1,7 @@
 // 리더 화면: 아래 진행 막대, 옆 메뉴(목차 / 북마크·밑줄 / 검색 / 글자·종이 / 서재 / 통계), 선택 팝업, 사전 창.
 // 글이 많은 화면만 HTML로 띄우고, 책 자체는 방 안의 3D 물체다.
 import * as store from './store.js';
+import { saveFile } from '../desktop.js';
 import { POSE_DEFAULTS } from './reader.js';
 import { FONTS, TYPE_LIMITS } from './typeset.js';
 import { PAPERS, PENS } from './page.js';
@@ -40,7 +41,8 @@ const CSS = `
 `;
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); for (const k in props) { if (k === 'style') e.style.cssText = props[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), props[k]); else if (k === 'html') e.innerHTML = props[k]; else e[k] = props[k]; } for (const c of kids.flat()) if (c != null) e.append(c); return e; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-const download = (blob, name) => { const a = el('a', { href: URL.createObjectURL(blob), download: name }); document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); };
+// 저장한 뒤 알림을 띄운다. 프로그램 창에서는 저장된 자리를 알려 준다(웹버전은 브라우저가 내려받기를 보여 준다).
+const download = (blob, name, toast) => saveFile(blob, name).then((path) => { if (path) toast?.('저장했습니다: ' + path); }, (e) => toast?.('저장하지 못했습니다: ' + (e?.message || e)));
 const TABS = [['toc', '목차'], ['marks', '북마크·밑줄'], ['search', '검색'], ['type', '글자·종이'], ['lib', '서재'], ['stats', '통계']];
 
 export class ReaderUI {
@@ -122,7 +124,7 @@ export class ReaderUI {
       body.append(el('div', { className: 'hl', style: `border-color:${PENS[h.color]?.c || '#e3b92e'}` }, el('div', { className: 'q', textContent: h.text, onclick: () => { this.r.goto(h.start); this.close(); } }), h.note ? el('div', { className: 'n', textContent: h.note }) : null,
         el('div', { className: 'sub' }, `${this.r.pageOf(h.start) + 1}쪽 · `, el('a', { textContent: '메모', href: '#', style: 'color:inherit', onclick: (e) => { e.preventDefault(); this.editNote(h); } }), ' · ', el('a', { textContent: '삭제', href: '#', style: 'color:inherit', onclick: (e) => { e.preventDefault(); this.r.removeHighlight(h.id); this.renderPanel(); } }))));
     }
-    body.append(el('h3', { textContent: '내보내기' }), el('button', { textContent: '밑줄·메모를 Markdown으로 저장', onclick: () => download(new Blob([this.r.exportMarkdown()], { type: 'text/markdown' }), `${c.meta.title} 밑줄.md`) }));
+    body.append(el('h3', { textContent: '내보내기' }), el('button', { textContent: '밑줄·메모를 Markdown으로 저장', onclick: () => download(new Blob([this.r.exportMarkdown()], { type: 'text/markdown' }), `${c.meta.title} 밑줄.md`, (m) => this.host.toast(m)) }));
   }
   editNote(h) {
     const body = this.panel.querySelector('.body'); body.innerHTML = '';
@@ -181,7 +183,7 @@ export class ReaderUI {
             b.format !== 'pdf' ? el('button', { textContent: b.age === 'old' ? '헌 책' : '새 책', title: '새 책 / 헌 책 바꾸기', onclick: async () => { await this.r.setMeta(b.id, { age: b.age === 'old' ? 'new' : 'old' }); this.renderPanel(); } }) : null,
             el('button', { textContent: '삭제', onclick: async () => { if (confirm(`"${b.title}"을(를) 서재에서 뺄까요? 밑줄과 메모도 함께 지워집니다.`)) { await this.r.remove(b.id); this.host.onRemoved?.(b.id); this.renderPanel(); } } })))));
     }
-    body.append(el('h3', { textContent: '백업' }), el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, el('button', { textContent: '파일 하나로 내보내기', onclick: async () => download(await store.exportBackup(true), `난로-백업-${store.today()}.json`) }), el('button', { textContent: '백업 가져오기', onclick: () => imp.click() })),
+    body.append(el('h3', { textContent: '백업' }), el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, el('button', { textContent: '파일 하나로 내보내기', onclick: async () => download(await store.exportBackup(true), `난로-백업-${store.today()}.json`, (m) => this.host.toast(m)) }), el('button', { textContent: '백업 가져오기', onclick: () => imp.click() })),
       el('p', { className: 'sub', textContent: '서재, 읽던 위치, 북마크, 밑줄, 메모, 통계, 책 파일이 한 파일에 담깁니다.' }));
   }
   async _stats(body) {

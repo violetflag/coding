@@ -2,6 +2,7 @@
 // 잠들기 모드, 인용구 카드, 앉아 있던 자리 기억. (책의 나이는 reader, 날씨 선택은 environment, 낭독은 reader가 맡는다)
 import * as THREE from 'three/webgpu';
 import * as store from './reader/store.js';
+import { saveFile } from './desktop.js';
 import { drawCover } from './reader/page.js';
 import { FIREPLACE as FP } from './scene/layout.js';
 
@@ -160,7 +161,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
     c.fillStyle = '#2a1e14'; c.font = `${size}px ${font}`; lines.forEach((l, i) => c.fillText(l, x0 + 75, y0 + 112 + i * size * 1.75));
     c.fillStyle = '#6a5238'; c.font = `24px ${font}`; c.textAlign = 'right'; c.fillText(`${meta?.title || ''}${meta?.author ? ' · ' + meta.author : ''}`, x0 + cw - 60, y0 + ch - 44); c.textAlign = 'left';
     c.fillStyle = 'rgba(233,220,198,.5)'; c.font = `20px ${font}`; c.fillText('난로', 40, H - 34);
-    cv.toBlob((b) => { const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = `인용구-${(meta?.title || '난로').slice(0, 20)}-${Date.now().toString(36)}.png`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast('인용구 카드를 저장했습니다'); api.lastQuote = cv; }, 'image/png');
+    cv.toBlob((b) => { saveFile(b, `인용구-${(meta?.title || '난로').slice(0, 20)}-${Date.now().toString(36)}.png`).then((path) => toast(path ? '인용구 카드를 저장했습니다: ' + path : '인용구 카드를 저장했습니다'), (e) => toast('저장하지 못했습니다: ' + (e?.message || e))); api.lastQuote = cv; }, 'image/png');
   }; };
 
   // ================= 9. 서재가 기억하는 자리 =================
