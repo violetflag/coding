@@ -169,7 +169,7 @@ export function buildRoom(ctx) {
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
   inst.material.userData.bookCover = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
-  const pages = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x8a7d64, roughness: 0.95 }), books.length);
+  const pages = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ color: 0x6f6450, roughness: 0.95, envMapIntensity: 0.3 }), books.length);
   pages.castShadow = false; pages.receiveShadow = true; g.add(pages);
   books.forEach((b, i) => {
     const z = b.along === 'z';
