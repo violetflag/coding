@@ -57,9 +57,10 @@ export class Reader {
     this.cur = { meta, book, marks, layout: null, spread: 0, pdf: book.format === 'pdf' };
     this.history = []; this.hits = []; this.selection = null;
     await this.relayout(onProgress, meta.pos || 0);
-    meta.lastOpened = Date.now(); if (!(meta.pages > 0)) meta.pages = pagesOf(book);   // 예전에 넣은 책: 쪽수를 이제 채운다(책장 두께)
-    store.saveBook(meta);
+    const fresh = !(meta.pages > 0); if (fresh) meta.pages = pagesOf(book);   // 예전에 넣은 책: 쪽수를 이제 채운다(책장 두께)
+    meta.lastOpened = Date.now(); store.saveBook(meta);
     this.book3d.setBulk(meta.pages); this.book3d.setCover(meta.color); this.onChange('book');
+    if (fresh) this.onChange('library');                                   // 책장의 두께도 바로 맞춘다
     return this.cur;
   }
   close() { this.stopTts(); this.flush(); this.cur = null; this.onChange('book'); }
