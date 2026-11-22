@@ -4,7 +4,7 @@
 ;   - 시작 메뉴에 아이콘을 만들고, 바탕화면 아이콘은 고를 수 있다.
 ; 만들기:  ISCC packaging\nanro.iss   (실행 파일 자리가 다르면  ISCC /DExePath=<nanro.exe 경로> packaging\nanro.iss)
 
-#define AppVersion "0.1.2"
+#define AppVersion "0.1.3"
 #ifndef ExePath
   #define ExePath "..\src-tauri\target\release\nanro.exe"
 #endif

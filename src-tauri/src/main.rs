@@ -96,6 +96,28 @@ fn rest_when_minimized(win: &WebviewWindow) {
     let _ = visible;
 }
 
+/// 위치를 묻는 창("tauri.localhost 이(가) 사용자의 위치를 파악하려고 합니다")을 띄우지 않고 허용한다.
+/// 위치는 창밖의 해와 날씨를 맞추는 데만 쓰고, 윈도우의 위치 설정이 꺼져 있으면 화면 쪽이 서울을 쓴다. 다른 권한은 건드리지 않는다.
+#[cfg(windows)]
+fn allow_location(win: &WebviewWindow) {
+    use webview2_com::{Microsoft::Web::WebView2::Win32::*, PermissionRequestedEventHandler};
+    let _ = win.with_webview(|wv| unsafe {
+        let Ok(core) = wv.controller().CoreWebView2() else { return };
+        let handler = PermissionRequestedEventHandler::create(Box::new(|_, args| {
+            if let Some(args) = args {
+                let mut kind = COREWEBVIEW2_PERMISSION_KIND::default();
+                args.PermissionKind(&mut kind)?;
+                if kind == COREWEBVIEW2_PERMISSION_KIND_GEOLOCATION {
+                    args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW)?;
+                }
+            }
+            Ok(())
+        }));
+        let mut token = Default::default();
+        let _ = core.add_PermissionRequested(&handler, &mut token);
+    });
+}
+
 #[tauri::command]
 fn toggle_fullscreen(window: WebviewWindow) -> bool {
     let on = !window.is_fullscreen().unwrap_or(false);
@@ -190,6 +212,9 @@ fn main() {
                 .disable_drag_drop_handler() // 책 파일을 창에 끌어다 놓는 일은 화면 쪽 코드가 받는다
                 .data_directory(dir.join("webview"))
                 .build()?;
+
+            #[cfg(windows)]
+            allow_location(&win);
 
             match saved {
                 Some(st) if st.w >= 320 && st.h >= 240 && on_screen(&win, &st) => {

@@ -26,6 +26,7 @@
     #start h1 { font-weight: 400; font-size: 46px; letter-spacing: .34em; margin: 0 0 6px .34em; }
     #start .tag { margin: 0 0 26px; font-size: 14px; letter-spacing: .28em; opacity: .6; }
     #start p { margin: 4px 0; font-size: 15px; opacity: .85; }
+    #start .acts[hidden] { display: none; }   /* 아래의 display: flex 가 hidden 속성을 이기지 않게 */
     #start .acts { display: flex; flex-direction: column; gap: 10px; align-items: center; margin: 4px 0 22px; }
     #start .acts button { min-width: 250px; background: rgba(42, 31, 21, .85); color: #e9dcc6; border: 1px solid #5c4a33; border-radius: 6px; padding: 11px 22px;
       font: inherit; font-size: 15px; cursor: pointer; transition: background .2s, border-color .2s, transform .2s; }

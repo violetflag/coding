@@ -26,11 +26,13 @@ const roomCanvas = $('room'), fireCanvas = $('fire');
 // 헤드리스 테스트 환경은 WebGPU 캔버스에 그리면 장치가 죽는다: 화면 출력은 건너뛰고 NANRO.capture()로만 읽는다.
 const HEADLESS = Q.has('headless');
 const LAMP_ON = 4.0;
+// 켜는 동안 단계마다 걸린 시간(페이지가 열린 뒤 몇 ms 인지). 측정용으로 NANRO.marks 에서 읽는다.
+const marks = {}, mark = (k) => { marks[k] = Math.round(performance.now()); };
 
 async function main() {
   setupDesktop();
   const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa'), alpha: true, forceWebGL: Q.has('webgl') });
-  await renderer.init();
+  mark('start'); await renderer.init(); mark('rendererInit');
   renderer.setClearColor(0x000000, 1);
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = !Q.has('noshadow');   // 측정용 주소 옵션: noshadow, nomsaa, nocandle, rs=배율 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -71,6 +73,7 @@ async function main() {
     try { fire = await FireLayer.create(fireCanvas, { q: toQuality(fireCfg.values), name: fireCfg.custom || fireCfg.fromUrl ? '사용자 지정' : FIRE_PRESETS[fireCfg.preset].name, debug: { nosim: Q.has('nosim'), norender: Q.has('norender'), nowarm: HEADLESS || Q.has('nowarm') } }); }
     catch (e) { fireErr = e.message || String(e); console.warn('[fire] 물리 불꽃을 쓸 수 없어 대체 표시로 전환:', e); }
   }
+  mark('fireCreated');
   const brickReady = fire && !Q.has('notex') ? fire.loadBrick() : Promise.resolve(false);
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }
 
@@ -267,24 +270,26 @@ async function main() {
   // 그래서 사진 텍스처가 다 올 때까지 방은 그리지 않고, 환경 맵용과 화면용 준비를 한꺼번에 맡긴 뒤에 그리기 시작한다. 그동안 화면에는 불만 보인다.
   let roomReady = HEADLESS || Q.has('nowarmup');
   const prewarm = async () => {
+    mark('textures');
     const undo = showAll();
     try {
       if (ENV_I) {
         const rt = renderer.getRenderTarget(), e0 = scene.environment; cubeCam.updateMatrixWorld();
         scene.environment = null; renderer.setRenderTarget(cubeRT, 0);
         try { await renderer.compileAsync(scene, cubeCam.children[0]); } finally { renderer.setRenderTarget(rt); scene.environment = e0; }
-        refreshEnv(); envDue = 0;
+        mark('envCompiled'); refreshEnv(); envDue = 0; mark('envDrawn');
       }
       if (post && prefs.post) await post.sp.compileAsync(renderer); else await renderer.compileAsync(scene, camera);
+      mark('roomCompiled');
     } finally { undo(); }
   };
-  if (!roomReady) texturesReady.then(() => Promise.race([prewarm(), new Promise((r) => setTimeout(r, 20000))])).catch((e) => console.warn('그리기 준비를 미리 마치지 못했습니다', e)).then(() => { roomReady = true; warmT = 0.3; });
+  if (!roomReady) texturesReady.then(() => Promise.race([prewarm(), new Promise((r) => setTimeout(r, 20000))])).catch((e) => console.warn('그리기 준비를 미리 마치지 못했습니다', e)).then(() => { roomReady = true; warmT = 0.3; mark('roomReady'); });
   let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0, idleN = 0, mouseHeld = false;
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   const frame = () => {
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;
     const now = performance.now(), gap = now - lastNow; lastNow = now;
-    if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; settled(); } }
+    if (warmed && settleN >= 0) { settleT += gap; settleN = gap < 50 ? settleN + 1 : 0; if (settleN >= 30 || settleT > 15000) { settleN = -1; mark('settled'); settled(); } }
     player.update(dt);
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
@@ -352,7 +357,7 @@ async function main() {
     envAge += dt; if (roomReady && envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
     else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
     scene.environmentIntensity = ENV_I * (0.75 + 0.25 * Math.min(1.4, level));
-    if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { warmUp(); skip = false; warmed = true; } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
+    if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { mark('warmStart'); warmUp(); skip = false; warmed = true; mark('warmEnd'); } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
     if (!HEADLESS && !skip && roomReady) draw();
     if (ctx.captureNext && !HEADLESS) {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
@@ -396,8 +401,9 @@ async function main() {
   syncOverlay();
 
   // 테스트·스크린샷 도구용
+  mark('mainDone');
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, get roomReady() { return roomReady; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, get roomReady() { return roomReady; }, marks, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire, post: post && prefs.post ? post : null }, w, h); },
   };
 }
