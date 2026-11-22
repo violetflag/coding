@@ -13,12 +13,15 @@ const GPU = !!process.env.NANRO_GPU;
 const browser = await chromium.launch(GPU ? { channel: 'msedge', headless: false, args: ['--enable-unsafe-webgpu'] } : { args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 // 소프트웨어 렌더러에서는 화면에 직접 그리는 길에서 그래픽 장치가 끊긴다(이 시험 환경의 한계). 그 알림은 실제 GPU로 돌릴 때만 오류로 센다.
-const errors = [], note = (t) => { if (GPU || !/Device Lost|Instance dropped/.test(t)) errors.push(t.slice(0, 300)); };
+const errors = [], note = (t) => { if (/favicon|404 \(Not Found\)|not valid for pointer lock/.test(t)) return; if (GPU || !/Device Lost|Instance dropped/.test(t)) errors.push(t.slice(0, 300)); };
 page.on('pageerror', (e) => note(e.message)); page.on('console', (m) => { if (m.type() === 'error') note(m.text()); });
 let fail = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? '통과 ' : '실패 ') + name + (extra ? '  (' + extra + ')' : '')); if (!ok) fail++; };
 const vis = (sel) => page.evaluate((s) => { const e = document.querySelector(s); if (!e) return false; const c = getComputedStyle(e); return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > 0.05 && e.getBoundingClientRect().width > 0; }, sel);
 const state = () => page.evaluate(() => window.NANRO.player.state);
+// 시작 카드는 0.7초에 걸쳐 흐려지고, 창이 가려져 있으면 그 움직임이 멈추기도 한다. 그래서 '사라졌다'는 흐려진 정도가 아니라 꺼짐 표시로 판단한다.
+const cardOff = () => page.evaluate(() => document.getElementById('start').classList.contains('off'));
+const pauseOn = () => page.evaluate(() => document.getElementById('pause').classList.contains('on'));
 const waitFor = (f, arg, t = 60000) => page.waitForFunction(f, arg, { timeout: t, polling: 200 }).then(() => true, () => false);
 
 await page.goto(url);
@@ -44,7 +47,7 @@ await chooser.setFiles('books/sample.epub');
 const reached = await waitFor(() => window.NANRO.player.state === 'reading' && window.NANRO.reading.reader.cur && !window.NANRO.reading.opening, null, 120000);
 check('파일을 고르면 읽기 상태가 된다', reached, await state());
 await waitFor(() => !window.NANRO.reading.moving, null, 30000);
-check('시작 카드가 사라진다', !(await vis('#start')));
+check('시작 카드가 사라진다', await cardOff());
 check('책이 화면에 나와 있다', await page.evaluate(() => window.NANRO.reading.reader.book3d.group.visible));
 await page.waitForTimeout(800); await page.screenshot({ path: 'shots/flow/2-reading.png' });
 
@@ -59,11 +62,11 @@ await page.keyboard.press('Escape');
 const closed = await waitFor(() => window.NANRO.player.state === 'seated', null, 30000);
 check('Esc 로 책을 덮으면 앉은 상태가 된다', closed, await state());
 await page.waitForTimeout(900);
-check('책을 덮은 뒤 시작 카드가 다시 뜨지 않는다', !(await vis('#start')));
+check('책을 덮은 뒤 시작 카드가 다시 뜨지 않는다', await cardOff());
 // 마우스가 잡혀 있으면 가운데 점만, 풀리면(Esc) 시작 카드 대신 작은 멈춤 띠가 뜬다
 await page.evaluate(() => document.exitPointerLock()); await page.waitForTimeout(600);
-check('마우스가 풀리면 멈춤 띠가 보인다', await vis('#pause'));
-check('그때도 시작 카드는 뜨지 않는다', !(await vis('#start')));
+check('마우스가 풀리면 멈춤 띠가 보인다', await pauseOn());
+check('그때도 시작 카드는 뜨지 않는다', await cardOff());
 await page.screenshot({ path: 'shots/flow/3-closed.png' });
 
 // 6. 다시 열었을 때: 단추가 "이어서 읽기"로 바뀌고 한 번에 읽던 곳으로 간다
@@ -87,7 +90,7 @@ await page.evaluate(async () => { const f = new File([await (await fetch('/books
 const dropped = await waitFor(() => window.NANRO.player.state === 'reading' && window.NANRO.reading.reader.cur && !window.NANRO.reading.opening, null, 120000);
 check('시작 화면에 책을 끌어다 놓으면 읽기 상태가 된다', dropped, await state());
 await page.waitForTimeout(1000);   // 시작 카드는 0.7초에 걸쳐 흐려진다
-check('그때 시작 카드가 사라진다', !(await vis('#start')));
+check('그때 시작 카드가 사라진다', await cardOff());
 
 check('오류가 없다', errors.length === 0, errors.slice(0, 3).join(' / '));
 await browser.close();

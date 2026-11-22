@@ -88,7 +88,7 @@ async function main() {
 
   // ---- 플레이어와 상호작용
   const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
-  let lampOn = true, fitSoon = () => {}, stateT = 0, showHint = null;
+  let lampOn = true, fitSoon = () => {}, stateT = 0, showHint = null, syncSoon = null;
   const setLamp = (on) => { ctx.refreshEnv?.(0.1); lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다
   setLamp(env.state.day < 0.6);
@@ -105,7 +105,7 @@ async function main() {
       else if (it.id === 'shelf') reading.ui.open('lib');
       else if (it.frame !== undefined) arrange.pickFrame(it.frame);
     },
-    onState(s) { reading.onState(s); stateT = 0; if (s === 'seated' || s === 'reading') showHint?.(s); if (s === 'reading' || s === 'seated') fitSoon(); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
+    onState(s) { reading.onState(s); stateT = 0; syncSoon?.(); if (s === 'seated' || s === 'reading') showHint?.(s); if (s === 'reading' || s === 'seated') fitSoon(); if (s === 'sitting') sfx('sit'); else if (s === 'standing') sfx('stand'); cozy?.saveSession(); },
   });
   const applyPrefs = () => {
     player.sens = 0.0019 * prefs.sens; player.invertY = prefs.invertY; player.sway = prefs.sway;
@@ -124,6 +124,7 @@ async function main() {
     const on = player.locked, ui = uiMode(); if (on || player.state === 'reading') entered = true;
     start.classList.toggle('off', entered || on || ui); pause.classList.toggle('on', entered && !on && !ui && !help.classList.contains('on')); dot.style.opacity = on ? 1 : 0;
   };
+  syncSoon = syncOverlay;   // 상태가 바뀔 때마다(앉기, 책 펴기, 덮기) 안내 띠와 시작 카드를 다시 맞춘다
   // 상황에 맞는 한 줄 안내: 상태가 바뀔 때 잠깐 보이고, 상태마다 세 번까지만 보인다. H를 누르면 전체 조작법.
   const HINTS = { walk: '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 걷기 · 의자를 보고 <kbd>E</kbd> 앉기 · <kbd>H</kbd> 조작법', seated: '<kbd>E</kbd> 책 펼치기 · <kbd>Space</kbd> 일어나기', reading: '쪽을 누르거나 <kbd>←</kbd> <kbd>→</kbd> 넘기기 · 오른쪽 단추로 끌어 시선 돌리기 · <kbd>Tab</kbd> 메뉴 · <kbd>X</kbd> 책 덮기' };
   const hintSeen = (() => { try { return JSON.parse(localStorage.getItem('nanro.hints') || '{}'); } catch { return {}; } })();
@@ -206,6 +207,7 @@ async function main() {
   $('openSettings').addEventListener('click', (e) => { e.stopPropagation(); settings.open(); });
   const typing = (e) => e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement;
   addEventListener('keydown', (e) => { if (e.code === 'KeyO' && !e.repeat && !typing(e)) settings.toggle(); });
+  document.addEventListener('pointerlockerror', () => syncOverlay());   // 마우스 잡기가 거부돼도 멈춤 띠는 떠야 한다
   document.addEventListener('pointerlockchange', () => {
     const on = player.locked; syncOverlay();
     if (on && player.state === 'walk') showHint('walk');

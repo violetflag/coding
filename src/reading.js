@@ -234,6 +234,8 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 무릎과 담요는 앉아 있는 의자를 따라간다
     const ch = player.chair; lap.visible = !!ch && (player.state === 'seated' || reading || (player.state === 'sitting' && player.tween?.t > 0.7));
     if (lap.visible) { lap.position.set(ch.pos[0], ch.eye - 1.08, ch.pos[1]); lap.rotation.y = ch.yaw; }
+    // 낮에는 무릎도 하늘빛과 창빛을 그대로 받아 바지가 허옇게 뜬다: 종이처럼 낮일수록 어둡게 받는다
+    for (const m of api.bodyMats || []) { m.color.setScalar(1 - 0.5 * light.day); m.envMapIntensity = 1 - light.day; }
     reader.tick(dt, reading && book.group.visible);
     if (!book.group.visible) { bookLight.intensity = 0; api.moving = false; return; }
     const open = reader.set.bOpen ?? 16;
@@ -254,6 +256,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 접힌 채 올라오는 동안에는 세워진 면이 창빛을 정면으로 받아 더 희게 뜬다: 접힌 만큼 더 낮춘다
     const pk = (reader.set.bright ?? 1) * (1 - 0.66 * light.day) * (1 - 0.45 * fold * light.day);
     for (const m of Object.values(book.mat)) { m.color.setScalar(pk); m.envMapIntensity = 0; }
+    book.edgeMat.color.setScalar(pk * (1 - 0.35 * fold * light.day)); book.edgeMat.envMapIntensity = 0;   // 책장 두께 면(책배)도 같이 낮춘다: 접힌 동안 창빛을 정면으로 받아 하얗게 번졌다
     bookLight.color.setRGB(1, 0.69 + 0.31 * light.day, 0.44 + 0.56 * light.day);
   };
   return api;
