@@ -11,6 +11,7 @@
    - tauri CLI 는 쓰지 않습니다(설치 파일을 Inno Setup 으로 만들기 때문).
 3. 설치 파일: `ISCC packaging\nanro.iss` (결과는 `release\NanroSetup-v버전.exe`)
    - 실행 파일이 다른 곳에 있으면 `ISCC /DExePath=<경로> packaging\nanro.iss`
+   - "EndUpdateResource failed (110)"로 실패하면 몇 초 뒤 다시 돌립니다(다른 프로그램이 파일을 잠깐 잡고 있을 때 납니다).
 
 ## 설치되는 곳
 

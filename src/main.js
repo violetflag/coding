@@ -94,7 +94,7 @@ async function main() {
   };
 
   // ---- 플레이어와 상호작용
-  const toast = (msg) => { const t = $('toast'); t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
+  const toast = (msg) => { const t = $('toast'); if (!msg) { clearTimeout(toast.h); t.style.opacity = 0; return; } t.textContent = msg; t.style.opacity = 1; clearTimeout(toast.h); toast.h = setTimeout(() => (t.style.opacity = 0), 2600); };
   let lampOn = true, fitSoon = () => {}, stateT = 0, showHint = null, syncSoon = null;
   const setLamp = (on) => { ctx.refreshEnv?.(0.1); lampOn = on; lamp.intensity = on ? LAMP_ON : 0; ctx.lampShade.material.emissiveIntensity = on ? 1.6 : 0.02; ctx.lamp.userData.bulb.visible = on; };
   // 처음 들어왔을 때: 어두우면 스탠드와 촛불을 켜 둔다

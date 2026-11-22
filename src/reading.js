@@ -139,6 +139,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     try { toast('책을 펼치는 중…'); await reader.open(id, (p) => toast(`책을 펼치는 중… ${Math.round(p * 100)}%`)); setPicked(id); }
     catch (e) { console.warn(e); toast(e.message || '책을 열 수 없습니다'); api.opening = false; return false; }
     api.opening = false; api.single = 'R'; place(); ui.update(); api.onOpen?.(reader.cur.meta);
+    toast('');                                                             // "책을 펼치는 중… 13%"가 펴진 책 위에 남지 않게 지운다
     return true;
   }
   // 플레이어 상태가 바뀔 때 (main에서 호출)
