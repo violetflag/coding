@@ -54,6 +54,10 @@ const VIEWS = {
   skymoon: { pos: [12, 5], look: 'moon', pitch: 0.3 },
   skywest: { pos: [12, 5], look: 240, pitch: 0.3 },
   skysouth: { pos: [12, 5], look: 175, pitch: 0.35 },
+  // 날씨 점검(주소 옵션 weathermock=이름 과 함께): 마당에서 집과 하늘, 문밖 마루와 계단의 눈, 구름 하늘
+  weatheryard: { pos: [11.5, -2.0], yaw: [2.8, 2.4], pitch: 0.2, door: true },
+  weatherdeck: { pos: [9.4, 1.2], yaw: [6.4, 3.6], pitch: -0.42 },
+  weathersky: { pos: [12, 5], look: 200, pitch: 0.4 },
 };
 
 mkdirSync('shots', { recursive: true });

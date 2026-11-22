@@ -1,5 +1,5 @@
 // 설정창의 구역들: 그래픽(해상도·프레임 제한·그림자·실사 효과), 방(시간·날씨·계절·위치), 소리(유튜브 음악, 시계 소리), 난롯가(장작 타이머, 잠들기), 조작·접근성.
-import { WEATHERS, SEASONS, SEOUL } from '../scene/environment.js';
+import { WEATHERS, SEASONS, SEOUL, KIND_NAMES } from '../scene/environment.js';
 import { CONST_MODES } from '../scene/sky.js';
 
 const KEY = 'nanro.prefs';
@@ -49,12 +49,17 @@ export function buildSections(d) {
       const lat = E('input', { type: 'number', step: 0.01, min: -89, max: 89, value: env.opts.lat }), lon = E('input', { type: 'number', step: 0.01, min: -180, max: 180, value: env.opts.lon });
       const setLoc = () => env.set({ lat: Math.max(-89, Math.min(89, +lat.value || 0)), lon: Math.max(-180, Math.min(180, +lon.value || 0)), located: true });
       lat.addEventListener('change', setLoc); lon.addEventListener('change', setLoc);
-      el.append(H('시간'), info, mode, hour, H('날씨와 계절'), select('창밖 날씨', () => env.opts.weather, (v) => env.set({ weather: v }), WEATHERS, '자동은 겨울에 눈, 다른 계절에는 맑음입니다.'), select('계절', () => env.opts.season, (v) => env.set({ season: v }), SEASONS, '자동은 오늘 날짜의 계절을 따릅니다(남반구는 반대).'),
-        H('위치 (해와 달 계산용)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; env.locate(); setTimeout(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; }, 2500); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
-        note('위치는 이 컴퓨터에만 저장되고 어디로도 보내지 않습니다. 브라우저가 위치를 주지 않으면 서울을 씁니다.'),
+      // 실제 날씨: 지금 받아 둔 날씨 한 줄과 새로 받기 단추
+      const wxLine = note(''), wxBtn = E('button', { textContent: '지금 새로 받기', onclick: () => { env.weather.refresh().then(() => { env.dirty = true; this._tick(); }); this._tick(); } });
+      const wxRow = E('div', { className: 'row' }, E('label', { textContent: '지금 바깥 날씨' }), wxLine, E('span'), wxBtn);
+      el.append(H('시간'), info, mode, hour, H('날씨와 계절'), select('창밖 날씨', () => env.opts.weather, (v) => { env.set({ weather: v }); this._tick(); }, WEATHERS, '실제 날씨는 지금 있는 곳의 날씨(구름, 안개, 비, 눈, 바람, 지난 며칠 동안 쌓인 눈)를 20분마다 받아 와 창밖에 보여 줍니다. 받지 못하면 계절에 맞춘 날씨를 씁니다.'), wxRow, select('계절', () => env.opts.season, (v) => env.set({ season: v }), SEASONS, '자동은 오늘 날짜의 계절을 따릅니다(남반구는 반대).'),
+        H('위치 (해와 달, 실제 날씨)'), E('div', { className: 'row' }, E('label', { textContent: '위도 · 경도' }), E('span', { style: 'display:flex;gap:6px' }, lat, lon), E('button', { textContent: '내 위치', onclick: () => { env.opts.located = false; env.locate(); setTimeout(() => { lat.value = env.opts.lat; lon.value = env.opts.lon; }, 2500); } }), E('button', { textContent: '서울', onclick: () => { env.set({ ...SEOUL, located: true }); lat.value = SEOUL.lat; lon.value = SEOUL.lon; } })),
+        note('위치는 이 컴퓨터에 저장됩니다. "실제 날씨"를 쓰는 동안에만 약 1km로 반올림한 위치를 날씨 서비스(Open-Meteo)에 보내 날씨를 받아 오고, 다른 곳으로는 보내지 않습니다. 날씨를 직접 고르면 보내지 않습니다. 브라우저가 위치를 주지 않으면 서울을 씁니다.'),
         H('가구와 액자'), note('걸어 다니다가 의자, 탁자, 스탠드, 바구니를 보고 G를 누르면 옮길 수 있습니다(휠로 돌리기). 액자를 보고 E를 누르면 내 그림을 넣습니다.'),
         E('div', { className: 'row wide' }, E('label', { textContent: '되돌리기' }), E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:0' }, E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() }))));
-      this._info = info; this._tick = () => { const S = env.state; info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${WEATHERS[S.weather]}`; };
+      this._info = info; this._tick = () => { const S = env.state, real = env.opts.weather === 'real';
+        info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${KIND_NAMES[S.weather] || S.weather}${S.snowDepth >= 0.5 ? ` · 쌓인 눈 ${Math.round(S.snowDepth)}cm` : ''}`;
+        wxLine.textContent = real ? env.weather.summary(S.wx) + (S.source === 'season' ? ' · 지금은 계절 날씨' : '') : '날씨를 직접 골랐습니다 (위치를 보내지 않습니다)'; wxBtn.disabled = !real || env.weather.busy; };
     }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
     { key: 'sky', label: '밤하늘', build(el) {
       el.append(H('별자리'), select('별자리 선', () => env.opts.constellations || 'lines', (v) => env.set({ constellations: v }), CONST_MODES, '밤하늘의 별자리를 잇는 옅은 선과 한글 이름입니다. 별은 지금 위치와 시각의 실제 하늘입니다.'),

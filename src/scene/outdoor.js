@@ -7,15 +7,15 @@ import { boxUV } from './textures.js';
 const { W, D, H } = ROOM;
 // 문: 오른쪽 벽(x = W)의 z 범위와 높이. 벽난로(z 0.6~2.6, 화로대 끝 2.75)의 오른쪽(방 안에서 벽난로를 볼 때)에 있다.
 export const DOOR = { z0: 3.1, z1: 4.0, h: 2.05, open: -1.75 };
-const GROUND = -0.45;
+export const GROUND = -0.45;
 // 집의 바깥 둘레(벽 두께 포함)와 기초가 벽 밖으로 나온 만큼
-const FOOT = { x0: -0.13, x1: W + 0.13, z0: -0.33, z1: D + 0.13 };
+export const FOOT = { x0: -0.13, x1: W + 0.13, z0: -0.33, z1: D + 0.13 };
 // 문밖 마루(바닥 높이 0)와 그 끝의 돌계단(한 칸 0.15m, 두 칸 뒤 땅)
-const DECK = { x0: FOOT.x1, x1: W + 1.9, z0: 2.75, z1: 4.45 }, STEP = { run: 0.3, rise: 0.15, n: 2 };
+export const DECK = { x0: FOOT.x1, x1: W + 1.9, z0: 2.75, z1: 4.45 }, STEP = { run: 0.3, rise: 0.15, n: 2 };
 // 마당: 걸어 다닐 수 있는 범위(숲과 먼 언덕까지는 가지 않는다)
 const YARD = { x0: -6, x1: W + 9, z0: -3, z1: D + 7 };   // 남쪽 숲(z < -4.5)의 나뭇가지에 닿지 않게
 // 지붕: 용마루는 x 방향, 벽 위 둘레의 가운데(z)에 있고 30도로 기운다
-const ROOF = { a: 30 * Math.PI / 180, t: 0.14, over: 0.45, side: 0.5 };
+export const ROOF = { a: 30 * Math.PI / 180, t: 0.14, over: 0.45, side: 0.5 };
 ROOF.zr = (FOOT.z0 + 0.03 + FOOT.z1 - 0.03) / 2; ROOF.base = H + 0.1;
 
 export function buildOutdoor(ctx, M) {
@@ -82,7 +82,7 @@ export function buildOutdoor(ctx, M) {
   for (const s of [-1, 1]) {
     const zm = s < 0 ? (ze0 + zr) / 2 : (zr + ze1) / 2, n = new THREE.Vector3(0, Math.cos(a), s < 0 ? -Math.sin(a) : Math.sin(a));
     // 지붕널 무늬는 윗면에만. 처마 끝과 밑면은 나무판(창에서 올려다볼 때 지붕널 끝이 톱니처럼 보이지 않게)
-    box(rw, t, len, W / 2, yAt(zm) + n.y * t / 2, zm + n.z * t / 2, [M.woodDark, M.woodDark, M.roof, M.ceiling, M.woodDark, M.woodDark], { rx: s < 0 ? -a : a });
+    (ctx.roofSlabs ||= []).push(box(rw, t, len, W / 2, yAt(zm) + n.y * t / 2, zm + n.z * t / 2, [M.woodDark, M.woodDark, M.roof, M.ceiling, M.woodDark, M.woodDark], { rx: s < 0 ? -a : a }));   // 지붕 눈(snowcover.js)이 이 위에 쌓인다
   }
   const ridgeY = yAt(zr) + t / Math.cos(a);
   box(rw + 0.04, 0.08, 0.34, W / 2, ridgeY, zr, M.woodDark);

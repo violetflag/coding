@@ -3,6 +3,7 @@
 // 빛 계산은 하지 않는다: 그림에 위쪽이 밝은 음영을 넣어 두고, 낮밤과 날씨에 따른 밝기와 색은 재질의 색 하나로 준다.
 import * as THREE from 'three/webgpu';
 import { rng } from './textures.js';
+import { Fn, uniform, positionLocal, time, sin, instanceIndex, float, vec3 } from 'three/tsl';
 
 const CW = 256, CH = 512;      // 그림 한 칸의 크기
 
@@ -81,7 +82,10 @@ export function buildForest({ seed = 404, spot, groundY = -0.45, conifers = 230,
     spruce: atlas(NS, (c, x, i) => paintSpruce(c, x, 11 + i * 7, false)), spruceSnow: atlas(NS, (c, x, i) => paintSpruce(c, x, 11 + i * 7, true)),
     leaf: atlas(NB, (c, x, i) => paintBroadleaf(c, x, 31 + i * 5, true, false)), bare: atlas(NB, (c, x, i) => paintBroadleaf(c, x, 31 + i * 5, false, false)), bareSnow: atlas(NB, (c, x, i) => paintBroadleaf(c, x, 31 + i * 5, false, true)),
   };
-  const mat = (map) => new THREE.MeshBasicMaterial({ map, alphaTest: 0.32, side: THREE.DoubleSide });
+  // 바람에 흔들림: 인스턴스 변환 뒤(세계 좌표)의 꼭짓점을 높이의 제곱만큼 바람 쪽으로 민다. 나무마다 위상이 다르다.
+  const sway = uniform(0), swayDir = uniform(new THREE.Vector3(1, 0, 0));
+  const swayNode = Fn(() => { const ph = float(instanceIndex).mul(1.37), k = positionLocal.y.sub(groundY).div(8).max(0); const s = sin(time.mul(1.1).add(ph)).mul(0.7).add(sin(time.mul(2.7).add(ph.mul(2.3))).mul(0.3)).add(0.3); return positionLocal.add(vec3(swayDir).mul(k.mul(k).mul(sway).mul(s))); })();
+  const mat = (map) => Object.assign(new THREE.MeshBasicNodeMaterial({ map, alphaTest: 0.32, side: THREE.DoubleSide }), { positionNode: swayNode });
   const spruceMat = mat(tex.spruce), leafMat = mat(tex.leaf), bareMat = mat(tex.bare);
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), col = new THREE.Color();
   const place = (count, n, material, hMin, hMax, tint) => {
@@ -99,8 +103,9 @@ export function buildForest({ seed = 404, spot, groundY = -0.45, conifers = 230,
   for (const im of S.meshes) im.instanceColor.needsUpdate = true;
   return {
     group,
-    // light: 재질에 곱할 색(낮밤과 날씨), crownColors: 계절의 잎 색 목록(없으면 잎이 진 철)
-    set({ snowy, crownColors, light }) {
+    // light: 재질에 곱할 색(낮밤과 날씨), crownColors: 계절의 잎 색 목록(없으면 잎이 진 철), wind: 바람(m/s), windTo: 바람이 불어 가는 쪽(장면 방향)
+    set({ snowy, crownColors, light, wind = 0, windTo }) {
+      sway.value = wind > 0.5 ? Math.min(0.45, 0.02 + wind * 0.03) : 0; if (windTo) swayDir.value.copy(windTo);
       const sm = snowy ? tex.spruceSnow : tex.spruce; if (spruceMat.map !== sm) { spruceMat.map = sm; spruceMat.needsUpdate = true; }
       const bm = snowy ? tex.bareSnow : tex.bare; if (bareMat.map !== bm) { bareMat.map = bm; bareMat.needsUpdate = true; }
       spruceMat.color.copy(light); leafMat.color.copy(light); bareMat.color.copy(light);

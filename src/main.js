@@ -321,7 +321,7 @@ async function main() {
     window.__nanroFrames = (window.__nanroFrames | 0) + 1;
     for (const fn of ctx.animated) fn(elapsed);
     { const out = (ctx.door?.t || 0) > 0 || (ctx.outsideAt?.(player.pos.x, player.pos.z) || 0) > 0; if (out !== env.outdoorView) env.setOutdoorView((env.outdoorView = out)); }
-    env.update(dt, elapsed); ctx.clock.userData.tick(new Date());                // 선반 시계는 방의 시각 설정과 상관없이 항상 컴퓨터 시계를 따른다
+    env.update(dt, elapsed, camera.position); ctx.clock.userData.tick(new Date());                // 선반 시계는 방의 시각 설정과 상관없이 항상 컴퓨터 시계를 따른다
     cozy.update(dt); arrange.update(dt);
 
     // 불빛 신호 → 방 조명. 물리 불이 없으면 느린 잡음으로 대신한다(대체 표시).
@@ -367,7 +367,7 @@ async function main() {
     // 환경음과 발소리
     if (ambient) {
       const kd = Math.hypot(camera.position.x - kettlePos.x, camera.position.z - kettlePos.z);
-      ambient.update({ dt, outside: Math.max(ctx.outsideAt?.(player.pos.x, player.pos.z) || 0, (ctx.door?.t || 0) * 0.35), weather: env.state.weather, day: env.state.day, season: env.state.season, clockDist: camera.position.distanceTo(clockPos), kettle: (cozy.kettleBoil || 0) / (1 + kd * kd * 0.5) });
+      ambient.update({ dt, outside: Math.max(ctx.outsideAt?.(player.pos.x, player.pos.z) || 0, (ctx.door?.t || 0) * 0.35), weather: env.state.weather, wind: env.state.wind, rain: env.state.rain, thunderN: env.state.thunderN, thunderDelay: env.state.thunderDelay, thunderLoud: env.state.thunderLoud, day: env.state.day, season: env.state.season, clockDist: camera.position.distanceTo(clockPos), kettle: (cozy.kettleBoil || 0) / (1 + kd * kd * 0.5) });
       if (player.state === 'walk' && player.speed > 0.3) {
         const ph = Math.floor(player.bob / Math.PI);
         if (ph !== stepPhase) { stepPhase = ph; const onRug = Math.abs(player.pos.x - RUG.x) < RUG.w / 2 && Math.abs(player.pos.z - RUG.z) < RUG.d / 2; sfx(onRug ? 'steprug' : 'step', { pan: ph % 2 ? 0.15 : -0.15, gain: Math.min(1, player.speed / 1.4) }); }

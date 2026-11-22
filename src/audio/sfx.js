@@ -55,7 +55,7 @@ export class Sfx {
   }
 }
 
-// 환경음: 벽 너머 바람, 방의 고요, 시계 초침, 낮의 새소리, 주전자 끓는 소리. update()로 날씨와 듣는 위치를 넘긴다.
+// 환경음: 벽 너머 바람, 빗소리, 먼 천둥, 방의 고요, 시계 초침, 낮의 새소리, 주전자 끓는 소리. update()로 날씨와 듣는 위치를 넘긴다.
 export class Ambient {
   constructor(mixer, noise) {
     const c = (this.ctx = mixer.ctx); this.out = mixer.channel('ambient'); this.noise = noise;
@@ -68,13 +68,28 @@ export class Ambient {
     const tone = new GainNode(c, { gain: 0.012 }), tl = new BiquadFilterNode(c, { type: 'lowpass', frequency: 110 }); loop(0.3).connect(tl); tl.connect(tone); tone.connect(this.out);
     // 주전자
     this.kettle = new GainNode(c, { gain: 0 }); const kb = new BiquadFilterNode(c, { type: 'bandpass', frequency: 520, Q: 2.2 }), kl = new GainNode(c, { gain: 1 }); loop(0.8).connect(kb); kb.connect(kl); kl.connect(this.kettle); this.kettle.connect(this.out); this.kLfo = kl;
-    this.wind = 0.2; this.gustT = 0; this.tickT = 0; this.birdT = 5; this.clock = true; this.kOn = 0;
+    // 비: 지붕과 땅을 두드리는 넓은 쉬익 소리(밖) + 지붕 너머로 먹먹하게 들리는 낮은 소리(방 안). 밖에 나가거나 문을 열면 밝고 커진다.
+    this.rainG = new GainNode(c, { gain: 0 }); this.rainLp = new BiquadFilterNode(c, { type: 'lowpass', frequency: 1200, Q: 0.3 }); const rh = new BiquadFilterNode(c, { type: 'highpass', frequency: 350 });
+    loop(1.05).connect(rh); rh.connect(this.rainLp); this.rainLp.connect(this.rainG); this.rainG.connect(this.out);
+    this.roofG = new GainNode(c, { gain: 0 }); const rl = new BiquadFilterNode(c, { type: 'bandpass', frequency: 420, Q: 0.6 }); loop(0.7).connect(rl); rl.connect(this.roofG); this.roofG.connect(this.out);
+    this.wind = 0.2; this.gustT = 0; this.tickT = 0; this.birdT = 5; this.clock = true; this.kOn = 0; this.rainOn = -1; this.thunderN = null;
   }
-  // o: { weather, day, season, clockDist(m), kettle(0…1), dt }
+  // o: { weather, wind(m/s), rain(0…1), thunderN(번개 수), thunderDelay(초), thunderLoud(0…1), outside(0…1), day, season, clockDist(m), kettle(0…1), dt }
   update(o) {
     const c = this.ctx, t = c.currentTime;
     // 방 안에서는 바람을 아주 작게만(주인님: 바람 소리가 너무 많다). 밖에 나가 있으면(o.outside) 제대로 들린다.
-    const base = (o.weather === 'heavy' ? 0.9 : o.weather === 'snow' ? 0.34 : 0.14) * (0.25 + 0.75 * (o.outside || 0));
+    const ws = o.wind ?? (o.weather === 'heavy' ? 10 : o.weather === 'snow' ? 4 : 2);    // 바람 세기(m/s) → 소리 크기
+    const base = Math.min(1, 0.05 + 0.06 * ws + (o.weather === 'heavy' ? 0.2 : 0)) * (0.25 + 0.75 * (o.outside || 0));
+    // 빗소리: 세기와 듣는 곳(방 안은 작고 먹먹하게)
+    const rn = o.rain || 0, out = o.outside || 0, rk = rn * 10 + out;
+    if (Math.abs(rk - this.rainOn) > 0.02) {
+      this.rainOn = rk;
+      this.rainG.gain.setTargetAtTime(rn * (0.018 + 0.1 * out), t, 0.6); this.rainLp.frequency.setTargetAtTime(900 + 6000 * out, t, 0.4);
+      this.roofG.gain.setTargetAtTime(rn * 0.05 * (1 - 0.6 * out), t, 0.6);
+    }
+    // 천둥: 번개가 친 뒤 몇 초 지나 낮게 우르릉
+    if (this.thunderN == null) this.thunderN = o.thunderN || 0;
+    else if ((o.thunderN || 0) > this.thunderN) { this.thunderN = o.thunderN; this.thunder(o.thunderDelay || 3, o.thunderLoud || 0.7, out); }
     this.gustT -= o.dt;
     if (this.gustT <= 0) {                                                  // 몇 초마다 바람 세기를 새로 정한다(돌풍)
       this.gustT = rnd(1.5, 5); const g = base * rnd(0.45, 1.5);
@@ -92,7 +107,7 @@ export class Ambient {
     this.birdT -= o.dt;
     if (this.birdT <= 0) {
       this.birdT = rnd(4, 14);
-      if (o.day > 0.6 && o.season !== 'winter' && o.weather === 'clear') {
+      if (o.day > 0.6 && o.season !== 'winter' && (o.weather === 'clear' || o.weather === 'partly') && !(o.rain > 0)) {
         const n = 2 + Math.floor(Math.random() * 4), f0 = rnd(2600, 4200), pan = rnd(-0.7, 0.2);
         for (let i = 0; i < n; i++) { const ts = t + i * rnd(0.09, 0.16), osc = new OscillatorNode(c, { frequency: f0 }), g = new GainNode(c, { gain: 0 }), p = new StereoPannerNode(c, { pan }), lp = new BiquadFilterNode(c, { type: 'lowpass', frequency: 3000 }); osc.frequency.setValueAtTime(f0 * rnd(0.9, 1.1), ts); osc.frequency.exponentialRampToValueAtTime(f0 * rnd(1.15, 1.5), ts + 0.06); g.gain.setValueAtTime(0, ts); g.gain.linearRampToValueAtTime(0.012, ts + 0.012); g.gain.linearRampToValueAtTime(0, ts + 0.075); osc.connect(lp); lp.connect(g); g.connect(p); p.connect(this.out); osc.start(ts); osc.stop(ts + 0.1); }
       }
@@ -100,5 +115,15 @@ export class Ambient {
     // 주전자 끓는 소리 (보글거림: 음량을 불규칙하게 흔든다)
     const k = o.kettle || 0; if (Math.abs(k - this.kOn) > 0.01) { this.kOn = k; this.kettle.gain.setTargetAtTime(k * 0.1, t, 0.8); }
     if (k > 0.01) this.kLfo.gain.setTargetAtTime(rnd(0.4, 1.2), t, 0.05);
+  }
+  // 먼 천둥: 걸러 낸 낮은 잡음 몇 덩이가 겹쳐 굴러간다
+  thunder(delay, loud, out) {
+    const c = this.ctx, t0 = c.currentTime + delay, g0 = (0.25 + 0.35 * out) * loud;
+    for (let i = 0; i < 4; i++) {
+      const t = t0 + i * rnd(0.25, 0.9), dur = rnd(1.5, 3.5), src = new AudioBufferSourceNode(c, { buffer: this.noise, loop: true, playbackRate: rnd(0.25, 0.45) });
+      const f = new BiquadFilterNode(c, { type: 'lowpass', frequency: rnd(90, 180), Q: 0.7 }), g = new GainNode(c, { gain: 0 }), p = new StereoPannerNode(c, { pan: rnd(-0.6, 0.6) });
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(g0 * (i ? 0.6 : 1), t + rnd(0.1, 0.4)); g.gain.setTargetAtTime(0, t + 0.4, dur / 3);
+      src.connect(f); f.connect(g); g.connect(p); p.connect(this.out); src.start(t, rnd(0, 1.5)); src.stop(t + dur + 1.5);
+    }
   }
 }
