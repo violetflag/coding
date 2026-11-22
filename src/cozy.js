@@ -5,7 +5,6 @@ import * as store from './reader/store.js';
 import { saveFile } from './desktop.js';
 import { drawCover } from './reader/page.js';
 import { FIREPLACE as FP } from './scene/layout.js';
-import { BOOK_COLORS } from './scene/room.js';
 
 const CANDLE_HOURS = 4, TEA_MINUTES = 18, SESSION = 'nanro.session', CANDLES = 'nanro.candles';
 const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
@@ -16,8 +15,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
 
   // ================= 1. 서재 책장 = 내 라이브러리 =================
   const shelf = ctx.libraryShelf, lib = new THREE.Group(); scene.add(lib);
-  let spines = [], fill = null;
-  const fillMat = ctx.bookMat || new THREE.MeshStandardMaterial({ roughness: 0.75 });
+  let spines = [];
   const spineTex = (b, w, h) => {
     const cv = document.createElement('canvas'); cv.width = 96; cv.height = 512; const c = cv.getContext('2d');
     c.fillStyle = b.color || '#5b2a22'; c.fillRect(0, 0, 96, 512);
@@ -45,16 +43,9 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
       const it = { id: 'libbook:' + b.id, label: `꺼내기: ${b.title.length > 22 ? b.title.slice(0, 21) + '…' : b.title}`, pos: [shelf.x, shelf.y + h / 2, z + t / 2], radius: Math.max(0.03, t * 0.9), libBook: b.id };
       ctx.interact.push(it); spines.push({ id: b.id, mesh, baseX: mesh.position.x, it }); z += t + 0.0015;
     }
-    // 내 책 뒤로 남은 칸은 보통 책으로 채운다(빈칸이 휑하지 않게). 책을 더 넣으면 그만큼 줄어든다.
-    if (fill) { lib.remove(fill); fill.dispose(); fill = null; }
-    const fb = []; let fr = 31; const rr = () => ((fr = (fr * 16807) % 2147483647) / 2147483647);
-    z += 0.004;
-    while (true) { const t = 0.022 + rr() * 0.03, h = Math.min(shelf.height - 0.02, 0.19 + rr() * 0.09), d = 0.14 + rr() * 0.05; if (z + t > shelf.z1 - 0.005) break; fb.push([shelf.x - 0.01 - d / 2, shelf.y + h / 2, z + t / 2, d, h, t]); z += t + 0.002; }
-    if (fb.length) {
-      fill = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), fillMat, fb.length); const m4 = new THREE.Matrix4(), c = new THREE.Color();
-      fb.forEach(([x, y, zz, d, h, t], i) => { m4.makeScale(d, h, t).setPosition(x, y, zz); fill.setMatrixAt(i, m4); fill.setColorAt(i, c.setHex(BOOK_COLORS[(i * 7 + 3) % BOOK_COLORS.length]).multiplyScalar(0.55 + ((i * 37) % 10) / 22)); });
-      fill.receiveShadow = true; lib.add(fill);
-    }
+    // 내 책 뒤로 남은 칸은 방에 꽂혀 있던 보통 책이 그대로 채운다. 내 책이 차지한 자리의 책만 숨긴다.
+    const lf = ctx.libraryFill;
+    if (lf) { const zero = new THREE.Matrix4().makeScale(0, 0, 0); for (const it of lf.items) lf.inst.setMatrixAt(it.i, it.z0 < z + 0.004 ? zero : it.m); lf.inst.instanceMatrix.needsUpdate = true; }
     markPicked(reading.picked());
   }
   // 고른 책은 살짝 튀어나와 있다

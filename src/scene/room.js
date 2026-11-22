@@ -125,7 +125,7 @@ export function buildRoom(ctx) {
     for (let b = 0; b <= bays; b++) P(a0 + len * b / bays, SH.top / 2, dc, 0.035, SH.top, dep, M.woodDark, { vgrain: true });
     for (let s = 1; s < SH.rows; s++) P(mid, SH.y0 + s * SH.pitch - 0.012, dc, len, 0.024, dep - 0.01, M.wood);
     for (let s = 0; s < SH.rows; s++) for (let b = 0; b < bays; b++) {
-      if (reserved && reserved.row === s && reserved.bay === b) continue;
+      const lib = reserved && reserved.row === s && reserved.bay === b;   // 내 서재 칸도 채운다(내 책이 꽂히면 그만큼 비킨다, cozy.js)
       const y = SH.y0 + s * SH.pitch, u1 = a0 + len * (b + 1) / bays - 0.025;
       let u = a0 + len * b / bays + 0.025;
       while (u < u1 - 0.02) {
@@ -133,7 +133,7 @@ export function buildRoom(ctx) {
         const t = 0.02 + r() * 0.035, h = Math.min(SH.pitch - 0.05, 0.19 + r() * 0.1), d = 0.13 + r() * 0.06;
         if (u + t > u1) break;
         const lean = k > 0.95 ? (r() - 0.5) * 0.3 : 0;
-        books.push({ along, a: u + t / 2, y: y + h / 2, dd: dep - 0.02 - d / 2 - r() * 0.02, t, h, d, lean, color: BOOK_COLORS[Math.floor(r() * BOOK_COLORS.length)], tone: 0.5 + r() * 0.5 });
+        books.push({ lib, along, a: u + t / 2, y: y + h / 2, dd: dep - 0.02 - d / 2 - r() * 0.02, t, h, d, lean, color: BOOK_COLORS[Math.floor(r() * BOOK_COLORS.length)], tone: 0.5 + r() * 0.5 });
         u += t + 0.002 + Math.abs(lean) * 0.06;
       }
     }
@@ -167,7 +167,7 @@ export function buildRoom(ctx) {
     };
     img.src = 'textures/cloth/color.jpg'; }
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
-  inst.material.userData.bookCover = true; ctx.bookMat = inst.material;   // 서재 칸을 채우는 책(cozy.js)도 같은 책등 무늬를 쓴다
+  inst.material.userData.bookCover = true;
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
   books.forEach((b, i) => {
     const z = b.along === 'z';
@@ -176,6 +176,8 @@ export function buildRoom(ctx) {
     inst.setMatrixAt(i, m4); inst.setColorAt(i, col.setHex(b.color).multiplyScalar(b.tone));
   });
   inst.castShadow = false; inst.receiveShadow = true; g.add(inst);
+  // 내 서재 칸에 꽂힌 보통 책: 내 책이 꽂힌 자리까지는 숨긴다
+  ctx.libraryFill = { inst, items: books.map((b, i) => b.lib && { i, z0: b.a - b.t / 2, m: (() => { const m = new THREE.Matrix4(); inst.getMatrixAt(i, m); return m; })() }).filter(Boolean) };
   // 내 서재 칸 (7단계에서 불러온 책의 책등이 꽂힌다)
   const lib = SH.library, bayLen = (D - 0.06) / 4;
   ctx.libraryShelf = { x: SH.depth - 0.02, y: SH.y0 + lib.row * SH.pitch, z0: 0.03 + bayLen * lib.bay + 0.03, z1: 0.03 + bayLen * (lib.bay + 1) - 0.03, height: SH.pitch - 0.05 };
