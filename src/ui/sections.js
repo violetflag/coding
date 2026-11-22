@@ -1,5 +1,6 @@
 // 설정창의 구역들: 그래픽(해상도·프레임 제한·그림자·실사 효과), 방(시간·날씨·계절·위치), 소리(유튜브 음악, 시계 소리), 난롯가(장작 타이머, 잠들기), 조작·접근성.
 import { WEATHERS, SEASONS, SEOUL } from '../scene/environment.js';
+import { CONST_MODES } from '../scene/sky.js';
 
 const KEY = 'nanro.prefs';
 export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, shadows: true, resW: '1920', autoRes: true, fpsCap: 0, logMinutes: 25, sleepMinutes: 30 };
@@ -55,6 +56,11 @@ export function buildSections(d) {
         E('div', { className: 'row wide' }, E('label', { textContent: '되돌리기' }), E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:0' }, E('button', { textContent: '가구 배치 처음대로', onclick: () => d.arrange?.reset() }), E('button', { textContent: '액자 그림 처음대로', onclick: () => d.arrange?.clearFrames() }))));
       this._info = info; this._tick = () => { const S = env.state; info.textContent = `지금 방의 시각 ${hm(env.now().getHours() + env.now().getMinutes() / 60)} · 해 고도 ${S.sunAlt.toFixed(0)}° · 달 ${(S.moonFrac * 100).toFixed(0)}% · ${SEASONS[S.season]} · ${WEATHERS[S.weather]}`; };
     }, onShow() { this._tick(); this._iv = setInterval(this._tick, 1000); }, onHide() { clearInterval(this._iv); } },
+    { key: 'sky', label: '밤하늘', build(el) {
+      el.append(H('별자리'), select('별자리 선', () => env.opts.constellations || 'lines', (v) => env.set({ constellations: v }), CONST_MODES, '밤하늘의 별자리를 잇는 옅은 선과 한글 이름입니다. 별은 지금 위치와 시각의 실제 하늘입니다.'),
+        check('황도 12궁 강조', () => env.opts.zodiac !== false, (v) => env.set({ zodiac: v }), '해가 지나가는 길(황도)을 옅게 긋고, 그 위의 열두 별자리 선을 조금 더 밝게 합니다.'),
+        note('은하수는 달이 없고 맑은 밤에만 보입니다. 위치는 "방 (시간·날씨)" 탭에서 바꿉니다.'));
+    } },
     { key: 'sound', label: '소리', build(el) {
       const url = E('input', { type: 'text', placeholder: '유튜브 링크 (영상 또는 재생목록)', value: music.state.url }), st = note(music.status), slot = E('div', { style: 'width:320px;height:180px;margin:8px 0;background:#0e0a07;border:1px dashed #4a3a28;border-radius:6px' });
       music.onChange = () => { st.textContent = music.status; };

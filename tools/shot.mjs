@@ -43,6 +43,17 @@ const VIEWS = {
   shelfabove: { pos: [0.85, 2.7], yaw: [0.3, 2.95], pitch: -0.62, q: 'shelfdemo=40' },
   shelfpick: { pos: [1.05, 3.7], yaw: [0.3, 3.35], pitch: -0.3, q: 'shelfdemo=12', sample: true },   // 견본 책을 서재에 넣고 꺼내 든다
   tablebooks: { pos: [3.45, 3.55], yaw: [3.8, 4.05], pitch: -0.95 },
+  // 하늘 점검: 마당에서 올려다보기(남쪽), 창 너머, 해·달 쪽 보기(look: 'sun'|'moon'|방위각°). env 는 환경 설정(별자리 선 등)
+  skynight: { pos: [12, 5], look: 180, pitch: 0.75 },
+  skynames: { pos: [12, 5], look: 180, pitch: 0.75, env: { constellations: 'names' } },
+  skyeast: { pos: [12, 5], look: 110, pitch: 0.6, env: { constellations: 'names' } },
+  skyup: { pos: [12, 5], look: 180, pitch: 1.4 },
+  skynorth: { pos: [12, 5], look: 0, pitch: 0.65 },
+  skywin: { pos: [2.8, 2.9], yaw: [2.8, 0], pitch: 0.3 },
+  skysun: { pos: [12, 5], look: 'sun', pitch: 0.25 },
+  skymoon: { pos: [12, 5], look: 'moon', pitch: 0.3 },
+  skywest: { pos: [12, 5], look: 240, pitch: 0.3 },
+  skysouth: { pos: [12, 5], look: 175, pitch: 0.35 },
 };
 
 mkdirSync('shots', { recursive: true });
@@ -79,7 +90,13 @@ for (const name of names) {
       if (v.sample) { const R = window.NANRO.reading; await R.reader.ready; const f = await (await fetch('/books/sample.epub')).blob(); const meta = await R.reader.addFile(new File([f], 'sample.epub')); R.setPicked(meta.id); }
       p.pos.x = v.pos[0]; p.pos.z = v.pos[1]; p.pitch = v.pitch; p.feet = window.NANRO.ctx.groundAt?.(p.pos.x, p.pos.z) ?? 0;
       if (v.door) { window.NANRO.ctx.door.toggle(); window.NANRO.ctx.door.t = 0.999; }
-      p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
+      if (v.env) window.NANRO.env.set(v.env);
+      if (v.look !== undefined) {                       // 방위각(북 0, 동 90)으로 바라보기. 장면에서 북 = +Z, 동 = -X
+        const S = window.NANRO.env.state, m = window.NANRO.env.sky.u.moonDir.value, mAz = Math.atan2(-m.x, m.z), mAlt = Math.asin(m.y) * 180 / Math.PI;
+        const az = v.look === 'sun' ? S.sunAz : v.look === 'moon' ? mAz : v.look * Math.PI / 180;
+        p.yaw = Math.atan2(Math.sin(az), -Math.cos(az));
+        if (v.look === 'sun' || v.look === 'moon') p.pitch = Math.max(-0.3, Math.min(1.2, (v.look === 'sun' ? S.sunAlt : mAlt) * Math.PI / 180 + 0.12));
+      } else p.yaw = Math.atan2(-(v.yaw[0] - v.pos[0]), -(v.yaw[1] - v.pos[1]));
     }
   }, { name, VIEWS });
   // 시간 대신 프레임 수로 기다린다(불이 붙어 자리 잡는 데 약 250프레임).

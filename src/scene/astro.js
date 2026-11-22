@@ -7,10 +7,10 @@ const ra = (l, b) => atan2(sin(l) * cos(e) - tan(b) * sin(e), cos(l));
 const dec = (l, b) => asin(sin(b) * cos(e) + cos(b) * sin(e) * sin(l));
 const azimuth = (H, phi, d) => atan2(sin(H), cos(H) * sin(phi) - tan(d) * cos(phi)) + PI;
 const altitude = (H, phi, d) => asin(sin(phi) * sin(d) + cos(phi) * cos(d) * cos(H));
-const sidereal = (d, lw) => rad * (280.16 + 360.9856235 * d) - lw;
+const sidereal = (d, lw) => rad * (280.46061837 + 360.98564736629 * d) - lw;   // 그리니치 평균 항성시(Meeus 12.4). 별자리 하늘(skycalc.js)과 같은 식
 
 function sunCoords(d) {
-  const M = rad * (357.5291 + 0.98560028 * d), C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)), L = M + C + rad * 102.9372 + PI;
+  const M = rad * (357.5291 + 0.98560028 * d), C = rad * (1.9148 * sin(M) + 0.02 * sin(2 * M) + 0.0003 * sin(3 * M)), L = M + C + rad * (102.9372 + 3.8246e-5 * d) + PI;   // 근일점 경도에 세차(하루 0.0000382°)를 더해 그날의 황경으로
   return { dec: dec(L, 0), ra: ra(L, 0) };
 }
 function moonCoords(d) {
