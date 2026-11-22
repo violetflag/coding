@@ -2,12 +2,19 @@
 //   - 창 하나를 만들고, 마지막 크기와 위치, 전체 화면 여부를 기억한다.
 //   - 책과 설정은 프로그램 폴더와 다른 자료 폴더에 둔다. 새 버전을 덮어 깔아도 남는다.
 //   - 이미 켜져 있으면 새로 켜지 않고 켜져 있는 창을 앞으로 가져온다.
+//   - 책 파일을 "난로로 열기"로 넘겨받고, 서재 폴더에 있는 책 파일을 화면에 내준다.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fs, path::PathBuf, sync::Mutex};
+use std::{
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+    sync::Mutex,
+    time::UNIX_EPOCH,
+};
 
 use serde::{Deserialize, Serialize};
-use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
 
 /// 창을 기억하는 내용. x, y, w, h 는 보통 창(최대화도 전체 화면도 아닐 때)의 자리와 안쪽 크기(실제 픽셀)다.
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -23,7 +30,38 @@ struct WinState {
 struct Shell {
     dir: PathBuf,
     win: Mutex<Option<WinState>>,
+    /// 서재 폴더. 여기에 넣어 둔 책 파일은 화면이 읽어 서재에 꽂는다.
+    library: Mutex<PathBuf>,
+    /// "난로로 열기"로 넘어왔고 화면이 아직 받아 가지 않은 책 파일.
+    waiting: Mutex<Vec<PathBuf>>,
+    /// 화면이 읽어도 되는 파일. 넘어온 책 파일만 들어간다(화면이 아무 파일이나 읽지 못하게 한다).
+    granted: Mutex<HashSet<PathBuf>>,
 }
+
+/// 자료 폴더의 settings.json 에 적어 두는 것.
+#[derive(Default, Serialize, Deserialize)]
+struct Settings {
+    library_dir: Option<PathBuf>,
+}
+
+/// 화면에 알려 주는 책 파일 하나. modified 는 1970년부터 센 초.
+#[derive(Serialize)]
+struct BookRef {
+    path: String,
+    name: String,
+    size: u64,
+    modified: u64,
+}
+
+#[derive(Serialize)]
+struct Library {
+    dir: String,
+    books: Vec<BookRef>,
+}
+
+const BOOK_EXT: [&str; 3] = ["epub", "pdf", "txt"];
+/// 화면에 통째로 넘기는 파일의 크기 한도.
+const MAX_BOOK: u64 = 400 * 1024 * 1024;
 
 /// 자료 폴더. 환경 변수 NANRO_DATA 가 있으면 그곳, 없으면 C:\Nanro, 그곳을 만들 수 없으면 윈도우의 기본 자리.
 fn data_dir(app: &tauri::App) -> PathBuf {
@@ -36,6 +74,68 @@ fn data_dir(app: &tauri::App) -> PathBuf {
     let fallback = app.path().app_local_data_dir().unwrap_or_else(|_| std::env::temp_dir().join("nanro"));
     let _ = fs::create_dir_all(&fallback);
     fallback
+}
+
+fn settings_file(dir: &Path) -> PathBuf {
+    dir.join("settings.json")
+}
+
+/// 서재 폴더. 고른 적이 없거나 그 폴더가 없어졌으면 자료 폴더 안의 books.
+fn load_library(dir: &Path) -> PathBuf {
+    fs::read_to_string(settings_file(dir))
+        .ok()
+        .and_then(|text| serde_json::from_str::<Settings>(&text).ok())
+        .and_then(|s| s.library_dir)
+        .filter(|p| p.is_dir())
+        .unwrap_or_else(|| dir.join("books"))
+}
+
+fn is_book(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .map(|e| BOOK_EXT.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+fn book_ref(path: &Path) -> Option<BookRef> {
+    let meta = fs::metadata(path).ok()?;
+    if !meta.is_file() {
+        return None;
+    }
+    Some(BookRef {
+        path: path.to_string_lossy().into_owned(),
+        name: path.file_name()?.to_string_lossy().into_owned(),
+        size: meta.len(),
+        modified: meta.modified().ok().and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map(|d| d.as_secs()).unwrap_or(0),
+    })
+}
+
+/// 실행할 때 넘어온 값들 가운데 책 파일만 고른다. 첫 값(프로그램 자신)은 뺀 것을 받는다.
+fn book_paths(args: impl Iterator<Item = PathBuf>, cwd: Option<&Path>) -> Vec<PathBuf> {
+    args.map(|p| match cwd {
+        Some(c) if p.is_relative() => c.join(p),
+        _ => p,
+    })
+    .filter(|p| is_book(p) && p.is_file())
+    .collect()
+}
+
+/// 폴더 안의 책 파일을 모은다. 하위 폴더는 세 단계까지만 내려간다.
+fn scan(dir: &Path, depth: u32, out: &mut Vec<BookRef>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        if out.len() >= 2000 {
+            return;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            if depth < 3 {
+                scan(&path, depth + 1, out);
+            }
+        } else if is_book(&path) {
+            out.extend(book_ref(&path));
+        }
+    }
 }
 
 fn state_file(dir: &PathBuf) -> PathBuf {
@@ -181,21 +281,109 @@ fn save_download(app: tauri::AppHandle, request: tauri::ipc::Request<'_>) -> Res
     Ok(path.to_string_lossy().into_owned())
 }
 
+/// "난로로 열기"로 넘어온 책 파일을 화면에 넘긴다. 한 번 넘긴 것은 다시 넘기지 않는다.
+#[tauri::command]
+fn opened_books(shell: tauri::State<'_, Shell>) -> Vec<BookRef> {
+    let paths: Vec<PathBuf> = shell.waiting.lock().unwrap().drain(..).collect();
+    let mut granted = shell.granted.lock().unwrap();
+    paths
+        .iter()
+        .filter_map(|p| {
+            let book = book_ref(p)?;
+            granted.insert(p.clone());
+            Some(book)
+        })
+        .collect()
+}
+
+/// 서재 폴더에 있는 책 파일 목록. 폴더가 없으면 만든다.
+#[tauri::command(async)]
+fn library_books(shell: tauri::State<'_, Shell>) -> Library {
+    let dir = shell.library.lock().unwrap().clone();
+    let _ = fs::create_dir_all(&dir);
+    let mut books = Vec::new();
+    scan(&dir, 0, &mut books);
+    books.sort_by(|a, b| a.path.cmp(&b.path));
+    Library { dir: dir.to_string_lossy().into_owned(), books }
+}
+
+/// 책 파일의 내용. 넘어온 책 파일이거나 서재 폴더 안에 있는 책 파일만 읽어 준다.
+#[tauri::command(async)]
+fn read_book(shell: tauri::State<'_, Shell>, path: String) -> Result<tauri::ipc::Response, String> {
+    let path = PathBuf::from(path);
+    let library = shell.library.lock().unwrap().clone();
+    let in_library = match (fs::canonicalize(&path), fs::canonicalize(&library)) {
+        (Ok(file), Ok(dir)) => file.starts_with(dir),
+        _ => false,
+    };
+    if !is_book(&path) || !(in_library || shell.granted.lock().unwrap().contains(&path)) {
+        return Err("이 파일은 열 수 없습니다".into());
+    }
+    if fs::metadata(&path).map_err(|e| e.to_string())?.len() > MAX_BOOK {
+        return Err("파일이 너무 큽니다".into());
+    }
+    fs::read(&path).map(tauri::ipc::Response::new).map_err(|e| e.to_string())
+}
+
+/// 서재 폴더를 탐색기로 연다.
+#[tauri::command]
+fn open_library_folder(shell: tauri::State<'_, Shell>) {
+    let dir = shell.library.lock().unwrap().clone();
+    let _ = fs::create_dir_all(&dir);
+    let _ = std::process::Command::new("explorer.exe").arg(&dir).spawn();
+}
+
+/// 서재 폴더를 고르는 창을 띄운다. 고르면 기억하고 그 경로를 돌려준다. 그만두면 아무것도 바꾸지 않는다.
+#[tauri::command(async)]
+fn choose_library_folder(window: WebviewWindow) -> Option<String> {
+    let shell = window.state::<Shell>();
+    let start = shell.library.lock().unwrap().clone();
+    #[cfg(windows)]
+    let picked = rfd::FileDialog::new().set_title("서재 폴더 고르기").set_directory(&start).set_parent(&window).pick_folder();
+    #[cfg(not(windows))]
+    let picked: Option<PathBuf> = { let _ = start; None };
+    let dir = picked?;
+    let text = serde_json::to_string(&Settings { library_dir: Some(dir.clone()) }).ok()?;
+    let _ = fs::write(settings_file(&shell.dir), text);
+    *shell.library.lock().unwrap() = dir.clone();
+    Some(dir.to_string_lossy().into_owned())
+}
+
 fn main() {
     tauri::Builder::default()
-        // 두 번째로 켜면 새 창을 만들지 않고 켜져 있는 창을 앞으로 가져온다.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        // 두 번째로 켜면 새 창을 만들지 않고 켜져 있는 창을 앞으로 가져온다. 책 파일과 함께 켰으면 그 책을 켜져 있는 창에 넘긴다.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let books = book_paths(args.into_iter().skip(1).map(PathBuf::from), Some(Path::new(&cwd)));
+            if let (false, Some(shell)) = (books.is_empty(), app.try_state::<Shell>()) {
+                shell.waiting.lock().unwrap().extend(books);
+                let _ = app.emit("nanro-open", ());
+            }
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
                 let _ = w.show();
                 let _ = w.set_focus();
             }
         }))
-        .invoke_handler(tauri::generate_handler![toggle_fullscreen, quit, save_download])
+        .invoke_handler(tauri::generate_handler![
+            toggle_fullscreen,
+            quit,
+            save_download,
+            opened_books,
+            library_books,
+            read_book,
+            open_library_folder,
+            choose_library_folder
+        ])
         .setup(|app| {
             let dir = data_dir(app);
             let saved = load_state(&dir);
-            app.manage(Shell { dir: dir.clone(), win: Mutex::new(saved) });
+            app.manage(Shell {
+                dir: dir.clone(),
+                win: Mutex::new(saved),
+                library: Mutex::new(load_library(&dir)),
+                waiting: Mutex::new(book_paths(std::env::args_os().skip(1).map(PathBuf::from), None)),
+                granted: Mutex::new(HashSet::new()),
+            });
 
             // 주소 방식(https://tauri.localhost)은 책과 설정이 담기는 저장 공간의 이름이 되므로 바꾸지 않는다.
             // 시험용: 환경 변수 NANRO_URL 이 있으면 그 주소를 연다(예: 개발 서버, 주소 옵션을 붙인 화면).

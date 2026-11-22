@@ -32,16 +32,28 @@ export async function addStat(patch, day = today()) {
 }
 export const getStats = async () => (await get('kv', 'stats')) || {};
 
-// ---- 백업: 서재 목록·위치·밑줄·통계 + (선택) 책 파일
+// ---- 백업: 서재 목록·위치·밑줄·통계 + (선택) 책 파일 + 설정(글자, 그래픽, 가구 배치, 볼륨 같은 것)과 액자 그림
 const b64 = (blob) => new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+const unb64 = async (url) => (await fetch(url)).blob();
+const LOCAL = 'nanro.';
 export async function exportBackup(withFiles = true) {
-  const out = { app: 'nanro', version: 1, at: Date.now(), books: await all('books'), marks: {}, files: {}, stats: await getStats(), session: await get('kv', 'session') };
+  const out = { app: 'nanro', version: 2, at: Date.now(), books: await all('books'), marks: {}, files: {}, stats: await getStats(), local: {}, frames: {} };
   for (const b of out.books) { out.marks[b.id] = await getMarks(b.id); if (withFiles) { const f = await bookFile(b.id); if (f) out.files[b.id] = await b64(f); } }
+  try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith(LOCAL)) out.local[k] = localStorage.getItem(k); } } catch { /* 설정 없이 내보낸다 */ }
+  for (const k of await keys('kv')) if (String(k).startsWith('frame:')) { const b = await get('kv', k); if (b) out.frames[k] = await b64(b); }
   return new Blob([JSON.stringify(out)], { type: 'application/json' });
 }
-export async function importBackup(file) {
+// 책은 언제나 가져온다. 백업에 설정이 들어 있으면 wantSettings()에 물어서, 그렇다고 하면 설정과 액자 그림도 가져온다(지금 설정을 덮어쓴다).
+// 돌려주는 값: { count: 가져온 책 수, settings: 설정을 가져왔는지 }. 설정을 가져왔으면 화면을 다시 불러와야 적용된다.
+export async function importBackup(file, wantSettings = () => false) {
   const data = JSON.parse(await file.text()); if (data.app !== 'nanro') throw new Error('난로 백업 파일이 아닙니다');
-  for (const b of data.books || []) { await put('books', b.id, b); if (data.marks?.[b.id]) await saveMarks(b.id, data.marks[b.id]); if (data.files?.[b.id]) await put('files', b.id, await (await fetch(data.files[b.id])).blob()); }
+  for (const b of data.books || []) { await put('books', b.id, b); if (data.marks?.[b.id]) await saveMarks(b.id, data.marks[b.id]); if (data.files?.[b.id]) await put('files', b.id, await unb64(data.files[b.id])); }
   if (data.stats) { const cur = await getStats(); await put('kv', 'stats', { ...data.stats, ...cur }); }
-  return (data.books || []).length;
+  const has = Object.keys(data.local || {}).length + Object.keys(data.frames || {}).length > 0;
+  const settings = has && !!(await wantSettings());
+  if (settings) {
+    for (const k in data.local) if (k.startsWith(LOCAL)) { try { localStorage.setItem(k, data.local[k]); } catch { /* 무시 */ } }
+    for (const k in data.frames || {}) if (k.startsWith('frame:')) await put('kv', k, await unb64(data.frames[k]));
+  }
+  return { count: (data.books || []).length, settings };
 }

@@ -1,7 +1,7 @@
 // 리더 화면: 아래 진행 막대, 옆 메뉴(목차 / 북마크·밑줄 / 검색 / 글자·종이 / 서재 / 통계), 선택 팝업, 사전 창.
 // 글이 많은 화면만 HTML로 띄우고, 책 자체는 방 안의 3D 물체다.
 import * as store from './store.js';
-import { saveFile } from '../desktop.js';
+import { saveFile, DESKTOP } from '../desktop.js';
 import { POSE_DEFAULTS } from './reader.js';
 import { FONTS, TYPE_LIMITS } from './typeset.js';
 import { PAPERS, PENS } from './page.js';
@@ -42,6 +42,16 @@ const CSS = `
 const el = (tag, props = {}, ...kids) => { const e = document.createElement(tag); for (const k in props) { if (k === 'style') e.style.cssText = props[k]; else if (k.startsWith('on')) e.addEventListener(k.slice(2), props[k]); else if (k === 'html') e.innerHTML = props[k]; else e[k] = props[k]; } for (const c of kids.flat()) if (c != null) e.append(c); return e; };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // 저장한 뒤 알림을 띄운다. 프로그램 창에서는 저장된 자리를 알려 준다(웹버전은 브라우저가 내려받기를 보여 준다).
+// 백업 파일을 가져온다. 설정까지 가져왔으면 화면을 다시 불러와 적용한다.
+export async function bringBackup(file, ui, wantSettings) {
+  try {
+    ui.host.toast('백업을 가져오는 중…');
+    const r = await store.importBackup(file, wantSettings);
+    if (r.settings) { ui.host.toast(`백업에서 책 ${r.count}권과 설정을 가져왔습니다. 난로를 다시 불러옵니다…`); setTimeout(() => location.reload(), 1500); return r; }
+    await ui.r.refreshLibrary(); ui.host.toast(`백업에서 책 ${r.count}권을 가져왔습니다`); if (ui.isOpen) ui.renderPanel();
+    return r;
+  } catch (e) { console.warn(e); ui.host.toast(e.message || '백업을 가져오지 못했습니다'); return null; }
+}
 const download = (blob, name, toast) => saveFile(blob, name).then((path) => { if (path) toast?.('저장했습니다: ' + path); }, (e) => toast?.('저장하지 못했습니다: ' + (e?.message || e)));
 const TABS = [['toc', '목차'], ['marks', '북마크·밑줄'], ['search', '검색'], ['type', '글자·종이'], ['lib', '서재'], ['stats', '통계']];
 
@@ -172,9 +182,9 @@ export class ReaderUI {
   }
   _lib(body) {
     const file = el('input', { type: 'file', accept: '.epub,.pdf,.txt', multiple: true, style: 'display:none', onchange: () => { this.addFiles(file.files); file.value = ''; } });
-    const imp = el('input', { type: 'file', accept: '.json', style: 'display:none', onchange: async () => { try { const n = await store.importBackup(imp.files[0]); await this.r.refreshLibrary(); this.host.toast(`백업에서 책 ${n}권을 가져왔습니다`); this.renderPanel(); } catch (e) { this.host.toast(e.message); } } });
+    const imp = el('input', { type: 'file', accept: '.json', style: 'display:none', onchange: async () => { const f = imp.files[0]; imp.value = ''; if (f) await bringBackup(f, this, () => confirm('백업에 설정(글자, 그래픽, 가구 배치, 볼륨, 액자 그림)도 들어 있습니다. 설정도 가져올까요?\n가져오면 지금 설정을 덮어쓰고 난로를 다시 불러옵니다.')); } });
     body.append(el('h3', { textContent: `내 서재 (${this.r.library.length}권)` }), el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, el('button', { className: 'act', textContent: '책 추가 (EPUB · PDF · TXT)', onclick: () => file.click() }), file, imp),
-      el('p', { className: 'sub', textContent: '파일을 창에 끌어다 놓아도 됩니다. 책은 이 컴퓨터의 브라우저에만 저장됩니다. DRM이 걸린 책은 열 수 없습니다.' }));
+      el('p', { className: 'sub', textContent: `파일을 창에 끌어다 놓아도 됩니다. 책은 이 컴퓨터${DESKTOP ? '' : '의 브라우저'}에만 저장됩니다. DRM이 걸린 책은 열 수 없습니다.` }));
     for (const b of this.r.library) {
       const cur = this.r.cur?.meta.id === b.id, picked = this.host.picked?.() === b.id;
       body.append(el('div', { className: 'bk' }, b.cover ? el('img', { src: b.cover }) : el('div', { className: 'nocover', style: `background:${b.color}`, textContent: b.title.slice(0, 18) }),
@@ -183,8 +193,9 @@ export class ReaderUI {
             b.format !== 'pdf' ? el('button', { textContent: b.age === 'old' ? '헌 책' : '새 책', title: '새 책 / 헌 책 바꾸기', onclick: async () => { await this.r.setMeta(b.id, { age: b.age === 'old' ? 'new' : 'old' }); this.renderPanel(); } }) : null,
             el('button', { textContent: '삭제', onclick: async () => { if (confirm(`"${b.title}"을(를) 서재에서 뺄까요? 밑줄과 메모도 함께 지워집니다.`)) { await this.r.remove(b.id); this.host.onRemoved?.(b.id); this.renderPanel(); } } })))));
     }
+    this.host.libExtra?.(body, this);
     body.append(el('h3', { textContent: '백업' }), el('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' }, el('button', { textContent: '파일 하나로 내보내기', onclick: async () => download(await store.exportBackup(true), `난로-백업-${store.today()}.json`, (m) => this.host.toast(m)) }), el('button', { textContent: '백업 가져오기', onclick: () => imp.click() })),
-      el('p', { className: 'sub', textContent: '서재, 읽던 위치, 북마크, 밑줄, 메모, 통계, 책 파일이 한 파일에 담깁니다.' }));
+      el('p', { className: 'sub', textContent: '서재, 읽던 위치, 북마크, 밑줄, 메모, 통계, 책 파일, 설정이 한 파일에 담깁니다. 다른 컴퓨터나 브라우저의 난로로 옮길 때도 씁니다.' }));
   }
   async _stats(body) {
     const st = await store.getStats(), days = Object.keys(st).sort().reverse(), fmt = (s) => s >= 3600 ? `${Math.floor(s / 3600)}시간 ${Math.round(s % 3600 / 60)}분` : `${Math.round(s / 60)}분`;

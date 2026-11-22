@@ -18,7 +18,9 @@ import { setupReading } from './reading.js';
 import { setupCozy } from './cozy.js';
 import { setupArrange } from './scene/arrange.js';
 import { setupPost } from './scene/post.js';
-import { setupDesktop } from './desktop.js';
+import { setupDesktop, watchOpened, syncLibraryFolder, libraryFolderPanel, setupMoveIn } from './desktop.js';
+import { bringBackup } from './reader/ui.js';
+import * as store from './reader/store.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -193,8 +195,21 @@ async function main() {
   let warmed = false, settleN = 0, settleT = 0, lastNow = performance.now(), settled; const gfxReady = new Promise((r) => (settled = r));
   if (HEADLESS || Q.has('nowarmup')) settled();
   reading.reader.ready.then(() => { labelStart(); $('startMsg').textContent = '불을 지피는 중…'; });
-  Promise.all([reading.reader.ready, gfxReady]).then(() => { $('startMsg').hidden = true; $('startActs').hidden = false; });
-  const prevLib = reading.onLibrary; reading.onLibrary = (l) => { prevLib?.(l); labelStart(); };
+  // 윈도우 프로그램: Edge 에서 쓰던 책과 설정 옮겨 오기(서재가 비어 있을 때만 보인다), 서재 폴더, "난로로 열기"로 넘어온 책.
+  const moveIn = setupMoveIn({ isEmpty: () => !reading.reader.library.length, bring: (f) => bringBackup(f, reading.ui, () => true) });
+  const syncFolder = () => syncLibraryFolder({ addFile: (f) => reading.reader.addFile(f), store, toast });
+  reading.ui.host.libExtra = (body, ui) => libraryFolderPanel(body, { sync: syncFolder, rerender: () => ui.renderPanel() });
+  // 넘어온 책은 서재에 꽂고, 걷고 있었든 앉아 있었든 바로 앉아서 펼친다
+  const openFiles = async (files) => { const added = await addFiles0(files); if (added && player.state !== 'reading') sitAndRead(); };
+  Promise.all([reading.reader.ready, gfxReady]).then(() => {
+    $('startMsg').hidden = true; $('startActs').hidden = false;
+    watchOpened(openFiles);
+    // 서재 폴더는 켤 때 한 번, 그리고 다른 창에 갔다가 돌아올 때(폴더에 책을 넣고 돌아왔을 수 있다) 다시 본다
+    const look = () => syncFolder().catch((e) => console.warn('서재 폴더를 읽지 못했습니다', e));
+    let looked = performance.now(); look();
+    addEventListener('focus', () => { if (performance.now() - looked > 5000) { looked = performance.now(); look(); } });
+  });
+  const prevLib = reading.onLibrary; reading.onLibrary = (l) => { prevLib?.(l); labelStart(); moveIn(); };
   goRead.addEventListener('click', (e) => { e.stopPropagation(); startSound(); if (reading.reader.library.length) sitAndRead(); else startFile.click(); });
   $('goWalk').addEventListener('click', (e) => { e.stopPropagation(); startSound(); player.lock(); });
   $('openHelp').addEventListener('click', (e) => { e.stopPropagation(); toggleHelp(true); });
