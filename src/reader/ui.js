@@ -1,6 +1,7 @@
 // 리더 화면: 아래 진행 막대, 옆 메뉴(목차 / 북마크·밑줄 / 검색 / 글자·종이 / 서재 / 통계), 선택 팝업, 사전 창.
 // 글이 많은 화면만 HTML로 띄우고, 책 자체는 방 안의 3D 물체다.
 import * as store from './store.js';
+import { POSE_DEFAULTS } from './reader.js';
 import { FONTS, TYPE_LIMITS } from './typeset.js';
 import { PAPERS, PENS } from './page.js';
 
@@ -152,6 +153,13 @@ export class ReaderUI {
       el('h3', { textContent: '종이' }), select('종이색', S, 'paper', Object.fromEntries(Object.entries(PAPERS).map(([k, p]) => [k, p.name])), redraw), slider('종이 질감', S, 'grain', [0, 1, 0.05], redraw, (v) => Math.round(v * 100) + '%'),
       check('고대비 종이 (불빛 영향 줄임)', S, 'contrast', redraw),
       el('h3', { textContent: '보기' }), check('한 쪽 크게 보기', S, 'single', () => { this.r.saveSettings(); this.host.onView?.(); }), slider('확대', S, 'zoom', [0.7, 1.8, 0.05], () => { this.r.saveSettings(); this.host.onView?.(); }, (v) => Math.round(v * 100) + '%'), slider('장 넘김 시간', S, 'flip', [0.15, 1.2, 0.05], () => this.r.saveSettings(), (v) => v.toFixed(2) + '초'),
+      el('h3', { textContent: '읽기 자세' }),
+      ...(() => { const pv = () => { this.r.saveSettings(); this.host.onView?.(); }, deg = (v) => Math.round(v) + '°', cm = (v) => Math.round(v * 100) + 'cm';
+        return [slider('시선 위아래', S, 'vPitch', [-75, 30, 1], pv, deg), slider('시선 좌우', S, 'vYaw', [-70, 70, 1], pv, deg), slider('시야각', S, 'vFov', [24, 75, 1], pv, deg),
+          slider('책 높이', S, 'bH', [-0.15, 0.45, 0.01], pv, cm), slider('책 거리', S, 'bDist', [0.25, 0.7, 0.01], pv, cm), slider('책 좌우', S, 'bSide', [-0.3, 0.3, 0.01], pv, cm), slider('책 기울기', S, 'bTilt', [0, 90, 1], pv, deg),
+          check('책을 잡은 손 보이기', S, 'hands', pv),
+          el('div', { className: 'btns' }, el('button', { textContent: '자세 처음대로', onclick: () => { Object.assign(S, POSE_DEFAULTS); pv(); this.renderPanel(); } })),
+          el('p', { className: 'sub', textContent: '읽는 중에 마우스 오른쪽 단추로 끌면 시선이 움직입니다. Shift+휠은 책 기울기, Alt+휠은 책 높이, Ctrl+휠은 확대입니다.' })]; })(),
       el('h3', { textContent: '낭독' }), slider('속도', S, 'ttsRate', [0.6, 1.8, 0.05], () => this.r.saveSettings(), (v) => v.toFixed(2) + '배'),
       select('목소리', S, 'ttsVoice', { '': '자동 (책의 언어)', ...Object.fromEntries(this.r.voices().map((v) => [v.name, `${v.name} (${v.lang})`])) }, () => this.r.saveSettings()),
       el('p', { className: 'sub', textContent: '목소리는 운영체제에 설치된 것을 씁니다. 한국어 음성 품질은 컴퓨터마다 다릅니다.' }));

@@ -13,7 +13,7 @@ export class Player {
     this.pos = new THREE.Vector3(PLAYER_START.x, 0, PLAYER_START.z); this.vel = new THREE.Vector3();
     this.yaw = PLAYER_START.yaw; this.pitch = -0.05; this.eye = EYE; this.bob = 0; this.breath = 0;
     this.state = 'walk'; this.chair = null; this.tween = null; this.focus = null;
-    this.keys = new Set(); this.sens = 0.0019; this.baseFov = 62; this.fov = 62; this.invertY = false; this.sway = true; this.readPitch = -0.5; this.readFov = 42;
+    this.keys = new Set(); this.sens = 0.0019; this.baseFov = 62; this.fov = 62; this.invertY = false; this.sway = true; this.readPitch = -0.5; this.readFov = 42; this.readYaw = 0;
     this.reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._bind();
   }
@@ -42,7 +42,7 @@ export class Player {
     if (this.state === 'seated' || this.state === 'reading') {
       const c = this.chair, dy = Math.atan2(Math.sin(this.yaw - c.yaw), Math.cos(this.yaw - c.yaw));
       this.yaw = c.yaw + Math.max(-1.22, Math.min(1.22, dy));           // 좌우 ±70°
-      this.pitch = Math.max(-0.95, Math.min(0.7, this.pitch));          // 무릎 위 책까지 내려다볼 수 있게
+      this.pitch = Math.max(-1.32, Math.min(0.7, this.pitch));          // 무릎 위 책까지 내려다볼 수 있게
     } else this.pitch = Math.max(-1.45, Math.min(1.45, this.pitch));
   }
 
@@ -104,7 +104,7 @@ export class Player {
   openBook() {
     if (this.state !== 'seated') return;
     this._setState('reading');
-    this._startTween(0.8, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.chair.yaw, pitch: this.readPitch, fov: this.readFov }, null);
+    this._startTween(0.8, { x: this.pos.x, z: this.pos.z, eye: this.eye, yaw: this.chair.yaw + this.readYaw, pitch: this.readPitch, fov: this.readFov }, null);
   }
   closeBook() {
     if (this.state !== 'reading') return;
