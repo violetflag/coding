@@ -13,7 +13,7 @@ const FOOT = { x0: -0.13, x1: W + 0.13, z0: -0.33, z1: D + 0.13 };
 // 문밖 마루(바닥 높이 0)와 그 끝의 돌계단(한 칸 0.15m, 두 칸 뒤 땅)
 const DECK = { x0: FOOT.x1, x1: W + 1.9, z0: 2.75, z1: 4.45 }, STEP = { run: 0.3, rise: 0.15, n: 2 };
 // 마당: 걸어 다닐 수 있는 범위(숲과 먼 언덕까지는 가지 않는다)
-const YARD = { x0: -6, x1: W + 9, z0: -4.2, z1: D + 7 };
+const YARD = { x0: -6, x1: W + 9, z0: -3, z1: D + 7 };   // 남쪽 숲(z < -4.5)의 나뭇가지에 닿지 않게
 // 지붕: 용마루는 x 방향, 벽 위 둘레의 가운데(z)에 있고 30도로 기운다
 const ROOF = { a: 30 * Math.PI / 180, t: 0.14, over: 0.45, side: 0.5 };
 ROOF.zr = (FOOT.z0 + 0.03 + FOOT.z1 - 0.03) / 2; ROOF.base = H + 0.1;
@@ -81,7 +81,8 @@ export function buildOutdoor(ctx, M) {
   const len = (zr - ze0) / Math.cos(a), rw = W + 0.2 + 2 * ROOF.side;
   for (const s of [-1, 1]) {
     const zm = s < 0 ? (ze0 + zr) / 2 : (zr + ze1) / 2, n = new THREE.Vector3(0, Math.cos(a), s < 0 ? -Math.sin(a) : Math.sin(a));
-    box(rw, t, len, W / 2, yAt(zm) + n.y * t / 2, zm + n.z * t / 2, M.roof, { rx: s < 0 ? -a : a });
+    // 지붕널 무늬는 윗면에만. 처마 끝과 밑면은 나무판(창에서 올려다볼 때 지붕널 끝이 톱니처럼 보이지 않게)
+    box(rw, t, len, W / 2, yAt(zm) + n.y * t / 2, zm + n.z * t / 2, [M.woodDark, M.woodDark, M.roof, M.ceiling, M.woodDark, M.woodDark], { rx: s < 0 ? -a : a });
   }
   const ridgeY = yAt(zr) + t / Math.cos(a);
   box(rw + 0.04, 0.08, 0.34, W / 2, ridgeY, zr, M.woodDark);

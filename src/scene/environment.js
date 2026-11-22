@@ -98,7 +98,7 @@ export class Environment {
     const spot = () => { for (;;) { const z = -4.5 - Math.pow(r(), 0.8) * 32, x = wx + (r() - 0.5) * (14 + -z * 1.3); if (z > -16 && Math.abs(x - wx) < 3.2 + (z + 16) * 0.12) continue; return [x, z]; } };
     this.forest = buildForest({ spot }); g.add(this.forest.group);
     // 집 옆과 뒤의 숲: 문을 열었거나 밖에 있을 때만 그린다(방 안에서는 보이지 않는다). 마당(걸을 수 있는 곳) 안에는 심지 않는다.
-    const spot2 = () => { for (;;) { const x = ROOM.W / 2 + (r() - 0.5) * 70, z = -4 + r() * 40; if (x > -9 && x < ROOM.W + 12 && z < ROOM.D + 10) continue; if (z < -4.5 && Math.abs(x - wx) < 18) continue; return [x, z]; } };
+    const spot2 = () => { for (;;) { const x = ROOM.W / 2 + (r() - 0.5) * 70, z = -4 + r() * 40; if (x > -10 && x < ROOM.W + 13 && z < ROOM.D + 11) continue; if (z < -4.5 && Math.abs(x - wx) < 18) continue; return [x, z]; } };
     this.forestBack = buildForest({ seed: 505, spot: spot2, conifers: 130, broadleaf: 45 }); this.forestBack.group.visible = false; g.add(this.forestBack.group); this.backGround.visible = false;
     // 먼 숲의 윤곽: 전나무 숲 그림자를 그린 띠를 두 겹 세운다 (깊이감)
     { const fc2 = document.createElement('canvas'); fc2.width = 2048; fc2.height = 256; const f = fc2.getContext('2d'); f.fillStyle = '#fff';
