@@ -176,9 +176,17 @@ const panelOpen = (page) => page.evaluate(() => document.getElementById('notes')
   await tool(page, 'preview');
   check('"편집으로" 누르면 글 상자로 돌아온다', await page.evaluate(() => !document.querySelector('#notes .mdtext').hidden));
 
-  // AI 그림 설명: 이 작업 공간에는 그 기능이 없다 → 알림
+  // AI 그림 설명: 키가 없으면 안내 창, 시험 모드(가짜 AI)에서는 그림을 만들어 메모 옆에 .excalidraw 로 저장한다
   await tool(page, 'ai');
-  check('"AI 그림 설명": 기능이 없으면 알림을 띄운다', await waitFor(page, () => document.getElementById('toast').textContent.includes('AI 그림 기능을 불러오지 못했습니다'), null, 5000), await page.$eval('#toast', (e) => e.textContent));
+  check('"AI 그림 설명": 키가 없으면 키를 넣으라는 안내 창이 뜬다', await waitFor(page, () => window.NANRO_AI?.current?.state === 'nokey' && !!document.getElementById('aiDiagram'), null, 20000), await page.evaluate(() => window.NANRO_AI?.current?.state));
+  await page.evaluate(() => { window.NANRO_AI.current.close(true); window.NANRO_AI.mock(true); });
+  await tool(page, 'ai');
+  check('"AI 그림 설명": 메모로 그림을 만든다(가짜 AI)', await waitFor(page, () => window.NANRO_AI?.current?.state === 'generated', null, 30000), await page.evaluate(() => window.NANRO_AI?.current?.state));
+  const drawn = await page.evaluate(async () => (await import('/src/notes/store.js')).readNoteFile('겨울 난롯가에서.excalidraw'));
+  check('그림이 메모 옆에 "겨울 난롯가에서.excalidraw" 로 저장된다', !!drawn && drawn.includes('"type": "excalidraw"') || (!!drawn && drawn.includes('"type":"excalidraw"')), String(drawn).slice(0, 60));
+  await page.evaluate(() => { window.NANRO_AI.current.close(true); window.NANRO_AI.mock(false); });
+  await page.waitForTimeout(300);
+  await page.click('#notes .mdtext');
 
   // 닫기와 다시 열기
   await page.keyboard.press('Escape');
