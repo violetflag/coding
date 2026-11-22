@@ -272,7 +272,10 @@ export async function applyPhotoTextures(M, { scene, onGround, anisotropy = 8 } 
   // 책장의 책과 탁자 위 책: 표지에 가죽 결을 입힌다
   const lt = await load('leather');
   const bookMats = new Set(); scene?.traverse((o) => { if (o.material?.userData?.bookCover) bookMats.add(o.material); });
-  if (lt?.normalMap) for (const m of bookMats) { m.normalMap = lt.normalMap; m.normalScale.set(0.6, 0.6); if (lt.roughnessMap) { m.roughnessMap = lt.roughnessMap; m.roughness = 1; } m.needsUpdate = true; }
+  // 책의 면은 UV가 0~1 이라, 사진을 그대로 쓰면 3cm 책등에 가죽 결이 3번 넘게 눌려 매끈하게 보였다. 책등 크기만큼만 잘라 쓴다.
+  const crop = (t) => { if (!t) return null; const c = t.clone(); c.repeat.set(0.12, 0.85); c.needsUpdate = true; return c; };
+  const bookN = crop(lt?.normalMap), bookR = crop(lt?.roughnessMap);
+  if (bookN) for (const m of bookMats) { m.normalMap = bookN; m.normalScale.set(0.9, 0.9); if (bookR) { m.roughnessMap = bookR; m.roughness = 1; } m.needsUpdate = true; }
   // 창밖 땅: 풀밭과 눈
   const [grass, snow] = await Promise.all([load('grass'), load('snow')]);
   if (grass?.map || snow?.map) onGround?.({ grass, snow });

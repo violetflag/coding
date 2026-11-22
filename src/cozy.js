@@ -17,7 +17,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
   // ================= 1. 서재 책장 = 내 라이브러리 =================
   const shelf = ctx.libraryShelf, lib = new THREE.Group(); scene.add(lib);
   let spines = [], fill = null;
-  const fillMat = new THREE.MeshStandardMaterial({ roughness: 0.75 });
+  const fillMat = ctx.bookMat || new THREE.MeshStandardMaterial({ roughness: 0.75 });
   const spineTex = (b, w, h) => {
     const cv = document.createElement('canvas'); cv.width = 96; cv.height = 512; const c = cv.getContext('2d');
     c.fillStyle = b.color || '#5b2a22'; c.fillRect(0, 0, 96, 512);

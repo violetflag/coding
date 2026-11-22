@@ -153,8 +153,21 @@ export function buildRoom(ctx) {
     bc.fillStyle = '#c9a24e'; bc.beginPath(); bc.arc(32, 318, 9, 0, 7); bc.fill(); bc.fillStyle = '#fff'; bc.beginPath(); bc.arc(32, 318, 5, 0, 7); bc.fill();
     const eg = bc.createLinearGradient(0, 0, 0, 512); eg.addColorStop(0, 'rgba(0,0,0,.35)'); eg.addColorStop(0.04, 'rgba(0,0,0,0)'); eg.addColorStop(0.96, 'rgba(0,0,0,0)'); eg.addColorStop(1, 'rgba(0,0,0,.4)'); bc.fillStyle = eg; bc.fillRect(0, 0, 64, 512); }
   const bandTex = new THREE.CanvasTexture(bandCv); bandTex.colorSpace = THREE.SRGBColorSpace; bandTex.anisotropy = 8;
+  // 책등 바탕에 ambientCG 천 사진(Fabric066)의 결을 깐다: 책등 크기(약 3.5×25cm)만큼 잘라 회색으로 바꾸고, 위에서 그린 띠와 금박을 곱한다
+  { const layer = document.createElement('canvas'); layer.width = 64; layer.height = 512; layer.getContext('2d').drawImage(bandCv, 0, 0);
+    const img = new Image();
+    img.onload = () => {
+      const fw = img.width * 0.09, fh = img.height * 0.62;
+      bc.globalCompositeOperation = 'copy'; bc.drawImage(img, img.width * 0.3, img.height * 0.2, fw, fh, 0, 0, 64, 512);
+      const id = bc.getImageData(0, 0, 64, 512), a = id.data; let mean = 0;
+      for (let i = 0; i < a.length; i += 4) mean += 0.3 * a[i] + 0.59 * a[i + 1] + 0.11 * a[i + 2]; mean /= a.length / 4;
+      for (let i = 0; i < a.length; i += 4) { const l = 0.3 * a[i] + 0.59 * a[i + 1] + 0.11 * a[i + 2], v = 255 * Math.max(0.5, Math.min(1.04, 0.84 + ((l - mean) / (mean || 1)) * 0.55)); a[i] = a[i + 1] = a[i + 2] = v; a[i + 3] = 255; }
+      bc.putImageData(id, 0, 0); bc.globalCompositeOperation = 'multiply'; bc.drawImage(layer, 0, 0); bc.globalCompositeOperation = 'source-over';
+      bandTex.needsUpdate = true;
+    };
+    img.src = 'textures/cloth/color.jpg'; }
   const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ map: bandTex, roughness: 0.72 }), books.length);
-  inst.material.userData.bookCover = true;
+  inst.material.userData.bookCover = true; ctx.bookMat = inst.material;   // 서재 칸을 채우는 책(cozy.js)도 같은 책등 무늬를 쓴다
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), col = new THREE.Color();
   books.forEach((b, i) => {
     const z = b.along === 'z';
