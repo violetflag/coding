@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "난로 창 하나. 프로그램이 직접 만든 명령(전체 화면, 끝내기)만 쓴다.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

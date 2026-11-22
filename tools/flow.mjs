@@ -2,11 +2,12 @@
 //   npm run dev (다른 터미널) 뒤에  node tools/flow.mjs
 // 견본 책(books/sample.epub, tools/sample-epub.mjs 가 만든다)을 파일 고르기 창으로 넣는다. 실패하면 종료 코드 1.
 import { createRequire } from 'node:module';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
-const url = 'http://127.0.0.1:5320/?nofire&fixed&fresh&time=13';
+// 묶은 결과(dist)를 시험하려면  npx vite preview --port 5321  뒤에 NANRO_URL=http://127.0.0.1:5321 을 준다.
+const url = (process.env.NANRO_URL || 'http://127.0.0.1:5320') + '/?nofire&fixed&fresh&time=13';
 mkdirSync('shots/flow', { recursive: true });
 // 실제 GPU로 돌리려면 환경 변수 NANRO_GPU=1 (Edge 창이 잠깐 뜬다). 기본은 소프트웨어 렌더러라서 화면 그리기는 확인하지 못하고 동작의 흐름만 확인한다.
 const GPU = !!process.env.NANRO_GPU;
@@ -86,7 +87,7 @@ check('읽던 쪽에서 이어진다', spread > 0, '펼침면 ' + spread);
 await page.goto(url);
 await page.waitForFunction(() => window.NANRO?.ready, null, { timeout: 120000 });
 await waitFor(() => !document.getElementById('startActs').hidden);
-await page.evaluate(async () => { const f = new File([await (await fetch('/books/sample.epub')).blob()], 'sample.epub'), dt = new DataTransfer(); dt.items.add(f); dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); });
+await page.evaluate((b64) => { const f = new File([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], 'sample.epub'), dt = new DataTransfer(); dt.items.add(f); dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true })); }, readFileSync('books/sample.epub').toString('base64'));
 const dropped = await waitFor(() => window.NANRO.player.state === 'reading' && window.NANRO.reading.reader.cur && !window.NANRO.reading.opening, null, 120000);
 check('시작 화면에 책을 끌어다 놓으면 읽기 상태가 된다', dropped, await state());
 await page.waitForTimeout(1000);   // 시작 카드는 0.7초에 걸쳐 흐려진다

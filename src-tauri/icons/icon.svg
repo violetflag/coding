@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="68%" r="75%">
+      <stop offset="0" stop-color="#5a2c10"/><stop offset=".45" stop-color="#2a1609"/><stop offset="1" stop-color="#120a05"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="50%" cy="72%" r="42%">
+      <stop offset="0" stop-color="#ffb347" stop-opacity=".75"/><stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="f1" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ff5a10"/><stop offset=".55" stop-color="#ff8c1f"/><stop offset="1" stop-color="#ffc24a"/>
+    </linearGradient>
+    <linearGradient id="f2" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffb02e"/><stop offset="1" stop-color="#fff0a8"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="212" fill="url(#bg)"/>
+  <rect x="32" y="32" width="960" height="960" rx="212" fill="none" stroke="#6b4a2a" stroke-width="10" opacity=".8"/>
+  <!-- 벽난로 아치 -->
+  <path d="M232 800 V470 A280 280 0 0 1 792 470 V800" fill="#0c0603" stroke="#a9825a" stroke-width="44" stroke-linejoin="round"/>
+  <rect x="150" y="790" width="724" height="62" rx="18" fill="#a9825a"/>
+  <ellipse cx="512" cy="700" rx="330" ry="300" fill="url(#glow)"/>
+  <!-- 불꽃 -->
+  <path d="M512 258 C 560 380 690 452 690 600 C 690 712 612 786 512 786 C 412 786 334 712 334 600 C 334 520 378 470 420 420 C 432 480 458 500 478 500 C 470 420 480 330 512 258 Z" fill="url(#f1)"/>
+  <path d="M516 470 C 546 548 612 588 612 664 C 612 732 566 778 512 778 C 458 778 414 734 414 668 C 414 622 440 594 462 566 C 470 600 484 612 498 612 C 494 560 500 512 516 470 Z" fill="url(#f2)"/>
+  <!-- 장작 -->
+  <rect x="352" y="756" width="320" height="40" rx="20" fill="#3b2313" transform="rotate(-6 512 776)"/>
+  <rect x="352" y="756" width="320" height="40" rx="20" fill="#4a2c17" transform="rotate(7 512 776)"/>
+</svg>

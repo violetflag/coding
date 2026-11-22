@@ -18,6 +18,7 @@ import { setupReading } from './reading.js';
 import { setupCozy } from './cozy.js';
 import { setupArrange } from './scene/arrange.js';
 import { setupPost } from './scene/post.js';
+import { setupDesktop } from './desktop.js';
 
 const Q = new URLSearchParams(location.search);
 const $ = (id) => document.getElementById(id);
@@ -27,6 +28,7 @@ const HEADLESS = Q.has('headless');
 const LAMP_ON = 4.0;
 
 async function main() {
+  setupDesktop();
   const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa'), alpha: true, forceWebGL: Q.has('webgl') });
   await renderer.init();
   renderer.setClearColor(0x000000, 1);
