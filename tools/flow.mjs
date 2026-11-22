@@ -17,7 +17,7 @@ const GPU = !!process.env.NANRO_GPU || !!CDP;
 const browser = CDP ? await chromium.connectOverCDP(CDP) : await chromium.launch(GPU ? { channel: 'msedge', headless: false, args: ['--enable-unsafe-webgpu'] } : { args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-angle=swiftshader', '--use-webgpu-adapter=swiftshader', '--ignore-gpu-blocklist'] });
 const page = CDP ? browser.contexts()[0].pages()[0] : await browser.newPage({ viewport: { width: 1280, height: 720 } });
 // 소프트웨어 렌더러에서는 화면에 직접 그리는 길에서 그래픽 장치가 끊긴다(이 시험 환경의 한계). 그 알림은 실제 GPU로 돌릴 때만 오류로 센다.
-const errors = [], note = (t) => { if (/favicon|404 \(Not Found\)|not valid for pointer lock/.test(t)) return; if (GPU || !/Device Lost|Instance dropped/.test(t)) errors.push(t.slice(0, 300)); };
+const errors = [], note = (t) => { if (/favicon|404 \(Not Found\)|not valid for pointer lock/.test(t)) return; if (GPU || !/Device Lost|Instance dropped|방 그리기를 멈춥니다/.test(t)) errors.push(t.slice(0, 300)); };
 page.on('pageerror', (e) => note(e.message)); page.on('console', (m) => { if (m.type() === 'error') note(m.text()); });
 let fail = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? '통과 ' : '실패 ') + name + (extra ? '  (' + extra + ')' : '')); if (!ok) fail++; };

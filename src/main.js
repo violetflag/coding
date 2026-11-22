@@ -243,14 +243,42 @@ async function main() {
   texturesReady.then(() => ctx.refreshEnv(0.2));
   // 미리 준비: 시작 화면 뒤에서, 아직 한 번도 화면에 나오지 않은 물체(등 뒤의 가구, 책, 넘기는 책장, 무릎)까지 한 프레임 그려 둔다.
   // 그리기 준비(셰이더 조립)는 물체가 처음 보일 때 일어나서, 그대로 두면 책장을 처음 넘기거나 처음 고개를 돌릴 때 한 번 끊긴다.
-  let warmT = HEADLESS || Q.has('nowarmup') ? 0 : -1; texturesReady.then(() => { if (warmT < 0) warmT = 1.2; });
-  const draw = () => { if (post && prefs.post) post.render(); else renderer.render(scene, camera); };
-  const warmUp = () => {
+  let warmT = HEADLESS || Q.has('nowarmup') ? 0 : -1;
+  // 그래픽 장치가 끊기면 그리기가 매 프레임 실패한다. 다섯 번 이어서 실패하면 방 그리기를 멈춰 같은 오류가 끝없이 쌓이지 않게 한다.
+  let drawFails = 0, lostHits = 0;
+  const stopDrawing = (e) => { drawFails = 5; console.error('방 그리기를 멈춥니다(그래픽 장치가 끊긴 것으로 보입니다)', e); $('toast').textContent = '그래픽 장치가 끊겼습니다. 난로를 다시 켜 주세요.'; $('toast').style.opacity = 1; };
+  const draw = () => {
+    if (drawFails >= 5) return;
+    try { if (post && prefs.post) post.render(); else renderer.render(scene, camera); drawFails = 0; }
+    catch (e) { if (++drawFails >= 5) stopDrawing(e); }
+  };
+  // 장치가 끊긴 것을 알림 없이 "거절된 약속"으로만 알게 되는 경우도 있다(매 프레임 수백 번씩 쌓인다).
+  addEventListener('unhandledrejection', (e) => { if (drawFails < 5 && /Instance dropped|device (is|was) lost/i.test(String(e.reason?.message || e.reason)) && ++lostHits >= 20) stopDrawing(e.reason); });
+  // 숨은 물체를 잠깐 보이게 하고 시야 밖 물체도 빼지 않게 한다. 돌려주는 함수를 부르면 원래대로 돌아간다.
+  const showAll = () => {
     const undo = [], b3 = reading.reader.book3d;
     for (const o of [b3.group, b3.flipF, b3.flipB, reading.lap]) if (o && !o.visible) { o.visible = true; undo.push(() => (o.visible = false)); }
     scene.traverse((o) => { if (o.isMesh && o.frustumCulled) { o.frustumCulled = false; undo.push(() => (o.frustumCulled = true)); } });
-    try { draw(); } finally { for (const f of undo) f(); fireLight.shadow.needsUpdate = true; }
+    return () => { for (const f of undo) f(); };
   };
+  const warmUp = () => { const undo = showAll(); try { draw(); } finally { undo(); fireLight.shadow.needsUpdate = true; } };
+  // 그리기 준비를 방을 처음 그리기 전에, 여러 개를 동시에 해 둔다(켜는 시간 줄이기).
+  // 그냥 그리기 시작하면 준비가 물체마다 하나씩 차례로 일어나 화면이 몇 초씩 멈춘다. 그것도 사진 텍스처가 오기 전과 온 뒤에 두 번이다.
+  // 그래서 사진 텍스처가 다 올 때까지 방은 그리지 않고, 환경 맵용과 화면용 준비를 한꺼번에 맡긴 뒤에 그리기 시작한다. 그동안 화면에는 불만 보인다.
+  let roomReady = HEADLESS || Q.has('nowarmup');
+  const prewarm = async () => {
+    const undo = showAll();
+    try {
+      if (ENV_I) {
+        const rt = renderer.getRenderTarget(), e0 = scene.environment; cubeCam.updateMatrixWorld();
+        scene.environment = null; renderer.setRenderTarget(cubeRT, 0);
+        try { await renderer.compileAsync(scene, cubeCam.children[0]); } finally { renderer.setRenderTarget(rt); scene.environment = e0; }
+        refreshEnv(); envDue = 0;
+      }
+      if (post && prefs.post) await post.sp.compileAsync(renderer); else await renderer.compileAsync(scene, camera);
+    } finally { undo(); }
+  };
+  if (!roomReady) texturesReady.then(() => Promise.race([prewarm(), new Promise((r) => setTimeout(r, 20000))])).catch((e) => console.warn('그리기 준비를 미리 마치지 못했습니다', e)).then(() => { roomReady = true; warmT = 0.3; });
   let envAge = 0, envDay = -1, shT = 0, viewSig = 0, stillT = 0, idleN = 0, mouseHeld = false;
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   const frame = () => {
@@ -321,11 +349,11 @@ async function main() {
     const idle = prefs.readSave && !Q.has('noidle') && stillT > 0.25 && !ctx.captureNext && !mouseHeld;
     idleN = idle ? (idleN + 1) % (+Q.get('idle') || (player.state === 'reading' && (!fire || fire.hidden) ? 3 : 2)) : 0; skip = idle && idleN !== 0;
     // 환경 맵: 예약된 때, 또는 낮밤이 눈에 띄게 달라졌을 때 다시 찍는다
-    envAge += dt; if (envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
+    envAge += dt; if (roomReady && envDue > 0 && (envDue -= dt) <= 0) { envDue = 0; refreshEnv(); envAge = 0; envDay = env.state.day; }
     else if (envAge > 60 && Math.abs(env.state.day - envDay) > 0.04) ctx.refreshEnv(0.05);
     scene.environmentIntensity = ENV_I * (0.75 + 0.25 * Math.min(1.4, level));
     if (warmT > 0 && (warmT -= dt) <= 0) { if (lamp.shadow.needsUpdate || envDue > 0) warmT = 0.2; else { warmUp(); skip = false; warmed = true; } }   // 바로 아래에서 제대로 된 화면을 다시 그리므로 준비용 화면은 보이지 않는다
-    if (!HEADLESS && !skip) draw();
+    if (!HEADLESS && !skip && roomReady) draw();
     if (ctx.captureNext && !HEADLESS) {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
       const cb = ctx.captureNext; ctx.captureNext = null;
@@ -369,7 +397,7 @@ async function main() {
 
   // 테스트·스크린샷 도구용
   window.NANRO = {
-    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, ready: true,
+    renderer, scene, camera, player, fire, ctx, mixer, env, reading, cozy, music, prefs, sfx, texturesReady, brickReady, arrange, get settings() { return settings; }, get fireSound() { return fireSound; }, get fpsMs() { return fpsMs; }, get roomReady() { return roomReady; }, ready: true,
     async capture(w, h) { const { capture } = await import('./dev/capture.js'); return capture({ renderer, scene, camera, fire, post: post && prefs.post ? post : null }, w, h); },
   };
 }

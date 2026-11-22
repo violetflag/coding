@@ -17,7 +17,7 @@ export function setupPost(renderer, scene, camera) {
   const lit = col.rgb.mul(occ);
   const bl = bloom(vec4(lit, 1), 1, 0.6, 1.1);
   post.outputNode = vec4(lit.add(bl.rgb.mul(bloomAmt)), col.a);
-  return { post, aoAmt, bloomAmt, aoPass, render() { post.render(); },
+  return { post, sp, aoAmt, bloomAmt, aoPass, render() { post.render(); },
     // 개발용 캡처: 톤 매핑 전의 선형 값을 지정한 렌더 타깃에 그린다
     renderLinear(rt) { const prev = renderer.getRenderTarget(); post.outputColorTransform = false; post.needsUpdate = true; renderer.setRenderTarget(rt); post.render(); renderer.setRenderTarget(prev); post.outputColorTransform = true; post.needsUpdate = true; } };
 }
