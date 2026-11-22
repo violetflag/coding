@@ -319,6 +319,7 @@ async function main() {
   addEventListener('pointerdown', () => (mouseHeld = true), true); for (const k of ['pointerup', 'pointercancel', 'blur']) addEventListener(k, () => (mouseHeld = false), true); // 끌어서 밑줄을 긋는 동안은 매 프레임 그린다
   let capT = 0;
   const frame = () => {
+    if (window.NANRO_AI?.current) return;   // 메모 그림 창(src/ai)이 화면을 다 덮는 동안은 방을 그리지 않는다(GPU 절약)
     // 프레임 제한(설정의 그래픽 탭): 정한 간격이 지나지 않았으면 이번 화면 갱신은 건너뛴다(시간은 다음 프레임에 몰아서 흐른다)
     if (prefs.fpsCap > 0) { const t = performance.now(), ms = 1000 / prefs.fpsCap; if (t - capT < ms - 2) return; capT = Math.max(capT + ms, t - ms); }
     clock.update(); const dt = Math.min(0.05, clock.getDelta()); elapsed += dt;

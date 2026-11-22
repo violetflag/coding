@@ -1,6 +1,7 @@
 // 설정창의 구역들: 그래픽(해상도·프레임 제한·그림자·실사 효과), 방(시간·날씨·계절·위치), 소리(유튜브 음악, 시계 소리), 난롯가(장작 타이머, 잠들기), 조작·접근성.
 import { WEATHERS, SEASONS, SEOUL, KIND_NAMES } from '../scene/environment.js';
 import { CONST_MODES } from '../scene/sky.js';
+import { aiSection } from '../ai/settings.js';
 
 const KEY = 'nanro.prefs';
 export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, shadows: true, resW: '1920', autoRes: true, fpsCap: 0, logMinutes: 25, sleepMinutes: 30 };
@@ -90,5 +91,6 @@ export function buildSections(d) {
         check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 불빛을 1분쯤 기록한 뒤 불 계산을 멈추고 기록한 불빛을 되풀이합니다. 고개를 들거나 책을 덮으면 불이 다시 실제로 탑니다.'),
         note('운영체제의 "동작 줄이기" 설정이 켜져 있으면 화면 전환과 흔들림을 자동으로 줄입니다. 키 바꾸기와 영어 화면은 아직 없습니다.'));
     } },
+    aiSection(),
   ];
 }
