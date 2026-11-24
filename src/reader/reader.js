@@ -10,9 +10,9 @@ import { pagesOf } from '../scene/books.js';
 const KEY = 'nanro.reader';
 const DEFAULTS = { type: { ...DEFAULT_TYPE }, paper: 'cream', grain: 0.6, single: false, contrast: false, cpm: 650, ttsRate: 1, ttsVoice: '', flip: 0.55, zoom: 1,
   // 읽기 자세: 시선(위아래·좌우, 도), 시야각, 책의 높이·거리·좌우(m)와 기울기(도), 손 보이기
-  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, bOpen: 16, hands: false, bright: 1 };
+  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, bOpen: 16, hands: false, bright: 1, bFollow: true, bYaw: 0 };
 
-export const POSE_DEFAULTS = { vPitch: DEFAULTS.vPitch, vYaw: 0, vFov: DEFAULTS.vFov, bH: 0, bDist: DEFAULTS.bDist, bSide: 0, bTilt: DEFAULTS.bTilt, bOpen: DEFAULTS.bOpen };
+export const POSE_DEFAULTS = { vPitch: DEFAULTS.vPitch, vYaw: 0, vFov: DEFAULTS.vFov, bH: 0, bDist: DEFAULTS.bDist, bSide: 0, bTilt: DEFAULTS.bTilt, bOpen: DEFAULTS.bOpen, bFollow: true, bYaw: 0 };
 export class Reader {
   constructor({ toast, onChange, onTts, onPageTurn }) {
     this.toast = toast || (() => {}); this.onChange = onChange || (() => {}); this.onTts = onTts || (() => {}); this.onPageTurn = onPageTurn || (() => {});
@@ -43,7 +43,7 @@ export class Reader {
     return meta;
   }
   async remove(id) { if (this.cur?.meta.id === id) this.close(); await store.removeBook(id); await this.refreshLibrary(); }
-  async setMeta(id, patch) { const m = this.library.find((b) => b.id === id); if (!m) return; Object.assign(m, patch); await store.saveBook(m); if (this.cur?.meta.id === id) { Object.assign(this.cur.meta, patch); this.book3d.setCover(m.color); this.render(); } this.onChange('library'); }
+  async setMeta(id, patch) { const m = this.library.find((b) => b.id === id); if (!m) return; Object.assign(m, patch); await store.saveBook(m); if (this.cur?.meta.id === id) { const pos = this.pos; Object.assign(this.cur.meta, patch); this.book3d.setCover(m.color); if ('skipCover' in patch) await this.relayout(undefined, pos); else this.render(); } this.onChange('library'); }
 
   // ---- 책 열기
   async open(id, onProgress) {
@@ -69,6 +69,8 @@ export class Reader {
     const c = this.cur; if (!c) return;
     if (c.pdf) { const n = c.book.numPages; c.layout = { pages: Array.from({ length: n }, (_, i) => ({ index: i, g0: i, g1: i + 1, chapter: 0, lines: [], imgs: [] })), pageOf: (g) => Math.max(0, Math.min(n - 1, Math.floor(g))) }; }
     else c.layout = await paginate(c.book, this.set.type, onProgress);
+    // 이 책은 표지(첫 쪽) 빼기: 두 쪽 펼침의 왼쪽·오른쪽 짝을 한 쪽 밀어 맞춘다(쪽 번호는 원래 번호 그대로)
+    if (c.meta.skipCover && c.layout.pages.length > 1) { const L = c.layout, po = L.pageOf; c.layout = { ...L, pages: L.pages.slice(1), pageOf: (g) => Math.max(0, po(g) - 1) }; }
     c.spread = this._spreadOf(c.layout.pageOf(pos)); await this.render();
   }
   _spreadOf(p) { return p - (p % 2); }
@@ -85,7 +87,7 @@ export class Reader {
   }
   async _draw(key, i, side) {
     const o = this._opts(i, side);
-    if (this.cur.pdf && o.page) { try { o.pdfImage = await this.cur.book.pageImage(i); } catch { /* 빈 쪽 */ } }
+    if (this.cur.pdf && o.page) { try { o.pdfImage = await this.cur.book.pageImage(o.page.index ?? i); } catch { /* 빈 쪽 */ } }
     drawPage(this.book3d.cv[key], o); this.book3d.refresh(key);
   }
   async render() {
@@ -104,9 +106,9 @@ export class Reader {
       if (dir > 0) { this._copy('F', 'R'); await Promise.all([this._draw('B', target, 'L'), this._draw('R', target + 1, 'R')]); }
       else { this._copy('B', 'L'); await Promise.all([this._draw('F', target + 1, 'R'), this._draw('L', target, 'L')]); }
       c.spread = target; this.onPageTurn(dir);
-      await new Promise((res) => this.book3d.startFlip(dir, fast ? 0.22 : this.set.flip, res));
-      this._copy(dir > 0 ? 'L' : 'R', dir > 0 ? 'B' : 'F');
-      this.book3d.setThickness(this.percent); this.pageAcc += 2; this._savePos(); this.onChange('page');
+      // 넘어간 장이 내려앉는 바로 그 프레임에 아래 쪽도 새 내용으로 바꾼다(약속이 풀린 뒤에 바꾸면 한 프레임 동안 앞 쪽 내용이 보였다)
+      await new Promise((res) => this.book3d.startFlip(dir, fast ? 0.22 : this.set.flip, () => { this._copy(dir > 0 ? 'L' : 'R', dir > 0 ? 'B' : 'F'); this.book3d.setThickness(this.percent); res(); }));
+      this.pageAcc += 2; this._savePos(); this.onChange('page');
     } finally { this.busy = false; }
     return true;
   }
@@ -122,8 +124,8 @@ export class Reader {
       if (dir > 0) { this._copy('F', 'R'); await Promise.all([this._draw('B', target, 'L'), this._draw('R', target + 1, 'R')]); }
       else { this._copy('B', 'L'); await Promise.all([this._draw('F', target + 1, 'R'), this._draw('L', target, 'L')]); }
       c.spread = target; this.onPageTurn(dir);
-      await new Promise((res) => this.book3d.startFlip(dir, 0.4, res));
-      this._copy(dir > 0 ? 'L' : 'R', dir > 0 ? 'B' : 'F'); this.book3d.setThickness(this.percent); this._savePos(); this.onChange('page');
+      await new Promise((res) => this.book3d.startFlip(dir, 0.4, () => { this._copy(dir > 0 ? 'L' : 'R', dir > 0 ? 'B' : 'F'); this.book3d.setThickness(this.percent); res(); }));
+      this._savePos(); this.onChange('page');
     } finally { this.busy = false; }
   }
   gotoPage(n) { const p = this.pages[Math.max(0, Math.min(this.pages.length - 1, n - 1))]; return p && this.goto(p.g0); }

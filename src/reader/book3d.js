@@ -1,4 +1,4 @@
-// 펼친 책의 3D 모형: 표지, 양쪽 책장 더미(읽은 만큼 왼쪽이 두꺼워진다), 넘어가는 한 장, 가름끈.
+// 펼친 책의 3D 모형: 표지, 양쪽 책장 더미(읽은 만큼 왼쪽이 두꺼워진다), 넘어가는 한 장.
 // 쪽은 Canvas2D로 그린 텍스처이고 방의 조명을 그대로 받는다: 불빛이 흔들리면 종이 밝기도 함께 흔들린다.
 // 책 좌표: 책등이 Y축, 오른쪽 쪽이 +X, 읽는 사람 쪽이 +Z. 단위 m.
 import * as THREE from 'three/webgpu';
@@ -54,8 +54,6 @@ export class Book3D {
     this.boards = {};
     for (const side of ['L', 'R']) { const b = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), this.coverMat); b.receiveShadow = true; b.castShadow = true; this.side[side].add(b); this.boards[side] = b; }
     const spine = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, PH + 2 * SQ, 20, 1, false, Math.PI / 2, Math.PI), this.coverMat); spine.castShadow = true; g.add(spine); this.spine = spine;
-    // 가름끈: 가운데 골을 따라 내려와 책 밑으로 늘어진다
-    const rib = new THREE.Mesh(new THREE.PlaneGeometry(0.005, PH * 0.62), new THREE.MeshStandardMaterial({ color: 0x8a1c1c, roughness: 0.8, side: THREE.DoubleSide })); g.add(rib); this.ribbon = rib;
     // 넘어가는 한 장 (앞면·뒷면이 위치를 함께 쓴다)
     const fg = new THREE.PlaneGeometry(PW, PH, SEG, 1), bg = new THREE.BufferGeometry();
     bg.setIndex(fg.index); bg.setAttribute('position', fg.attributes.position); bg.setAttribute('normal', fg.attributes.normal);
@@ -97,8 +95,9 @@ export class Book3D {
       const d0 = 0.003, d1 = PW + sl + SQ, b = this.boards[side]; b.scale.set(d1 - d0, PH + 2 * SQ, BOARD); b.position.set(s * (d0 + d1) / 2, 0, -BOARD / 2);
     }
     this.spine.scale.set(0.0065, 1, 0.005); this.spine.position.set(0, 0, -BOARD * 0.4);
-    const gz = prof(0, Math.max(this.tL, this.tR)) * Math.cos(this.theta) + 0.0012; this.ribbon.position.set(0.0015, -PH * 0.24, gz); this.ribbon.rotation.x = -0.035;
   }
+  // 한쪽 면(L/R)에서 책등으로부터 d만큼 떨어진 곳의 종이 윗면 높이(면 좌표 z)
+  pageTop(side, d) { return prof(Math.min(PW, Math.max(0, d)), side === 'L' ? this.tL : this.tR); }
   setCover(color) { bookColor(color, this.coverMat.color); }
   // 책 분량에 맞춘 종이 더미 두께: 쪽당 0.05mm(책장 책과 같은 셈), 펼쳐 읽기 좋게 0.8~3.6cm 사이로
   setBulk(pages) { const t = Math.min(0.036, Math.max(0.008, (pages > 0 ? pages : 400) * 0.00005)) - TMIN; if (t === this.tmax) return; this.tmax = t; this.setThickness(this.progress); }

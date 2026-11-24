@@ -172,13 +172,17 @@ export class ReaderUI {
       ...(() => { const pv = () => { this.r.saveSettings(); this.host.onView?.(); }, deg = (v) => Math.round(v) + '°', cm = (v) => Math.round(v * 100) + 'cm';
         return [slider('시선 위아래', S, 'vPitch', [-75, 30, 1], pv, deg), slider('시선 좌우', S, 'vYaw', [-70, 70, 1], pv, deg), slider('시야각', S, 'vFov', [24, 75, 1], pv, deg),
           slider('책 높이', S, 'bH', [-0.15, 0.45, 0.01], pv, cm), slider('책 거리', S, 'bDist', [0.25, 0.7, 0.01], pv, cm), slider('책 좌우', S, 'bSide', [-0.3, 0.3, 0.01], pv, cm), slider('책 기울기', S, 'bTilt', [0, 90, 1], pv, deg), slider('책 펼침(접힌 각도)', S, 'bOpen', [0, 35, 1], pv, deg),
+          check('책이 시선을 따라감', S, 'bFollow', pv), slider('책 방향(좌우로 돌리기)', S, 'bYaw', [-60, 60, 1], pv, deg),
           check('책을 잡은 손 보이기', S, 'hands', pv),
           el('div', { className: 'btns' }, el('button', { textContent: '자세 처음대로', onclick: () => { Object.assign(S, POSE_DEFAULTS); pv(); this.renderPanel(); } })),
-          el('p', { className: 'sub', textContent: '읽는 중에 마우스 오른쪽 단추로 끌면 시선이 움직입니다. Shift+휠은 책 기울기, Alt+휠은 책 높이, Ctrl+휠은 확대입니다.' })]; })(),
+          el('p', { className: 'sub', textContent: '읽는 중에 마우스 오른쪽 단추로 끌면 시선이 움직이고, "책이 시선을 따라감"이 켜져 있으면 책도 함께 옵니다. 책만 그대로 두고 불이나 창밖을 보려면 그 칸을 끄세요. Shift+휠은 책 기울기, Alt+휠은 책 높이, Ctrl+휠은 확대입니다.' })]; })(),
       el('h3', { textContent: '낭독' }), slider('속도', S, 'ttsRate', [0.6, 1.8, 0.05], () => this.r.saveSettings(), (v) => v.toFixed(2) + '배'),
       select('목소리', S, 'ttsVoice', { '': '자동 (책의 언어)', ...Object.fromEntries(this.r.voices().map((v) => [v.name, `${v.name} (${v.lang})`])) }, () => this.r.saveSettings()),
       el('p', { className: 'sub', textContent: '목소리는 운영체제에 설치된 것을 씁니다. 한국어 음성 품질은 컴퓨터마다 다릅니다.' }));
-    if (this.r.cur && !this.r.cur.pdf) body.append(el('h3', { textContent: '이 책' }), select('책의 나이', this.r.cur.meta, 'age', { new: '새 책', old: '헌 책 (누런 종이, 얼룩, 닳은 모서리)' }, () => this.r.setMeta(this.r.cur.meta.id, { age: this.r.cur.meta.age })));
+    if (this.r.cur) { const m = this.r.cur.meta; body.append(el('h3', { textContent: '이 책' }),
+      check('표지(첫 쪽) 빼기', m, 'skipCover', () => this.r.setMeta(m.id, { skipCover: !!m.skipCover }).then(() => this.update())),
+      el('p', { className: 'sub', textContent: '두 쪽이 이어지는 그림이나 표가 왼쪽·오른쪽으로 어긋나 보이면 켜 보세요. 첫 쪽을 빼서 펼침의 짝을 한 쪽 밉니다. 책마다 따로 기억합니다.' }));
+      if (!this.r.cur.pdf) body.append(select('책의 나이', m, 'age', { new: '새 책', old: '헌 책 (누런 종이, 얼룩, 닳은 모서리)' }, () => this.r.setMeta(m.id, { age: m.age }))); }
   }
   _lib(body) {
     const file = el('input', { type: 'file', accept: '.epub,.pdf,.txt', multiple: true, style: 'display:none', onchange: () => { this.addFiles(file.files); file.value = ''; } });
@@ -191,6 +195,7 @@ export class ReaderUI {
         el('div', {}, el('div', { className: 't', textContent: b.title }), el('div', { className: 'sub', textContent: `${b.author || '저자 미상'} · ${b.format.toUpperCase()} · ${Math.round((b.percent || 0) * 100)}%${b.finishedAt ? ' · 완독' : ''}` }),
           el('div', { className: 'btns' }, el('button', { className: cur || picked ? 'act' : '', textContent: cur ? '읽는 중' : picked ? '꺼낸 책' : '꺼내기', onclick: () => { this.host.pickBook(b.id); this.renderPanel(); } }),
             b.format !== 'pdf' ? el('button', { textContent: b.age === 'old' ? '헌 책' : '새 책', title: '새 책 / 헌 책 바꾸기', onclick: async () => { await this.r.setMeta(b.id, { age: b.age === 'old' ? 'new' : 'old' }); this.renderPanel(); } }) : null,
+            el('button', { textContent: '책등 글씨: ' + ({ serif: '명조', sans: '고딕' }[b.spineFont] || '자동'), title: '책장에 꽂힌 책등의 글씨꼴 (자동은 표지 분위기로 고릅니다)', onclick: async () => { await this.r.setMeta(b.id, { spineFont: { serif: 'sans', sans: '' }[b.spineFont] ?? 'serif' }); this.renderPanel(); } }),
             el('button', { textContent: '삭제', onclick: async () => { if (confirm(`"${b.title}"을(를) 서재에서 뺄까요? 밑줄과 메모도 함께 지워집니다.`)) { await this.r.remove(b.id); this.host.onRemoved?.(b.id); this.renderPanel(); } } })))));
     }
     this.host.libExtra?.(body, this);

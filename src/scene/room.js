@@ -12,6 +12,8 @@ export const BOOK_COLORS = [0x5b2a22, 0x2f3b2a, 0x1f2c44, 0x6a5330, 0x3d2630, 0x
 export function buildRoom(ctx) {
   const g = new THREE.Group();
   const M = (ctx.materials = makeMaterials());
+  // 벽은 그림자 지도에 바깥면을 남긴다. 기본(안쪽 면)이면 그림자 치우침(약 5cm)만큼 벽에 붙은 책장 선반 뒤끝이 바깥 햇빛·달빛에 밝게 샜다.
+  M.wall.shadowSide = THREE.FrontSide;
   // vgrain: 옆면의 나뭇결을 세로로 (기둥·옆판)
   const box = (w, h, d, x, y, z, m, { collide = false, cast = true, name, vgrain = false } = {}) => {
     const geo = boxUV(new THREE.BoxGeometry(w, h, d), w, h, d);

@@ -1,9 +1,10 @@
 // 읽기 모드: 의자에 앉아 책을 펼치면 3D 책을 눈앞에 들고, 마우스와 키로 넘기고 밑줄을 친다.
 // 리더(reader.js)와 화면(ui.js), 플레이어 상태, 방의 불빛을 서로 잇는다.
 import * as THREE from 'three/webgpu';
-import { Reader } from './reader/reader.js';
+import { Reader, POSE_DEFAULTS } from './reader/reader.js';
 import { ReaderUI } from './reader/ui.js';
-import { PW, PH } from './reader/book3d.js';
+import { PW } from './reader/book3d.js';
+import { BookHands } from './reader/hands.js';
 
 const PICK = 'nanro.picked';
 
@@ -39,51 +40,34 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   const DROP = 0.37, DEG = Math.PI / 180;                           // 눈에서 무릎 위 책까지의 기본 높이 차(m)
   const target = new THREE.Vector3(), tq = new THREE.Quaternion(), eul = new THREE.Euler(), dir = new THREE.Vector3(), right = new THREE.Vector3(), eyeP = new THREE.Vector3();
   // rise: 책을 펼치는 움직임(0 → 1), closing: 덮는 움직임(1 → 0). 덮인 책은 양쪽 면이 CLOSED도까지 접혀 있다.
-  let rise = 1, closing = 0, fold = 0; const hands = [], CLOSED = 76, smooth = (t) => t * t * (3 - 2 * t);
+  let rise = 1, closing = 0, fold = 0, bookHands = null; const CLOSED = 76, smooth = (t) => t * t * (3 - 2 * t);
   // 시선: 읽는 동안의 눈길(위아래·좌우)과 시야각. 설정이나 오른쪽 끌기로 바꾸면 바로 따라간다.
   function applyView(now = true) {
     const S = reader.set, c = player.chair;
     player.readPitch = S.vPitch * DEG; player.readYaw = S.vYaw * DEG; player.readFov = S.vFov;
     if (now && c && player.state === 'reading' && !player.tween) { player.pitch = player.readPitch; player.yaw = c.yaw + player.readYaw; player.fov = S.vFov; }
-    for (const h of hands) h.visible = !!S.hands;
+    bookHands?.setVisible(!!S.hands);
   }
   function place(snap = false) {
     applyView(); if (rise >= 1 && closing <= 0) book.setOpen(reader.set.bOpen ?? 16);
     const c = player.chair; if (!c) return;
-    const yaw = c.yaw, S = reader.set, single = S.single;
+    // 책이 시선을 따라감(기본): 시선을 기본 자세에서 돌린 만큼 책도 눈을 중심으로 함께 돌고 기운다. 책 방향은 그 위에 더 돌릴 수 있다
+    const S = reader.set, single = S.single, follow = S.bFollow !== false;
+    const dYaw = follow ? (S.vYaw - POSE_DEFAULTS.vYaw) * DEG : 0, dPitch = follow ? (S.vPitch - POSE_DEFAULTS.vPitch) * DEG : 0, yaw = c.yaw + dYaw, turn = (S.bYaw || 0) * DEG;
     right.set(Math.cos(yaw), 0, -Math.sin(yaw)); eyeP.set(player.pos.x, c.eye, player.pos.z);
     target.set(player.pos.x - Math.sin(yaw) * S.bDist, c.eye - DROP + S.bH, player.pos.z - Math.cos(yaw) * S.bDist).addScaledVector(right, S.bSide);
     dir.copy(target).sub(eyeP); const full = dir.length(); dir.normalize();
     // 확대: 책을 눈 쪽으로 당긴다 (무릎에서 살짝 들어 올리는 셈). 한 쪽 보기는 조금 더 가깝게.
     target.copy(eyeP).addScaledVector(dir, (full * (single ? 0.84 : 1)) / S.zoom);
     if (single) target.addScaledVector(right, api.single === 'R' ? -PW / 2 : PW / 2);
-    eul.set(-(Math.PI / 2 - S.bTilt * DEG), yaw, 0, 'YXZ'); tq.setFromEuler(eul);
+    if (dPitch) target.sub(eyeP).applyAxisAngle(right, dPitch).add(eyeP);
+    eul.set(-(Math.PI / 2 - Math.max(0, Math.min(Math.PI * 0.6, S.bTilt * DEG + dPitch))), yaw + turn, 0, 'YXZ'); tq.setFromEuler(eul);
     if (snap && !book.group.visible) { book.group.position.copy(target); book.group.quaternion.copy(tq); }
   }
   applyView(false);
 
-  // ---- 책을 잡은 두 손 (책과 함께 움직인다): 쪽 아래 바깥 귀퉁이에 얹은 엄지, 책 밑을 받친 손, 스웨터 소매
-  {
-    const skin = new THREE.MeshStandardMaterial({ color: 0xb5805f, roughness: 0.7 }), nail = new THREE.MeshStandardMaterial({ color: 0xd3a088, roughness: 0.3 });
-    const sleeve = new THREE.MeshStandardMaterial({ color: 0x2c2f33, roughness: 0.95 });
-    const cap = (r, len, m) => { const o = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 6, 12), m); o.castShadow = true; o.receiveShadow = true; return o; };
-    for (const s of [-1, 1]) {
-      const h = new THREE.Group(); h.position.set(s * (PW * 1.03), -PH * 0.54, 0.0); h.scale.setScalar(0.92);
-      // 엄지: 쪽 여백 위에 비스듬히 얹힌다
-      const t1 = cap(0.0112, 0.03, skin); t1.position.set(s * 0.012, -0.012, 0.021); t1.rotation.z = s * 0.75; t1.rotation.x = 0.12; h.add(t1);
-      const t2 = cap(0.0095, 0.022, skin); t2.position.set(s * -0.012, 0.016, 0.02); t2.rotation.z = s * 1.02; h.add(t2);
-      const tn = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 12, 8), nail); tn.scale.set(1, 1.2, 0.22); tn.position.set(s * -0.0235, 0.0225, 0.0287); tn.rotation.z = s * 1.02; h.add(tn);
-      // 엄지 뿌리와 손바닥 옆(책 가장자리를 감싼다), 책 밑의 손가락
-      const base = cap(0.017, 0.03, skin); base.position.set(s * 0.036, -0.03, 0.012); base.rotation.z = s * 0.5; h.add(base);
-      const palm = new THREE.Mesh(new THREE.SphereGeometry(0.036, 14, 10), skin); palm.scale.set(1, 1.25, 0.5); palm.position.set(s * 0.05, -0.05, -0.006); palm.castShadow = true; h.add(palm);
-      for (let k = 0; k < 4; k++) { const f = cap(0.0085, 0.05, skin); f.position.set(s * (0.0 - k * 0.004), -0.02 + k * 0.017, -0.016); f.rotation.z = s * (1.35 + k * 0.05); h.add(f); }
-      // 손목과 소매
-      const wrist = cap(0.026, 0.05, skin); wrist.scale.z = 0.75; wrist.position.set(s * 0.075, -0.1, 0.006); wrist.rotation.z = s * 0.5; wrist.rotation.x = -0.25; h.add(wrist);
-      const arm = cap(0.04, 0.3, sleeve); arm.position.set(s * 0.15, -0.25, 0.06); arm.rotation.z = s * 0.5; arm.rotation.x = -0.32; h.add(arm);
-      const cuff = cap(0.043, 0.02, sleeve); cuff.position.set(s * 0.093, -0.135, 0.016); cuff.rotation.z = s * 0.5; cuff.rotation.x = -0.3; h.add(cuff);
-      book.group.add(h); hands.push(h); h.visible = !!reader.set.hands;
-    }
-  }
+  // ---- 책을 잡은 두 손 (책과 함께 움직인다): 무료 손 모델에 책을 쥐는 자세를 입힌다
+  bookHands = api.hands = new BookHands(book); bookHands.setVisible(!!reader.set.hands);
   // ---- 앉은 사람의 몸 (앉아 있는 동안 보인다): 스웨터를 입은 배, 편한 바지를 입은 두 다리, 털양말을 신은 발.
   // 다리는 엉덩이에서 무릎을 지나 발목까지 굵기가 변하는 하나의 관으로 만든다.
   const lap = new THREE.Group(); lap.visible = false; scene.add(lap); api.lap = lap;
@@ -188,7 +172,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     api.advance(d.pk.side === 'R' ? 1 : -1);
   });
   canvas.addEventListener('dblclick', (e) => { if (!active()) return; const pk = pickAt(e), g = pk ? reader.charAtPick(pk, false) : -1, w = g >= 0 && reader.wordAt(g); if (w) { reader.setSelection(w[0], w[1]); ui.showPop(e.clientX, e.clientY, { range: reader.selection }); } });
-  // 오른쪽 단추로 끌기: 읽는 중에 시선을 돌린다 (불이나 창밖이 보이게). Shift+휠: 책 기울기, Alt+휠: 책 높이.
+  // 오른쪽 단추로 끌기: 읽는 중에 시선을 돌린다(책이 시선을 따라감이 켜져 있으면 책도 함께 움직인다). Shift+휠: 책 기울기, Alt+휠: 책 높이.
   let look = null;
   canvas.addEventListener('contextmenu', (e) => { if (player.state === 'reading') e.preventDefault(); });
   canvas.addEventListener('mousedown', (e) => { if (e.button === 2 && player.state === 'reading' && !player.tween) { look = { x: e.clientX, y: e.clientY }; e.preventDefault(); } });
@@ -196,7 +180,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     if (!look) return; if (!(e.buttons & 2) || player.state !== 'reading') { look = null; return; }
     const S = reader.set, k = 0.11;
     S.vYaw = Math.max(-70, Math.min(70, S.vYaw - (e.clientX - look.x) * k)); S.vPitch = Math.max(-75, Math.min(30, S.vPitch - (e.clientY - look.y) * k));
-    look.x = e.clientX; look.y = e.clientY; applyView();
+    look.x = e.clientX; look.y = e.clientY; place();
   });
   addEventListener('mouseup', (e) => { if (e.button === 2 && look) { look = null; reader.saveSettings(); } });
   canvas.addEventListener('wheel', (e) => {
@@ -238,6 +222,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 낮에는 무릎도 하늘빛과 창빛을 그대로 받아 바지가 허옇게 뜬다: 종이처럼 낮일수록 어둡게 받는다
     for (const m of api.bodyMats || []) { m.color.setScalar(1 - 0.5 * light.day); m.envMapIntensity = 1 - light.day; }
     reader.tick(dt, reading && book.group.visible);
+    if (book.group.visible) bookHands.update();
     if (!book.group.visible) { bookLight.intensity = 0; api.moving = false; return; }
     const open = reader.set.bOpen ?? 16;
     if (closing > 0) {

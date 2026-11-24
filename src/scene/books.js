@@ -58,15 +58,16 @@ function quad(B, M, pts, n, uvs, col) {
 }
 
 // 책 한 권을 쓴다. B = { cloth, paper, spine, cover }: 각 부분이 들어갈 버퍼(spine이 없으면 천에, cover가 없으면 천에).
-// spineUV = [u0, v0, u1, v1]: 책등 글씨 지도에서 이 책의 자리. cover 버퍼의 앞표지(z = -T/2 판의 바깥면)는 0~1 UV.
-export function writeBook(B, d, M, col, { spineUV = null } = {}) {
+// spineUV = [u0, v0, u1, v1]: 책등 글씨 지도에서 이 책의 자리. cover 버퍼의 앞표지(z = -T/2 판의 바깥면)는 0~1 UV,
+// coverUV = [u0, v0, u1, v1] 를 주면 표지 그림 지도에서 그 자리를 쓰고, false 면 앞표지도 천으로 덮는다.
+export function writeBook(B, d, M, col, { spineUV = null, coverUV = null } = {}) {
   const { T, H, Dp, bulge } = d, cloth = B.cloth, dark = col.clone().multiplyScalar(0.55);
   const cu = (x) => -x / 0.035, cv = (y) => y / 0.25;          // 천 결의 UV(책등 3.5×25cm가 1)
   // 표지 판 두 장: 바깥면, 안쪽 면(나온 테두리에서 보인다), 윗·아랫면, 앞 모서리
   for (const s of [1, -1]) {
     const zo = (s * T) / 2, zi = s * (T / 2 - BOARD), x0 = -Dp;
-    const front = s < 0 && B.cover;
-    quad(front || cloth, M, [[x0, 0, zo], [0, 0, zo], [0, H, zo], [x0, H, zo]], [0, 0, s], front ? [[1, 0], [0, 0], [0, 1], [1, 1]] : [[cu(x0), 0], [0, 0], [0, cv(H)], [cu(x0), cv(H)]], col);
+    const front = s < 0 && coverUV !== false && B.cover, cuv = coverUV || [0, 0, 1, 1];
+    quad(front || cloth, M, [[x0, 0, zo], [0, 0, zo], [0, H, zo], [x0, H, zo]], [0, 0, s], front ? [[cuv[2], cuv[1]], [cuv[0], cuv[1]], [cuv[0], cuv[3]], [cuv[2], cuv[3]]] : [[cu(x0), 0], [0, 0], [0, cv(H)], [cu(x0), cv(H)]], front && coverUV ? WHITE : col);
     quad(cloth, M, [[x0, 0, zi], [0, 0, zi], [0, H, zi], [x0, H, zi]], [0, 0, -s], [[cu(x0), 0], [0, 0], [0, cv(H)], [cu(x0), cv(H)]], dark);
     for (const [y, ny] of [[H, 1], [0, -1]]) quad(cloth, M, [[x0, y, zi], [0, y, zi], [0, y, zo], [x0, y, zo]], [0, ny, 0], [[cu(x0), 0], [0, 0], [0, 0.01], [cu(x0), 0.01]], col);
     quad(cloth, M, [[x0, 0, zi], [x0, 0, zo], [x0, H, zo], [x0, H, zi]], [-1, 0, 0], [[0, 0], [0.06, 0], [0.06, cv(H)], [0, cv(H)]], col);

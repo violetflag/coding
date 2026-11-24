@@ -115,6 +115,7 @@ async function main() {
       else if (it.id === 'mug') cozy.sip();
       else if (it.id === 'kettle') cozy.refill();
       else if (it.libBook) reading.setPicked(it.libBook), toast('책을 꺼냈습니다. 의자에 앉아 E로 펼치세요');
+      else if (it.libReturn) reading.setPicked(null), sfx('book'), toast('책을 다시 꽂았습니다');
       else if (it.id === 'shelf') reading.ui.open('lib');
       else if (it.frame !== undefined) arrange.pickFrame(it.frame);
     },

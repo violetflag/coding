@@ -41,6 +41,7 @@ const VIEWS = {
   shelfwide: { pos: [3.6, 3.2], yaw: [0.3, 1.0], pitch: 0, q: 'shelfdemo=150' },
   shelfclose: { pos: [1.25, 2.75], yaw: [0.3, 2.75], pitch: -0.28, q: 'shelfdemo=150' },
   shelfabove: { pos: [0.85, 2.7], yaw: [0.3, 2.95], pitch: -0.62, q: 'shelfdemo=40' },
+  shelfend: { pos: [0.55, 3.2], yaw: [0.3, 3.75], pitch: -0.3, q: 'shelfdemo=7' },   // 줄 끝 책의 앞표지(표지 그림)
   shelfpick: { pos: [1.05, 3.7], yaw: [0.3, 3.35], pitch: -0.3, q: 'shelfdemo=12', sample: true },   // 견본 책을 서재에 넣고 꺼내 든다
   tablebooks: { pos: [3.45, 3.55], yaw: [3.8, 4.05], pitch: -0.95 },
   // 하늘 점검: 마당에서 올려다보기(남쪽), 창 너머, 해·달 쪽 보기(look: 'sun'|'moon'|방위각°). env 는 환경 설정(별자리 선 등)
@@ -81,10 +82,12 @@ for (const name of names) {
       await until(() => !p.tween && R.reader.cur && !R.opening);
       const m = name.match(/^(?:book|demo)(\d+)/); if (m) await R.reader.gotoPage(+m[1]);
       if (name.endsWith('old')) await R.reader.setMeta(meta.id, { age: 'old' });
+      if (name.includes('skip')) await R.reader.setMeta(meta.id, { skipCover: true });   // 표지(첫 쪽) 빼기
       if (m && !name.includes('pdf')) { const pg = R.reader.pages[R.reader.cur.spread], g = pg.g0 + 60; R.reader.addHighlight(g, g + 70, 'yellow'); R.reader.addHighlight(g + 160, g + 215, 'pencil', '다시 읽어 볼 것'); R.reader.addHighlight(g + 300, g + 350, 'blue'); R.reader.toggleBookmark(); }
       if (name.includes('flip')) { R.reader.set.flip = 9999; R.reader.next(); await until(() => R.reader.book3d.flip); R.reader.book3d.flip.t = 0.42; }
       if (name.includes('opening')) { R.setRise(0.45); await new Promise((r) => setTimeout(r, 1500)); }
       if (name.includes('single')) { R.reader.set.single = true; R.place(); }
+      if (name.includes('hands')) { R.reader.set.hands = true; R.place(); await R.hands.ready; await new Promise((r) => setTimeout(r, 1200)); }
       // demo…notes: 메모장을 펴고 견본 메모를 넣는다(notesview 는 미리 보기)
       if (name.includes('notes')) {
         const N = window.NANRO.notes; await N.open(); R.reader.setSelection(null);
