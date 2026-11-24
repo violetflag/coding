@@ -182,6 +182,7 @@ export function setupCozy({ scene, camera, ctx, player, fire, reading, prefs, to
     const boil = Math.max(0, Math.min(1, ((fire ? fire.power : api.firePower) - 0.3) / 0.3)); api.kettleBoil = boil; animSteam(kSteam, t * 1.3, boil * 0.8, 0.22);
     // 들고 있는 책
     held.visible = !!heldId && player.state !== 'reading' && !!reader.library.find((b) => b.id === heldId);
+    heldLight.visible = held.visible;   // 든 책을 비추는 작은 빛은 책을 들고 있을 때만: 읽는 동안에도 켜져 있어 펼친 책의 오른쪽 아래(두꺼운 쪽)를 따로 밝혔다
     held.position.y = -0.2 + (player.state === 'walk' ? Math.sin(player.bob) * 0.004 : 0);
     labelT -= dt; if (labelT <= 0) { labelT = 0.5; refreshLabels(); mugBase(); }
   };

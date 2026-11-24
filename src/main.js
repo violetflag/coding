@@ -58,6 +58,7 @@ async function main() {
   // 불빛이 벽과 천장에 반사되어 방 전체에 퍼지는 빛(그림자 없음): 벽난로 그늘에 가린 쪽이 새까맣게 되지 않게 한다
   const bounce = new THREE.PointLight(0xff9a55, 0, 12, 1.2); bounce.position.set(ROOM.W / 2 + 0.3, 1.9, ROOM.D / 2 + 0.2); scene.add(bounce);
   const lamp = new THREE.PointLight(0xffc98a, LAMP_ON, 7, 1.8); lamp.position.set(LAMP.x, LAMP.h + 0.05, LAMP.z); scene.add(lamp);
+  const bookSources = [fireLight, bounce, lamp];   // 책 종이에 닿는 빛을 어림할 때 보는 등불(촛불은 방이 만들어진 뒤 더한다)
   // 스탠드도 그림자를 드리운다. 움직이지 않는 빛이라 그림자는 가구나 스탠드를 옮겼을 때만 다시 그린다.
   lamp.castShadow = !Q.has('nolampshadow'); lamp.shadow.mapSize.set(1024, 1024); lamp.shadow.bias = -0.004; lamp.shadow.radius = 6; lamp.shadow.autoUpdate = false; lamp.shadow.needsUpdate = true;
   // 방의 반사와 간접광: 방 한가운데서 여섯 방향을 찍어 환경 맵으로 쓴다(금속과 가죽, 마룻바닥의 윤기). 조명이 바뀔 때만 다시 찍는다.
@@ -169,6 +170,7 @@ async function main() {
   ctx.onLampMove = (o) => { lamp.position.set(o.position.x, LAMP.h + 0.05, o.position.z); ctx.refreshEnv(0.4); };
   const arrange = setupArrange({ ctx, player, camera, canvas: roomCanvas, toast, sfx });
   cozy = setupCozy({ scene, camera, ctx, player, fire, reading, prefs, toast, sfx, mixer, music, setLamp, env });
+  for (const c of ctx.candles) c.traverse((o) => { if (o.isPointLight) bookSources.push(o); });
   if (env.state.day < 0.5) for (const c of ctx.candles) if (c.userData.state.frac > 0.07) c.userData.set(c.userData.state.frac, true);
 
   // ---- 화면 크기와 해상도 자동 조절 (room-at-dawn 방식: 프레임이 느리면 해상도를 낮춘다)
@@ -372,7 +374,7 @@ async function main() {
     const busy = arrange.held || player.tween || (player.state === 'reading' && reading.reader.book3d.flipping);
     if ((shT -= dt) <= 0) { shT = busy ? 1 / 30 : 0.1; fireLight.shadow.needsUpdate = true; if (arrange.held) lamp.shadow.needsUpdate = true; }
     bounce.intensity = 2.6 * power * (0.6 + 0.4 * level);
-    reading.update(dt, { fire: power * lv / 0.62, day: env.state.day, lamp: lampOn ? 1 : 0 });
+    reading.update(dt, { fire: power * lv / 0.62, day: env.state.day, lamp: lampOn ? 1 : 0, candles: ctx.candles.reduce((n, c) => n + (c.userData.state.lit ? 1 : 0), 0) , sources: bookSources });
 
     // 환경음과 발소리
     if (ambient) {

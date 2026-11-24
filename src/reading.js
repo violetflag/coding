@@ -19,7 +19,10 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   const book = reader.book3d; scene.add(book.group);
   // 책 위로 떨어지는 빛: 불빛이 방 안에서 되비친 것 + 낮의 하늘빛. 불의 세기와 흔들림을 그대로 따른다.
   // 방에서 되비쳐 종이를 고르게 채우는 빛의 몫(밤 기준 불, 스탠드, 바닥값, 낮의 창빛)과, 고르게 할 때 바로 받는 빛을 줄이는 정도
-  const ROOM_FIRE = 0.42, ROOM_LAMP = 0.17, ROOM_NIGHT = 0.015, ROOM_DAY = 0.3, DIRECT_CUT = 0.5;
+  // FILL_BASE: 언제나 있는 되비친 빛, FILL_EVEN: '밝기 고르게'가 바로 받는 빛을 줄인 만큼 대신 채우는 몫(100%면 종이는 채우는 빛만 받아 완전히 고르다)
+  const ROOM_FIRE = 0.6, ROOM_LAMP = 0.3, ROOM_CANDLE = 0.07, ROOM_NIGHT = 0.03, ROOM_DAY = 0.75, FILL_BASE = 0.29, FILL_EVEN = 0.18, GAIN = 4, E_REF = 0.5;
+  const _ln = new THREE.Vector3(), _lp = new THREE.Vector3(), _lv = new THREE.Vector3();
+  const C_FIRE = [1, 0.66, 0.4], C_LAMP = [1, 0.82, 0.6], C_CANDLE = [1, 0.72, 0.45], C_DAY = [1, 1, 1], C_NIGHT = [0.7, 0.8, 1], fillCol = [0, 0, 0];
 
   const setPicked = (id) => { picked = id; try { id ? localStorage.setItem(PICK, id) : localStorage.removeItem(PICK); } catch { /* 무시 */ } api.onPicked?.(id); };
   const host = {
@@ -238,15 +241,23 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
     // 종이의 빛: 방의 빛(난롯불, 되비친 불빛, 스탠드, 촛불, 창빛)을 그대로 받고 그림자도 받는다. 책만 비추는 따로 둔 등은 없다.
     // 다만 진짜 방에서는 벽·천장·옷에 되비친 빛이 종이를 고르게 채운다. 그 몫을 종이 전체에 고르게 더하고(even), 바로 받는 빛은 그만큼 줄여
     // 한쪽만 눈부시게 밝아지지 않게 한다. 채우는 빛의 세기는 방의 밝기(불 세기와 일렁임, 스탠드, 낮의 창빛)를 따라간다.
-    const S = reader.set, steady = S.contrast, even = steady ? 1 : Math.min(1, Math.max(0, S.bEven ?? 0.6)), DBG = api.debugLight;
+    const S = reader.set, steady = S.contrast, even = steady ? 0.5 : Math.min(1, Math.max(0, S.bEven ?? 0.6)), DBG = api.debugLight;
     // 낮에는 누운 책이 하늘빛과 창빛을 그대로 받아 종이가 하얗게 날아간다: 낮일수록 종이를 어둡게 받는다. '종이 밝기'로 직접 맞출 수도 있다.
     // 접힌 채 올라오는 동안에는 세워진 면이 창빛을 정면으로 받아 더 희게 뜬다: 접힌 만큼 더 낮춘다
     const pk = (S.bright ?? 1) * (1 - 0.66 * light.day) * (1 - 0.45 * fold * light.day);
-    const room = steady ? 1 : ROOM_FIRE * light.fire + ROOM_LAMP * (light.lamp ?? 1) + ROOM_NIGHT + ROOM_DAY * light.day;
-    const direct = DBG?.direct ?? pk * (1 - DIRECT_CUT * even), fill = DBG?.fill ?? (steady ? 0.55 : (S.bright ?? 1) * even * room * (1 - 0.4 * light.day));
-    // 채우는 빛의 색: 밤에는 불빛과 스탠드의 주황빛, 낮에는 흰빛
-    const warm = 1 - light.day;
-    for (const m of Object.values(book.mat)) { m.color.setScalar(direct); m.envMapIntensity = 0; m.emissive.setRGB(1, 1 - 0.22 * warm, 1 - 0.45 * warm); m.emissiveIntensity = fill; }
+    // 방의 빛을 내는 것마다(난롯불, 스탠드, 켜진 촛불, 창빛, 밤하늘) 세기와 색을 따로 더한다: 채우는 빛의 밝기와 색이 지금 켜져 있는 빛을 따라간다
+    const parts = [[ROOM_FIRE * light.fire, C_FIRE], [ROOM_LAMP * (light.lamp ?? 1), C_LAMP], [ROOM_CANDLE * (light.candles ?? 0), C_CANDLE], [ROOM_DAY * light.day * (1 - 0.4 * light.day), C_DAY], [ROOM_NIGHT * (1 - light.day), C_NIGHT]];
+    let room = 0; fillCol[0] = fillCol[1] = fillCol[2] = 0;
+    for (const [w, c] of parts) { room += w; fillCol[0] += w * c[0]; fillCol[1] += w * c[1]; fillCol[2] += w * c[2]; }
+    const mx = Math.max(fillCol[0], fillCol[1], fillCol[2], 1e-6);
+    // 바로 받는 빛: 방의 등불은 책에서 멀어 그대로 두면 종이가 글을 읽기 어려울 만큼 어둡다. 눈이 어둠에 익듯 종이가 받는 빛을 키워 주되,
+    // 책에 닿는 빛이 센 자리(스탠드 옆)에서는 덜 키운다(세기의 제곱근만큼만 밝아진다). 닿는 빛의 양은 등불마다 거리와 종이가 향한 방향으로 어림한다.
+    let E = 0; _ln.set(0, 0, 1).applyQuaternion(book.group.quaternion);
+    for (const L of light.sources || []) { if (!L.visible || L.intensity <= 0) continue; L.getWorldPosition(_lp); _lv.copy(_lp).sub(book.group.position); const d = Math.max(0.15, _lv.length()); if (L.distance && d > L.distance) continue; E += (L.intensity / Math.pow(d, L.decay)) * (0.25 + 0.75 * Math.max(0, _lv.dot(_ln) / d)); }
+    api.lastE = E;
+    const gain = GAIN * Math.min(1.25, Math.max(0.2, Math.sqrt(E_REF / Math.max(E, 1e-4))));
+    const direct = DBG?.direct ?? pk * gain * (1 - even), fill = DBG?.fill ?? (steady ? 0.55 : (S.bright ?? 1) * room * (FILL_BASE + FILL_EVEN * even));
+    for (const m of Object.values(book.mat)) { m.color.setScalar(direct); m.envMapIntensity = 0; if (steady) m.emissive.setRGB(1, 1, 1); else m.emissive.setRGB(fillCol[0] / mx, fillCol[1] / mx, fillCol[2] / mx); m.emissiveIntensity = fill; }
     book.edgeMat.color.setScalar(direct * (1 - 0.35 * fold * light.day)); book.edgeMat.envMapIntensity = 0;   // 책장 두께 면(책배)도 같이 낮춘다: 접힌 동안 창빛을 정면으로 받아 하얗게 번졌다
   };
   return api;
