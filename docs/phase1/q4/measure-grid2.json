@@ -1,0 +1,342 @@
+{
+  "mode": "fixed",
+  "args": [
+    "--enable-unsafe-webgpu",
+    "--autoplay-policy=no-user-gesture-required"
+  ],
+  "channel": "msedge",
+  "browserVersion": "157.0.4341.60",
+  "runs": {
+    "medium:112": {
+      "logs": [
+        "[error] Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 0.9916966230109993,
+            "jank": 0.05128205128205128,
+            "jank20": 0.02564102564102564,
+            "frames": 585,
+            "avgFps": 58.495905286629934,
+            "low1Fps": 29.94011976047774,
+            "maxMs": 33.400000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 medium 112×144×72 · 1600×900 · 광량 1.01\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.0231613125987167,
+              "raw": 0.2689127638426417,
+              "ref": 0.2628253829883706,
+              "power": 0.6199999999999989,
+              "at": 35996.90000000596
+            },
+            "power": 0.6199999999999989,
+            "simT": 28.877777777779738,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              112,
+              144,
+              72
+            ],
+            "quality": "medium",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.2834157985418
+        }
+      }
+    },
+    "medium:120": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 0.9531536084606798,
+            "jank": 0.1685823754789272,
+            "jank20": 0.14942528735632185,
+            "frames": 522,
+            "avgFps": 52.19686818790871,
+            "low1Fps": 29.585798816568154,
+            "maxMs": 34.79999999999927,
+            "medianMs": 16.700000000000728
+          },
+          "stats": "52 fps (19.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 medium 120×152×76 · 1600×900 · 광량 1.09\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.9810776863244941,
+              "raw": 0.2572658370769681,
+              "ref": 0.2622277936427113,
+              "power": 0.6199999999999989,
+              "at": 35996.80000001192
+            },
+            "power": 0.6199999999999989,
+            "simT": 28.14444444444629,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              120,
+              152,
+              76
+            ],
+            "quality": "medium",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.447600839871
+        }
+      }
+    },
+    "high:64": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 1.000576038783739,
+            "jank": 0.01,
+            "jank20": 0,
+            "frames": 600,
+            "avgFps": 59.99640021598705,
+            "low1Fps": 59.171597633131,
+            "maxMs": 16.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "60 fps (16.7 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 64×80×40 · 1600×900 · 광량 0.92\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.9557593372966423,
+              "raw": 0.37272678436406886,
+              "ref": 0.38997974680354536,
+              "power": 0.6199999999999979,
+              "at": 35999.09999999404
+            },
+            "power": 0.6199999999999979,
+            "simT": 29.04999999999899,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              64,
+              80,
+              40
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 85.0193571153578
+        }
+      }
+    },
+    "high:80": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 0.9186037223430813,
+            "jank": 0.1161524500907441,
+            "jank20": 0.08892921960072596,
+            "frames": 551,
+            "avgFps": 55.097245137743116,
+            "low1Fps": 29.74714923153187,
+            "maxMs": 33.80000000000291,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "55 fps (18.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 80×104×52 · 1600×900 · 광량 1.08\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.015326594796263,
+              "raw": 0.3373291481324612,
+              "ref": 0.33223708495506327,
+              "power": 0.619999999999999,
+              "at": 35957.80000001192
+            },
+            "power": 0.619999999999999,
+            "simT": 28.099999999999046,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              80,
+              104,
+              52
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.2360784171436
+        }
+      }
+    },
+    "high:88": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 0.9012340743098723,
+            "jank": 0.13333333333333333,
+            "jank20": 0.1111111111111111,
+            "frames": 540,
+            "avgFps": 53.996760194388344,
+            "low1Fps": 29.688273132113032,
+            "maxMs": 33.900000000001455,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "52 fps (19.2 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 88×112×56 · 1600×900 · 광량 0.94\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 0.8669603914801919,
+              "raw": 0.24992329499230262,
+              "ref": 0.2882753323546879,
+              "power": 0.619999999999999,
+              "at": 35971.20000001788
+            },
+            "power": 0.619999999999999,
+            "simT": 27.866666666665726,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              88,
+              112,
+              56
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.387457508898
+        }
+      }
+    },
+    "high:96": {
+      "logs": [
+        "[warning] The powerPreference option is currently ignored when calling requestAdapter() on Windows. See https://crbug.com/369219127",
+        "[warning] THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.",
+        "[warning] THREE.WebGPURenderer: PCFSoftShadowMap has been removed. Using PCFShadowMap instead."
+      ],
+      "views": {
+        "fire": {
+          "perf": {
+            "simRatio": 0.846006814593154,
+            "jank": 0.18700787401574803,
+            "jank20": 0.1830708661417323,
+            "frames": 508,
+            "avgFps": 50.71226777674623,
+            "low1Fps": 29.717682020802698,
+            "maxMs": 33.70000000000073,
+            "medianMs": 16.69999999999709
+          },
+          "stats": "51 fps (19.6 ms) · 방 WebGPU ×0.83\n불: 물리 시뮬레이션 high 96×120×60 · 1600×900 · 광량 0.96\n상태: walk",
+          "fire": {
+            "light": {
+              "level": 1.0577569744413398,
+              "raw": 0.2543089075226893,
+              "ref": 0.240422813243093,
+              "power": 0.619999999999999,
+              "at": 35996.80000001192
+            },
+            "power": 0.619999999999999,
+            "simT": 26.83333333333245,
+            "w": 1600,
+            "h": 900,
+            "res": [
+              96,
+              120,
+              60
+            ],
+            "quality": "high",
+            "lost": false
+          },
+          "pixelRatio": 0.8333333705862364,
+          "canvas": {
+            "width": 1600,
+            "height": 900
+          },
+          "player": {
+            "x": 3.2,
+            "z": 2,
+            "yaw": -1.3851649300947746,
+            "pitch": -0.18,
+            "state": "walk"
+          },
+          "gpu3dPercent": 99.396052301048
+        }
+      }
+    }
+  }
+}

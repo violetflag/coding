@@ -1,0 +1,9 @@
+node_modules/
+dist/
+release/
+shots/
+*.log
+# 테스트용 책 파일은 저작권이 있어 저장소에 넣지 않습니다
+books/
+*.epub
+*.pdf
