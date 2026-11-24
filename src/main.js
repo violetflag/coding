@@ -2,6 +2,7 @@
 // 방은 three.js WebGPURenderer로, 불은 별도 WebGPU 캔버스(src/fire/fireLayer.js)로 그린다.
 import * as THREE from 'three/webgpu';
 import { FireReplay } from './fire/replay.js';
+import { BakedFire, BAKE_JOB } from './fire/baked.js';
 import { ROOM, FIREPLACE as FP, LAMP, CHAIRS, RUG } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
 import { resolveCoplanar } from './scene/coplanar.js';
@@ -37,6 +38,8 @@ const marks = {}, mark = (k) => { marks[k] = Math.round(performance.now()); };
 
 async function main() {
   setupDesktop();
+  // 초고화질 불 미리 만들기는 방을 띄우지 않는 따로 된 화면이다(src/fire/bake.js)
+  if (Q.has('bake')) { const { runBake } = await import('./fire/bake.js'); for (const id of ['room', 'fire']) $(id).style.display = 'none'; return runBake(Q); }
   const renderer = new THREE.WebGPURenderer({ canvas: roomCanvas, antialias: !Q.has('nomsaa'), alpha: true, forceWebGL: Q.has('webgl') });
   mark('start'); await renderer.init(); mark('rendererInit');
   renderer.setClearColor(0x000000, 1);
@@ -85,6 +88,13 @@ async function main() {
   mark('fireCreated');
   const brickReady = fire && !Q.has('notex') ? fire.loadBrick() : Promise.resolve(false);
   if (!fire) { ctx.fireHole.visible = false; ctx.fireboxFallback.visible = true; fireCanvas.style.display = 'none'; }
+  // 미리 만든 초고화질 불(src/fire/baked.js): 저장해 둔 것이 있으면 앉아 있을 때 실시간 불 대신 튼다
+  const baked = new BakedFire(fireCanvas); ctx.fireBaked = baked; if (fire) baked.load();
+  // 만들기 화면으로 넘어간다: 지금 의자 자리(가구를 옮겼으면 옮긴 자리)와 읽을 때의 시야각을 넘겨 준다
+  const startBake = (grid, secs) => {
+    try { localStorage.setItem(BAKE_JOB, JSON.stringify({ grid, secs, fov: Math.min(player.readFov, player.baseFov), seats: CHAIRS.map((c) => ({ id: c.id, label: c.label, eye: [c.pos[0], c.eye, c.pos[1]] })) })); } catch { /* 기본 자리로 만든다 */ }
+    location.search = '?bake=1';
+  };
 
   // ---- 소리 (첫 클릭에서 켠다)
   const mixer = new Mixer(), music = new Music(mixer);
@@ -244,7 +254,7 @@ async function main() {
   settings = new Settings({
     quitButton: quitButton(),
     cfg: fireCfg, fire, mixer,
-    sections: buildSections({ renderSize: () => { const v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); return `${v.x}×${v.y}`; }, fps: () => fpsMs ? `초당 ${(1000 / fpsMs).toFixed(0)}프레임` : '', env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange }).concat(notesSection(notes)),
+    sections: buildSections({ renderSize: () => { const v = new THREE.Vector2(); renderer.getDrawingBufferSize(v); return `${v.x}×${v.y}`; }, fps: () => fpsMs ? `초당 ${(1000 / fpsMs).toFixed(0)}프레임` : '', env, music, mixer, player, prefs, applyPrefs, hearth: cozy.hearth, arrange, baked, startBake }).concat(notesSection(notes)),
     onOpen: () => { if (player.locked) document.exitPointerLock(); syncOverlay(); },
     onClose: () => { syncOverlay(); if (player.state !== 'reading' && !reading.ui.isOpen && !notes?.isOpen && mixer.ctx) player.lock(); },
     getStats: () => `현재 ${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms)` + (fire ? ` · 불 격자 ${fire.sim.res.join('×')} · 불 화면 ${fire.w}×${fire.h}` : ' · 불: 대체 표시'),
@@ -347,7 +357,14 @@ async function main() {
       fire.moving = prevCam.distanceToSquared(camera.position) > 1e-8 || player.tween !== null;
       // 책을 읽는 동안의 불 기록 재생. 불이 화면에 없으면: 불빛을 1분쯤 기록해 두었다가 계산을 멈추고 기록한 불빛을 되풀이한다.
       // 불이 화면에 보이면: 시선이 멈춘 뒤 불 그림을 1분쯤 동영상으로 기록하고, 계산을 멈춘 채 그 동영상과 불빛을 되풀이한다(src/fire/replay.js).
-      const wantReplay = prefs.fireReplay && player.state === 'reading' && !player.tween && !HEADLESS, seen = wantReplay && fire.visibleFrom(camera);
+      // 미리 만든 초고화질 불: 앉은 눈 자리가 만들 때의 자리와 같으면 그 동영상을 튼다. 다 나타나면 불 계산을 쉰다
+      let bakedSeat = null;
+      if (baked.seats.length) {
+        bakedSeat = prefs.fireBaked && (player.state === 'seated' || player.state === 'reading') && !player.tween ? baked.seatAt(camera.position) : null;
+        baked.update(dt, camera, fire.view, bakedSeat, cozy.hearth.fuel.filter((f) => f > 0).length);
+      }
+      const bakedBusy = !!bakedSeat || baked.active;
+      const wantReplay = prefs.fireReplay && !bakedBusy && player.state === 'reading' && !player.tween && !HEADLESS, seen = wantReplay && fire.visibleFrom(camera);
       // 시선이 멈췄는지: 숨 쉬는 흔들림(1.5mm)쯤은 멈춘 것으로 본다. 기준 자세에서 5mm, 0.25도, 시야각 0.1도, 창 크기가 달라지면 움직인 것
       const moved = !seen ? vid.seen : !vid.seen || camera.position.distanceToSquared(vid.p) > 25e-6 || camera.quaternion.angleTo(vid.q) > 0.0044 || Math.abs(camera.fov - vid.fov) > 0.1 || vid.win !== innerWidth + 'x' + innerHeight;
       if (moved || (seen && Math.abs(fire.target - vid.power) > 0.06)) {       // 시선이나 불 세기가 바뀌었다: 기록을 버리고 다시 계산한다
@@ -361,7 +378,10 @@ async function main() {
       }
       const playing = replay.state === 'playing';
       const canReplay = wantReplay && !seen && rec.n >= REC_N;
-      if (playing) {
+      if (baked.full) {
+        rec.on = false; if (!fire.hidden) { fireCanvas.style.visibility = 'hidden'; fire.hidden = true; }
+        target = baked.level; power = baked.power;
+      } else if (playing) {
         replay.tick(); rec.on = true;
         if (replay.time > 0.05 && !fire.hidden) { fireCanvas.style.visibility = 'hidden'; fire.hidden = true; }
         if (vid.n > REC_HZ) { const f = Math.min(vid.n - 1, Math.max(0, replay.time * REC_HZ)), i0 = Math.floor(f), i1 = Math.min(vid.n - 1, i0 + 1); target = vid.buf[i0] + (vid.buf[i1] - vid.buf[i0]) * (f - i0); }   // 불빛 기록이 없으면 느린 잡음으로 잇는다
@@ -426,7 +446,7 @@ async function main() {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
       const cb = ctx.captureNext; ctx.captureNext = null;
       try { shot.width = 1600; shot.height = 900; const c2 = shot.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, 1600, 900);
-        { const src = replay.state === 'playing' ? replay.videos[replay.cur] : fire && !fire.hidden ? fireCanvas : null; if (src) { const r = fireCanvas.getBoundingClientRect(), kx = 1600 / innerWidth, ky = 900 / innerHeight; c2.drawImage(src, r.left * kx, r.top * ky, r.width * kx, r.height * ky); } }
+        { const bk = baked.full && baked.video, src = bk || (replay.state === 'playing' ? replay.videos[replay.cur] : fire && !fire.hidden ? fireCanvas : null); if (src) { const r = bk ? baked.bounds() : fireCanvas.getBoundingClientRect(), kx = 1600 / innerWidth, ky = 900 / innerHeight; c2.drawImage(src, r.left * kx, r.top * ky, r.width * kx, r.height * ky); } }
         c2.drawImage(roomCanvas, 0, 0, 1600, 900); cb(shot);
       } catch (e) { console.warn('화면을 찍지 못했습니다', e); cb(null); }
     } else if (ctx.captureNext && HEADLESS) { const cb = ctx.captureNext; ctx.captureNext = null; window.NANRO.capture(1600, 900).then((u) => { const im = new Image(); im.onload = () => cb(im); im.src = u; }, () => cb(null)); }
@@ -455,7 +475,7 @@ async function main() {
       if (showStats) {
         const be = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
         stats.textContent = `${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms) · 방 ${be} ×${scale.toFixed(2)}\n` +
-          (fire && rec.on ? `불: 기록 재생 중 (${replay.state === 'playing' ? '불 그림과 불빛' : '불빛'}, ${(REC_N / REC_HZ) | 0}초) · 광량 ${level.toFixed(2)}` : fire && replay.state === 'recording' ? `불: 기록하는 중 ${Math.round(replay.progress * 100)}% · 광량 ${level.toFixed(2)}` : fire ? `불: 물리 시뮬레이션 ${fire.quality} ${fire.sim.res.join('×')} · ${fire.w}×${fire.h} · 광량 ${level.toFixed(2)}` : `불: 대체 표시 (${fireErr || '꺼짐'})`) +
+          (fire && baked.active ? `불: 미리 만든 초고화질 불 (격자 ${baked.info.res.join('×')}, 장작 ${baked.video?._clip?.name.slice(4) ?? '?'}개${baked.full ? '' : ', 바꾸는 중'}) · 광량 ${level.toFixed(2)}` : fire && rec.on ? `불: 기록 재생 중 (${replay.state === 'playing' ? '불 그림과 불빛' : '불빛'}, ${(REC_N / REC_HZ) | 0}초) · 광량 ${level.toFixed(2)}` : fire && replay.state === 'recording' ? `불: 기록하는 중 ${Math.round(replay.progress * 100)}% · 광량 ${level.toFixed(2)}` : fire ? `불: 물리 시뮬레이션 ${fire.quality} ${fire.sim.res.join('×')} · ${fire.w}×${fire.h} · 광량 ${level.toFixed(2)}` : `불: 대체 표시 (${fireErr || '꺼짐'})`) +
           `\n상태: ${player.state} · ${env.state.season} ${env.state.weather} · 해 ${env.state.sunAlt.toFixed(0)}°`;
       }
     }

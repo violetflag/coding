@@ -4,7 +4,7 @@ import { CONST_MODES } from '../scene/sky.js';
 import { aiSection } from '../ai/settings.js';
 
 const KEY = 'nanro.prefs';
-export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, post: true, shadows: true, resW: '1920', autoRes: true, fpsCap: 0, logMinutes: 25, sleepMinutes: 30 };
+export const PREF_DEFAULTS = { sens: 1, invertY: false, fov: 62, sway: true, flicker: true, startSeated: false, clockTick: true, readSave: true, fireReplay: true, fireBaked: true, post: true, shadows: true, resW: '1920', autoRes: true, fpsCap: 0, logMinutes: 25, sleepMinutes: 30 };
 export function loadPrefs() { const p = { ...PREF_DEFAULTS }; try { Object.assign(p, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch { /* 기본값 */ } return p; }
 export const savePrefs = (p) => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch { /* 무시 */ } };
 
@@ -28,6 +28,18 @@ const hm = (h) => `${String(Math.floor(h)).padStart(2, '0')}:${String(Math.round
 // d: { env, music, mixer, player, prefs, applyPrefs(), hearth: { state(), startLog(), sleep(min|0) } }
 export function buildSections(d) {
   const { env, music, prefs } = d, sp = () => { savePrefs(prefs); d.applyPrefs(); };
+  // 초고화질 불: 실시간으로는 못 돌리는 큰 격자로 불을 미리 계산해 동영상으로 만들어 두고, 앉아 있을 때 그것을 튼다
+  const bakedPanel = () => {
+    const B = d.baked, job = { grid: '240', secs: '5' };
+    const state = () => (!B ? '' : B.seats.length ? `만들어 둔 것: 격자 ${B.info.res.join('×')}, 그림 ${B.info.w}×${B.info.h}, 길이 ${Object.values(B.info.clips)[0]?.dur ?? '?'}초, 자리 ${B.seats.map((s) => s.label).join('·')}, 모두 ${(B.seats.reduce((a, s) => a + Object.values(s.clips).reduce((x, c) => x + c.size, 0), 0) / 1e6).toFixed(0)}MB` : '아직 만들어 둔 것이 없습니다.');
+    const st = note(state());
+    return E('div', {},
+      check('앉아 있을 때 미리 만든 불 사용', () => prefs.fireBaked, (v) => { prefs.fireBaked = v; sp(); }, '의자에 앉아 있는 동안에는 불을 계산하지 않고 미리 만들어 둔 초고화질 불 동영상을 틉니다. 고개를 돌려도 됩니다. 걸어 다닐 때와 장작을 넣거나 뒤적일 때는 실시간 불이 나옵니다. 의자를 옮기면 그 자리용으로 다시 만들어야 합니다.'),
+      st,
+      select('불의 세밀함', () => job.grid, (v) => { job.grid = v; }, { 136: '약 200만 칸', 184: '약 500만 칸', 240: '약 1100만 칸' }),
+      select('길이 (장작 수마다)', () => job.secs, (v) => { job.secs = v; }, { 5: '5초 (시험)', 60: '1분', 600: '10분' }, '만드는 동안 난로 대신 만들기 화면이 나오고 그래픽카드를 거의 다 씁니다. 1100만 칸으로 5초짜리는 몇 분, 10분짜리는 여러 시간이 걸립니다.'),
+      E('div', { className: 'btns', style: 'justify-content:flex-start;margin-top:6px' }, E('button', { className: 'primary', textContent: '만들기 화면 열기', onclick: () => d.startBake?.(+job.grid, +job.secs) })));
+  };
   return [
     { key: 'gfx', label: '그래픽', build(el) {
       const px = () => `${Math.round(innerWidth * devicePixelRatio)}×${Math.round(innerHeight * devicePixelRatio)}`;
@@ -93,6 +105,7 @@ export function buildSections(d) {
         H('편의'), check('걸음·숨쉬기 흔들림', () => prefs.sway, (v) => { prefs.sway = v; sp(); }), check('불빛 흔들림', () => prefs.flicker, (v) => { prefs.flicker = v; sp(); }, '끄면 방과 책 위의 불빛이 일정하게 유지됩니다.'),
         check('바로 의자에서 시작', () => prefs.startSeated, (v) => { prefs.startSeated = v; sp(); }, '켜 두면 걸어 다니지 않고 읽기 의자에 앉은 채로 시작합니다.'),
         check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 시선이 멈추면 불을 1분쯤 기록한 뒤, 불 계산을 멈추고 기록한 불 그림과 불빛을 되풀이해 그래픽카드를 쉬게 합니다. 불이 화면에 보여도 됩니다. 시선을 옮기거나 책을 덮으면 불이 다시 실제로 타고, 시선이 멈추면 다시 1분을 기록합니다. 지금 상태는 F3 성능 표시에 나옵니다.'),
+        H('초고화질 불 (미리 만들기)'), bakedPanel(),
         note('운영체제의 "동작 줄이기" 설정이 켜져 있으면 화면 전환과 흔들림을 자동으로 줄입니다. 키 바꾸기와 영어 화면은 아직 없습니다.'));
     } },
     aiSection(),

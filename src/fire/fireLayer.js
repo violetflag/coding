@@ -217,6 +217,37 @@ export class FireLayer {
     }).catch(() => {});
   }
 
+  // ---- 미리 만들기(src/fire/bake.js)용. 실제 시간과 상관없이 정해진 걸음만큼 계산하고, 주어진 시점에서 한 장을 그려 픽셀로 돌려준다.
+  bakeSize(w, h) { this.w = w; this.h = h; this.canvas.width = w; this.canvas.height = h; this.renderer.resize(w, h, this.q.volScale); }
+  async bakeAdvance(steps, burst = false) {
+    const d = this.device, dt = this.q.dt, T = steps * dt, k = this.power < this.target ? 1.5 : 0.8;
+    this.power += (this.target - this.power) * (1 - Math.exp(-k * T));
+    this.sim.setParams({ intensity: this.power, burstAmt: burst ? 1 : 0 });
+    this.popClock -= T;
+    if (this.popClock <= 0) { this.popClock = 0.8 + Math.random() * 3; this.event({ type: 'pop', strength: 0.2 + Math.random() * 0.6 }); }
+    for (let i = 0; i < steps; i++) {
+      const enc = d.createCommandEncoder();
+      this.sim.step(enc, dt); this.sparks.rate = this.power; this.sparks.step(enc, dt);
+      d.queue.submit([enc.finish()]);
+    }
+    await d.queue.onSubmittedWorkDone();
+  }
+  // 같은 불 상태를 조금씩 어긋난 표본 여러 장으로 그려 평균한다(앞 프레임에 기대지 않으므로 시점을 번갈아 그려도 된다)
+  async bakeRender(camera, samples = 4) {
+    const d = this.device, r = this.renderer;
+    this.rect = this._holeRect(camera); if (!this.rect) throw new Error('이 자리에서는 벽난로 구멍이 보이지 않습니다');
+    r.setCamera(this._cam(camera)); r.histReset = true;
+    const hal = (i, b) => { let f = 1, v = 0; while (i > 0) { f /= b; v += f * (i % b); i = Math.floor(i / b); } return v; };
+    for (let s = 0; s < samples; s++) {
+      r.uploadParams(this.sim.time, this.frame++, [hal(s + 1, 2) - 0.5, hal(s + 1, 3) - 0.5]);
+      const enc = d.createCommandEncoder();
+      r.renderHDR(enc); this.sparks.draw(enc, 1 / 120); r.temporal(enc, 1 / (s + 1));
+      if (s === samples - 1) r.bloom(enc, true);
+      d.queue.submit([enc.finish()]);
+    }
+    return this.readPixels();
+  }
+
   // 개발용: 현재 프레임을 RGBA8로 읽어 온다 (src/dev/capture.js)
   async readPixels() {
     const d = this.device, w = this.w, h = this.h, bpr = Math.ceil(w * 4 / 256) * 256;
