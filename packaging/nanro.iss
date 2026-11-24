@@ -5,7 +5,7 @@
 ;   - 책 파일(.epub, .pdf)의 "연결 프로그램" 목록에 난로를 올린다. 기본 프로그램은 바꾸지 않는다.
 ; 만들기:  ISCC packaging\nanro.iss   (실행 파일 자리가 다르면  ISCC /DExePath=<nanro.exe 경로> packaging\nanro.iss)
 
-#define AppVersion "0.5.0"
+#define AppVersion "0.5.1"
 #ifndef ExePath
   #define ExePath "..\src-tauri\target\release\nanro.exe"
 #endif

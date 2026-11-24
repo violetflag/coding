@@ -23,11 +23,12 @@ export async function runBake(Q) {
     samples: num('spp', 4), fov: num('fov', job?.fov ?? 42), density: num('density', 1), mbps: num('mbps', 12), maxPx: num('maxpx', 2.2) * 1e6,
     screen: (Q.get('screen') || '3840x2160').split('x').map(Number), states: (Q.get('states') || '3,2,1,0').split(',').map(Number),
   };
-  // 품질: '최고' 프리셋에 격자만 키운다. 주소 옵션으로 바탕 프리셋(?q=balanced)과 항목(?fq=simhz:240,vcycles:1)을 바꿀 수 있다.
+  // 품질: '균형' 프리셋(실시간 불의 기본)에 격자만 키운다. 주소 옵션으로 바탕 프리셋(?q=ultra)과 항목(?fq=simhz:120,vcycles:3)을 바꿀 수 있다.
+  // 불 모양은 계산 속도(초당 걸음)에 따라 달라진다: PC에서 격자 240으로 견줘 보니 90걸음은 실시간 불처럼 위로 솟고, 120걸음은 낮고 옆으로 퍼진다.
   // 그리기 쪽(불꽃·표면 배율, 광선 걸음)은 따로 주지 않으면 늘 가장 촘촘하게 한다
   const Q2 = new URLSearchParams(Q); Q2.set('grid', P.grid);
   const fine = { volScale: 1, surfScale: 1, stepMul: 0.5 }, given = (Q.get('fq') || '') + ',' + (Q.get('rp') || '');
-  const v = applyUrl({ preset: 'ultra', values: { ...FIRE_PRESETS.ultra.v } }, Q2).values; for (const k in fine) if (!given.includes(k + ':')) v[k] = fine[k];
+  const v = applyUrl({ preset: 'balanced', values: { ...FIRE_PRESETS.balanced.v, sparks: FIRE_PRESETS.ultra.v.sparks } }, Q2).values; for (const k in fine) if (!given.includes(k + ':')) v[k] = fine[k];
   const q = toQuality(v);
   const stepsPerFrame = Math.max(1, Math.round(v.simhz / P.fps));
   const cells = q.res[0] * q.res[1] * q.res[2];
