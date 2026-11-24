@@ -19,13 +19,16 @@ export async function runBake(Q) {
   let job = null; try { job = JSON.parse(localStorage.getItem(BAKE_JOB) || 'null'); } catch { /* 없음 */ }
   const seats = (job?.seats?.length ? job.seats : CHAIRS.map((c) => ({ id: c.id, label: c.label, eye: [c.pos[0], c.eye, c.pos[1]] })));
   const P = {
-    grid: num('grid', job?.grid ?? 240), secs: num('secs', job?.secs ?? 5), fps: num('fps', 30), settle: num('settle', 6), warm: num('warm', 14),
+    grid: num('grid', job?.grid ?? 240), secs: num('secs', job?.secs ?? 5), fps: num('fps', 30), settle: num('settle', 12), warm: num('warm', 20),
     samples: num('spp', 4), fov: num('fov', job?.fov ?? 42), density: num('density', 1), mbps: num('mbps', 12), maxPx: num('maxpx', 2.2) * 1e6,
     screen: (Q.get('screen') || '3840x2160').split('x').map(Number), states: (Q.get('states') || '3,2,1,0').split(',').map(Number),
   };
-  // 품질: '최고' 프리셋에 격자만 키운다. 주소 옵션 ?fq= 로 더 바꿀 수 있다(예: fq=simhz:240)
+  // 품질: '최고' 프리셋에 격자만 키운다. 주소 옵션으로 바탕 프리셋(?q=balanced)과 항목(?fq=simhz:240,vcycles:1)을 바꿀 수 있다.
+  // 그리기 쪽(불꽃·표면 배율, 광선 걸음)은 따로 주지 않으면 늘 가장 촘촘하게 한다
   const Q2 = new URLSearchParams(Q); Q2.set('grid', P.grid);
-  const v = applyUrl({ preset: 'ultra', values: { ...FIRE_PRESETS.ultra.v, volScale: 1, surfScale: 1 } }, Q2).values, q = toQuality(v);
+  const fine = { volScale: 1, surfScale: 1, stepMul: 0.5 }, given = (Q.get('fq') || '') + ',' + (Q.get('rp') || '');
+  const v = applyUrl({ preset: 'ultra', values: { ...FIRE_PRESETS.ultra.v } }, Q2).values; for (const k in fine) if (!given.includes(k + ':')) v[k] = fine[k];
+  const q = toQuality(v);
   const stepsPerFrame = Math.max(1, Math.round(v.simhz / P.fps));
   const cells = q.res[0] * q.res[1] * q.res[2];
 
