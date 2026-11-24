@@ -101,8 +101,6 @@ export class Book3D {
   setCover(color) { bookColor(color, this.coverMat.color); }
   // 책 분량에 맞춘 종이 더미 두께: 쪽당 0.05mm(책장 책과 같은 셈), 펼쳐 읽기 좋게 0.8~3.6cm 사이로
   setBulk(pages) { const t = Math.min(0.036, Math.max(0.008, (pages > 0 ? pages : 400) * 0.00005)) - TMIN; if (t === this.tmax) return; this.tmax = t; this.setThickness(this.progress); }
-  // 고대비 종이: 조명과 상관없이 종이가 스스로 빛나는 정도
-  setGlow(v) { for (const k in this.mat) this.mat[k].emissiveIntensity = v; }
   refresh(...keys) { for (const k of keys.length ? keys : ['L', 'R', 'F', 'B']) this.tex[k].needsUpdate = true; }
 
   get flipping() { return !!this.flip; }

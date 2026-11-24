@@ -372,7 +372,7 @@ async function main() {
     const busy = arrange.held || player.tween || (player.state === 'reading' && reading.reader.book3d.flipping);
     if ((shT -= dt) <= 0) { shT = busy ? 1 / 30 : 0.1; fireLight.shadow.needsUpdate = true; if (arrange.held) lamp.shadow.needsUpdate = true; }
     bounce.intensity = 2.6 * power * (0.6 + 0.4 * level);
-    reading.update(dt, { fire: power * lv / 0.62, day: env.state.day });
+    reading.update(dt, { fire: power * lv / 0.62, day: env.state.day, lamp: lampOn ? 1 : 0 });
 
     // 환경음과 발소리
     if (ambient) {

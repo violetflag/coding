@@ -87,6 +87,7 @@ for (const name of names) {
       if (name.includes('flip')) { R.reader.set.flip = 9999; R.reader.next(); await until(() => R.reader.book3d.flip); R.reader.book3d.flip.t = 0.42; }
       if (name.includes('opening')) { R.setRise(0.45); await new Promise((r) => setTimeout(r, 1500)); }
       if (name.includes('single')) { R.reader.set.single = true; R.place(); }
+      { const dl = name.match(/dl([\d.]+)_([\d.]+)/); if (dl) R.debugLight = { direct: +dl[1], fill: +dl[2] }; }   // 종이 빛 보정용: 바로 받는 빛과 채우는 빛을 따로 본다
       if (name.includes('hands')) { R.reader.set.hands = true; R.place(); await R.hands.ready; await new Promise((r) => setTimeout(r, 1200)); }
       // demo…notes: 메모장을 펴고 견본 메모를 넣는다(notesview 는 미리 보기)
       if (name.includes('notes')) {

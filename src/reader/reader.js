@@ -10,7 +10,7 @@ import { pagesOf } from '../scene/books.js';
 const KEY = 'nanro.reader';
 const DEFAULTS = { type: { ...DEFAULT_TYPE }, paper: 'cream', grain: 0.6, single: false, contrast: false, cpm: 650, ttsRate: 1, ttsVoice: '', flip: 0.55, zoom: 1,
   // 읽기 자세: 시선(위아래·좌우, 도), 시야각, 책의 높이·거리·좌우(m)와 기울기(도), 손 보이기
-  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, bOpen: 16, hands: false, bright: 1, bFollow: true, bYaw: 0 };
+  vPitch: -46, vYaw: 0, vFov: 36, bH: 0, bDist: 0.36, bSide: 0, bTilt: 36, bOpen: 16, hands: false, bright: 1, bEven: 0.6, bFollow: true, bYaw: 0 };
 
 export const POSE_DEFAULTS = { vPitch: DEFAULTS.vPitch, vYaw: 0, vFov: DEFAULTS.vFov, bH: 0, bDist: DEFAULTS.bDist, bSide: 0, bTilt: DEFAULTS.bTilt, bOpen: DEFAULTS.bOpen, bFollow: true, bYaw: 0 };
 export class Reader {
@@ -93,7 +93,7 @@ export class Reader {
   async render() {
     const c = this.cur; if (!c?.layout) return;
     await Promise.all([this._draw('L', c.spread, 'L'), this._draw('R', c.spread + 1, 'R')]);
-    this.book3d.setThickness(this.percent); this.book3d.setGlow(this.set.contrast ? 0.55 : 0.02);
+    this.book3d.setThickness(this.percent);
   }
   _copy(to, from) { const d = this.book3d.cv[to].getContext('2d'); d.setTransform(1, 0, 0, 1, 0, 0); d.globalAlpha = 1; d.globalCompositeOperation = 'source-over'; d.drawImage(this.book3d.cv[from], 0, 0); this.book3d.refresh(to); }
 
