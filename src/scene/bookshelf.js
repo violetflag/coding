@@ -133,7 +133,7 @@ export class LibraryShelf {
   // 책마다 상호작용 대상: 책 상자(box)로 고른다(얇은 책도 정확히 골라진다)
   _interact() {
     const ctx = this.ctx, v = new THREE.Vector3();
-    ctx.interact = ctx.interact.filter((i) => !i.libBook);
+    ctx.interact = ctx.interact.filter((i) => !i.libBook && !i.libReturn);
     for (const p of this.placed) {
       const { d, b } = p, min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
       for (let k = 0; k < 8; k++) { v.set(k & 1 ? d.bulge : -d.Dp, k & 2 ? d.H : 0, k & 4 ? d.T / 2 : -d.T / 2).applyMatrix4(p.M); for (let a = 0; a < 3; a++) { min[a] = Math.min(min[a], v.getComponent(a)); max[a] = Math.max(max[a], v.getComponent(a)); } }
