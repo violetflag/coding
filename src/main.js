@@ -278,7 +278,7 @@ async function main() {
   const shot = document.createElement('canvas');
   const REC_HZ = 30, REC_N = (Q.has('rec') ? +Q.get('rec') || 5 : 60) * REC_HZ, rec = { buf: new Float32Array(REC_N), n: 0, acc: 0, on: false, i: 0, dir: 1, t: 0 };  // 불빛 기록(기본 60초)
   ctx.fireRec = rec;
-  const replay = new FireReplay(fireCanvas), vid = { pose: '', stable: 0, power: 0, n: 0, acc: 0, buf: new Float32Array(REC_N + REC_HZ * 5) }; ctx.fireReplay = replay;
+  const replay = new FireReplay(fireCanvas), vid = { seen: false, p: new THREE.Vector3(), q: new THREE.Quaternion(), fov: 0, win: '', stable: 0, power: 0, n: 0, acc: 0, buf: new Float32Array(REC_N + REC_HZ * 5) }; ctx.fireReplay = replay;
   const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
   texturesReady.then(() => ctx.refreshEnv(0.2));
   // 미리 준비: 시작 화면 뒤에서, 아직 한 번도 화면에 나오지 않은 물체(등 뒤의 가구, 책, 넘기는 책장, 무릎)까지 한 프레임 그려 둔다.
@@ -348,10 +348,11 @@ async function main() {
       // 책을 읽는 동안의 불 기록 재생. 불이 화면에 없으면: 불빛을 1분쯤 기록해 두었다가 계산을 멈추고 기록한 불빛을 되풀이한다.
       // 불이 화면에 보이면: 시선이 멈춘 뒤 불 그림을 1분쯤 동영상으로 기록하고, 계산을 멈춘 채 그 동영상과 불빛을 되풀이한다(src/fire/replay.js).
       const wantReplay = prefs.fireReplay && player.state === 'reading' && !player.tween && !HEADLESS, seen = wantReplay && fire.visibleFrom(camera);
-      const pose = seen ? [camera.position.x, camera.position.y, camera.position.z, camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.fov].map((v) => v.toFixed(4)).join(',') + '|' + innerWidth + 'x' + innerHeight : '';
-      if (vid.pose !== pose || (seen && Math.abs(fire.target - vid.power) > 0.06)) {       // 시선이나 불 세기가 바뀌었다: 기록을 버리고 다시 계산한다
+      // 시선이 멈췄는지: 숨 쉬는 흔들림(1.5mm)쯤은 멈춘 것으로 본다. 기준 자세에서 5mm, 0.25도, 시야각 0.1도, 창 크기가 달라지면 움직인 것
+      const moved = !seen ? vid.seen : !vid.seen || camera.position.distanceToSquared(vid.p) > 25e-6 || camera.quaternion.angleTo(vid.q) > 0.0044 || Math.abs(camera.fov - vid.fov) > 0.1 || vid.win !== innerWidth + 'x' + innerHeight;
+      if (moved || (seen && Math.abs(fire.target - vid.power) > 0.06)) {       // 시선이나 불 세기가 바뀌었다: 기록을 버리고 다시 계산한다
         if (replay.state !== 'idle') replay.discard();
-        vid.pose = pose; vid.stable = 0; vid.power = fire.target; vid.n = 0;
+        vid.seen = seen; vid.p.copy(camera.position); vid.q.copy(camera.quaternion); vid.fov = camera.fov; vid.win = innerWidth + 'x' + innerHeight; vid.stable = 0; vid.power = fire.target; vid.n = 0;
       }
       if (seen && replay.supported) {
         vid.stable += dt;
