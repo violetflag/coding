@@ -1,6 +1,7 @@
 // 난로 — 진입점.
 // 방은 three.js WebGPURenderer로, 불은 별도 WebGPU 캔버스(src/fire/fireLayer.js)로 그린다.
 import * as THREE from 'three/webgpu';
+import { FireReplay } from './fire/replay.js';
 import { ROOM, FIREPLACE as FP, LAMP, CHAIRS, RUG } from './scene/layout.js';
 import { buildRoom } from './scene/room.js';
 import { resolveCoplanar } from './scene/coplanar.js';
@@ -277,6 +278,7 @@ async function main() {
   const shot = document.createElement('canvas');
   const REC_HZ = 30, REC_N = (Q.has('rec') ? +Q.get('rec') || 5 : 60) * REC_HZ, rec = { buf: new Float32Array(REC_N), n: 0, acc: 0, on: false, i: 0, dir: 1, t: 0 };  // 불빛 기록(기본 60초)
   ctx.fireRec = rec;
+  const replay = new FireReplay(fireCanvas), vid = { pose: '', stable: 0, power: 0, n: 0, acc: 0, buf: new Float32Array(REC_N + REC_HZ * 5) }; ctx.fireReplay = replay;
   const post = Q.has('nopost') ? null : setupPost(renderer, scene, camera);
   texturesReady.then(() => ctx.refreshEnv(0.2));
   // 미리 준비: 시작 화면 뒤에서, 아직 한 번도 화면에 나오지 않은 물체(등 뒤의 가구, 책, 넘기는 책장, 무릎)까지 한 프레임 그려 둔다.
@@ -343,9 +345,27 @@ async function main() {
     let power = cozy.firePower, target = synth;
     if (fire) {
       fire.moving = prevCam.distanceToSquared(camera.position) > 1e-8 || player.tween !== null;
-      // 책을 읽는 동안: 불빛을 1분쯤 기록해 두었다가, 불이 화면에 없으면 계산을 멈추고 기록한 불빛을 되풀이한다.
-      const canReplay = prefs.fireReplay && player.state === 'reading' && !player.tween && !HEADLESS && rec.n >= REC_N && !fire.visibleFrom(camera);
-      if (canReplay) {
+      // 책을 읽는 동안의 불 기록 재생. 불이 화면에 없으면: 불빛을 1분쯤 기록해 두었다가 계산을 멈추고 기록한 불빛을 되풀이한다.
+      // 불이 화면에 보이면: 시선이 멈춘 뒤 불 그림을 1분쯤 동영상으로 기록하고, 계산을 멈춘 채 그 동영상과 불빛을 되풀이한다(src/fire/replay.js).
+      const wantReplay = prefs.fireReplay && player.state === 'reading' && !player.tween && !HEADLESS, seen = wantReplay && fire.visibleFrom(camera);
+      const pose = seen ? [camera.position.x, camera.position.y, camera.position.z, camera.quaternion.x, camera.quaternion.y, camera.quaternion.z, camera.fov].map((v) => v.toFixed(4)).join(',') + '|' + innerWidth + 'x' + innerHeight : '';
+      if (vid.pose !== pose || (seen && Math.abs(fire.target - vid.power) > 0.06)) {       // 시선이나 불 세기가 바뀌었다: 기록을 버리고 다시 계산한다
+        if (replay.state !== 'idle') replay.discard();
+        vid.pose = pose; vid.stable = 0; vid.power = fire.target; vid.n = 0;
+      }
+      if (seen && replay.supported) {
+        vid.stable += dt;
+        if (replay.state === 'idle' && vid.stable > 1.5 && !fire.hidden && fire.sim.time > 14) { vid.n = 0; vid.acc = 0; replay.want = REC_N / REC_HZ; replay.record(REC_N / REC_HZ); }
+        if (replay.state === 'ready') replay.play();
+      }
+      const playing = replay.state === 'playing';
+      const canReplay = wantReplay && !seen && rec.n >= REC_N;
+      if (playing) {
+        replay.tick(); rec.on = true;
+        if (replay.time > 0.05 && !fire.hidden) { fireCanvas.style.visibility = 'hidden'; fire.hidden = true; }
+        if (vid.n > REC_HZ) { const f = Math.min(vid.n - 1, Math.max(0, replay.time * REC_HZ)), i0 = Math.floor(f), i1 = Math.min(vid.n - 1, i0 + 1); target = vid.buf[i0] + (vid.buf[i1] - vid.buf[i0]) * (f - i0); }   // 불빛 기록이 없으면 느린 잡음으로 잇는다
+        power = fire.power;
+      } else if (canReplay) {
         if (!rec.on) { rec.on = true; rec.i = rec.n - 1; rec.dir = -1; rec.t = 0; fireCanvas.style.visibility = 'hidden'; fire.hidden = true; }
         // 끝에서 되돌아오는 왕복 재생이라 이음매가 없다
         rec.t += dt * REC_HZ; while (rec.t >= 1) { rec.t -= 1; rec.i += rec.dir; if (rec.i <= 0 || rec.i >= rec.n - 1) rec.dir = -rec.dir; }
@@ -353,10 +373,12 @@ async function main() {
         target = rec.buf[i0] + (rec.buf[i1] - rec.buf[i0]) * rec.t; power = fire.power;
       } else {
         rec.on = false; fire.wantLight = prefs.fireReplay && player.state === 'reading' && rec.n < REC_N;
+        if (replay.state === 'idle' && fireCanvas.style.visibility === 'hidden' && seen) fireCanvas.style.visibility = 'visible';
         fire.update(dt, camera, !HEADLESS);
         power = fire.power;
         if (fire.light.ref > 0 && performance.now() - fire.light.at < 500) {
           target = fire.light.level;
+          if (replay.state === 'recording') { vid.acc += dt * REC_HZ; while (vid.acc >= 1) { vid.acc -= 1; if (vid.n < vid.buf.length) vid.buf[vid.n++] = target; } }   // 동영상과 같은 구간의 불빛
           rec.acc += dt * REC_HZ; while (rec.acc >= 1) { rec.acc -= 1; if (rec.n < REC_N) rec.buf[rec.n++] = target; else { rec.buf.copyWithin(0, 1); rec.buf[REC_N - 1] = target; } }
         }
       }
@@ -403,7 +425,7 @@ async function main() {
       // 인용구 카드용: 방금 그린 화면(불 + 방)을 2D 캔버스로 옮긴다
       const cb = ctx.captureNext; ctx.captureNext = null;
       try { shot.width = 1600; shot.height = 900; const c2 = shot.getContext('2d'); c2.fillStyle = '#000'; c2.fillRect(0, 0, 1600, 900);
-        if (fire && !fire.hidden) { const r = fireCanvas.getBoundingClientRect(), kx = 1600 / innerWidth, ky = 900 / innerHeight; c2.drawImage(fireCanvas, r.left * kx, r.top * ky, r.width * kx, r.height * ky); }
+        { const src = replay.state === 'playing' ? replay.videos[replay.cur] : fire && !fire.hidden ? fireCanvas : null; if (src) { const r = fireCanvas.getBoundingClientRect(), kx = 1600 / innerWidth, ky = 900 / innerHeight; c2.drawImage(src, r.left * kx, r.top * ky, r.width * kx, r.height * ky); } }
         c2.drawImage(roomCanvas, 0, 0, 1600, 900); cb(shot);
       } catch (e) { console.warn('화면을 찍지 못했습니다', e); cb(null); }
     } else if (ctx.captureNext && HEADLESS) { const cb = ctx.captureNext; ctx.captureNext = null; window.NANRO.capture(1600, 900).then((u) => { const im = new Image(); im.onload = () => cb(im); im.src = u; }, () => cb(null)); }
@@ -432,7 +454,7 @@ async function main() {
       if (showStats) {
         const be = renderer.backend.isWebGPUBackend ? 'WebGPU' : 'WebGL2';
         stats.textContent = `${(1000 / fpsMs).toFixed(0)} fps (${fpsMs.toFixed(1)} ms) · 방 ${be} ×${scale.toFixed(2)}\n` +
-          (fire && rec.on ? `불: 기록 재생 중 (${(REC_N / REC_HZ) | 0}초) · 광량 ${level.toFixed(2)}` : fire ? `불: 물리 시뮬레이션 ${fire.quality} ${fire.sim.res.join('×')} · ${fire.w}×${fire.h} · 광량 ${level.toFixed(2)}` : `불: 대체 표시 (${fireErr || '꺼짐'})`) +
+          (fire && rec.on ? `불: 기록 재생 중 (${replay.state === 'playing' ? '불 그림과 불빛' : '불빛'}, ${(REC_N / REC_HZ) | 0}초) · 광량 ${level.toFixed(2)}` : fire && replay.state === 'recording' ? `불: 기록하는 중 ${Math.round(replay.progress * 100)}% · 광량 ${level.toFixed(2)}` : fire ? `불: 물리 시뮬레이션 ${fire.quality} ${fire.sim.res.join('×')} · ${fire.w}×${fire.h} · 광량 ${level.toFixed(2)}` : `불: 대체 표시 (${fireErr || '꺼짐'})`) +
           `\n상태: ${player.state} · ${env.state.season} ${env.state.weather} · 해 ${env.state.sunAlt.toFixed(0)}°`;
       }
     }

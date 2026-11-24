@@ -92,7 +92,7 @@ export function buildSections(d) {
         slider('시야각', () => prefs.fov, (v) => { prefs.fov = v; sp(); }, 45, 85, 1, (v) => v + '°'),
         H('편의'), check('걸음·숨쉬기 흔들림', () => prefs.sway, (v) => { prefs.sway = v; sp(); }), check('불빛 흔들림', () => prefs.flicker, (v) => { prefs.flicker = v; sp(); }, '끄면 방과 책 위의 불빛이 일정하게 유지됩니다.'),
         check('바로 의자에서 시작', () => prefs.startSeated, (v) => { prefs.startSeated = v; sp(); }, '켜 두면 걸어 다니지 않고 읽기 의자에 앉은 채로 시작합니다.'),
-        check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 불빛을 1분쯤 기록한 뒤 불 계산을 멈추고 기록한 불빛을 되풀이합니다. 고개를 들거나 책을 덮으면 불이 다시 실제로 탑니다.'),
+        check('읽는 동안 불 기록 재생', () => prefs.fireReplay, (v) => { prefs.fireReplay = v; sp(); }, '책을 읽는 동안 시선이 멈추면 불을 1분쯤 기록한 뒤, 불 계산을 멈추고 기록한 불 그림과 불빛을 되풀이해 그래픽카드를 쉬게 합니다. 불이 화면에 보여도 됩니다. 시선을 옮기거나 책을 덮으면 불이 다시 실제로 타고, 시선이 멈추면 다시 1분을 기록합니다. 지금 상태는 F3 성능 표시에 나옵니다.'),
         note('운영체제의 "동작 줄이기" 설정이 켜져 있으면 화면 전환과 흔들림을 자동으로 줄입니다. 키 바꾸기와 영어 화면은 아직 없습니다.'));
     } },
     aiSection(),
