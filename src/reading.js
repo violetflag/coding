@@ -19,7 +19,7 @@ export function setupReading({ scene, camera, player, canvas, toast, sfx, onUiMo
   const book = reader.book3d; scene.add(book.group);
   // 책 위로 떨어지는 빛: 불빛이 방 안에서 되비친 것 + 낮의 하늘빛. 불의 세기와 흔들림을 그대로 따른다.
   // 방에서 되비쳐 종이를 고르게 채우는 빛의 몫(밤 기준 불, 스탠드, 바닥값, 낮의 창빛)과, 고르게 할 때 바로 받는 빛을 줄이는 정도
-  const ROOM_FIRE = 0.55, ROOM_LAMP = 0.22, ROOM_NIGHT = 0.05, ROOM_DAY = 0.3, DIRECT_CUT = 0.5;
+  const ROOM_FIRE = 0.42, ROOM_LAMP = 0.17, ROOM_NIGHT = 0.015, ROOM_DAY = 0.3, DIRECT_CUT = 0.5;
 
   const setPicked = (id) => { picked = id; try { id ? localStorage.setItem(PICK, id) : localStorage.removeItem(PICK); } catch { /* 무시 */ } api.onPicked?.(id); };
   const host = {
